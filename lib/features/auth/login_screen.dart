@@ -2,8 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'auth_provider.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeIn;
+  late Animation<Offset> _slideUp;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _fadeIn = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _slideUp = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -12,51 +43,99 @@ class LoginScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A2E),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Icon(Icons.security, size: 80, color: Color(0xFF4FC3F7)),
-              const SizedBox(height: 16),
-              const Text(
-                '미리톡 사기 방지 시스템',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '안전한 거래를 위한 서비스',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.white54),
-              ),
-              const SizedBox(height: 60),
-              if (auth.errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    auth.errorMessage!,
+        child: FadeTransition(
+          opacity: _fadeIn,
+          child: SlideTransition(
+            position: _slideUp,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(Icons.security, size: 80, color: Color(0xFF4FC3F7)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '미리톡 사기 방지 시스템',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.redAccent),
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-              _GoogleSignInButton(
-                isLoading: auth.isLoading,
-                onPressed: () async {
-                  await auth.signInWithGoogle();
-                  if (auth.isLoggedIn && context.mounted) {
-                    Navigator.pushReplacementNamed(context, '/home');
-                  }
-                },
+                  const SizedBox(height: 8),
+                  const Text(
+                    '안전한 거래를 위한 서비스',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: Colors.white54),
+                  ),
+                  const SizedBox(height: 40),
+                  _FeatureCard(),
+                  const SizedBox(height: 40),
+                  if (auth.errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        auth.errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.redAccent),
+                      ),
+                    ),
+                  _GoogleSignInButton(
+                    isLoading: auth.isLoading,
+                    onPressed: () async {
+                      await auth.signInWithGoogle();
+                      if (auth.isLoggedIn && context.mounted) {
+                        Navigator.pushReplacementNamed(context, '/home');
+                      }
+                    },
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FeatureCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.image_search_outlined, color: Color(0xFF4FC3F7), size: 32),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '이미지 분석',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '거래 화면 캡처만으로 사기 여부를 빠르게 감지합니다.',
+                  style: TextStyle(fontSize: 12, color: Colors.white54, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
