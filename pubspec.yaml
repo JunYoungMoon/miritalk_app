@@ -74,6 +74,11 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
+  assets:
+    - assets/images/evidence_1.png
+    - assets/images/evidence_2.png
+    - assets/images/evidence_3.png
+
 
 dependencies:
   flutter:
@@ -85,3 +90,5 @@ dependencies:
   provider: ^6.1.2
   image_picker: ^1.1.2
   photo_manager: ^3.9.0
+  carousel_slider: ^5.0.0
+  google_fonts: ^6.2.1

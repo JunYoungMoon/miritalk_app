@@ -21,6 +21,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
   final List<AssetEntity> _selected = [];
   bool _loading = true;
   bool _permissionDenied = false;
+  bool _isPopping = false;
 
   // 드래그 선택 상태
   int? _dragStartIndex;
@@ -190,7 +191,11 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, List.from(_selected)),
+            onPressed: () {
+              if (_isPopping) return;
+              _isPopping = true;
+              Navigator.pop(context, List<AssetEntity>.from(_selected));
+            },
             child: Text(
               '완료',
               style: TextStyle(
@@ -287,7 +292,11 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
                     final inDragRange = _isInDragRange(index);
 
                     return GestureDetector(
-                      onTap: () => _toggleSelection(asset),
+                      behavior: HitTestBehavior.opaque, // 추가
+                      onTap: () {
+                        if (_isPopping) return; // 추가
+                        _toggleSelection(asset);
+                      },
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
