@@ -6,7 +6,8 @@ import 'package:miritalk_app/core/config/app_config.dart';
 import 'gallery_picker_screen.dart';
 
 class ImageUploadScreen extends StatefulWidget {
-  const ImageUploadScreen({super.key});
+  final bool showAppBar;
+  const ImageUploadScreen({super.key, this.showAppBar = true});
 
   @override
   State<ImageUploadScreen> createState() => _ImageUploadScreenState();
@@ -90,13 +91,15 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A2E),
-      appBar: AppBar(
+      appBar: widget.showAppBar
+          ? AppBar(
         backgroundColor: const Color(0xFF1A1A2E),
         title: const Text('사진 업로드',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
-      ),
+      )
+          : null,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -196,13 +199,13 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.info_outline,
-                        color: Color(0xFF4FC3F7), size: 14),
+                    const Icon(Icons.info_outline, color: Color(0xFF4FC3F7), size: 14),
                     const SizedBox(width: 4),
-                    Text(
-                      '사진을 길게 눌러 드래그하면 순서를 변경할 수 있습니다.',
-                      style: const TextStyle(
-                          color: Color(0xFF4FC3F7), fontSize: 13),
+                    Expanded(  // 추가
+                      child: Text(
+                        '사진을 길게 눌러 드래그하면 순서를 변경할 수 있습니다.',
+                        style: const TextStyle(color: Color(0xFF4FC3F7), fontSize: 13),
+                      ),
                     ),
                   ],
                 ),
