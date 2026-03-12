@@ -1,7 +1,9 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:photo_manager/photo_manager.dart';
+import 'package:miritalk_app/core/config/app_config.dart';
+import 'gallery_picker_screen.dart';
 
 class ImageUploadScreen extends StatefulWidget {
   const ImageUploadScreen({super.key});
@@ -11,26 +13,26 @@ class ImageUploadScreen extends StatefulWidget {
 }
 
 class _ImageUploadScreenState extends State<ImageUploadScreen> {
-  static const int maxImages = 5;
-  static const String _baseUrl = 'http://YOUR_SERVER_IP:8080';
-
-  final ImagePicker _picker = ImagePicker();
-  final List<File> _selectedImages = [];
+  final List<AssetEntity> _selectedImages = [];
+  static const int _maxImages = 5;
   bool _isUploading = false;
 
-  Future<void> _pickImage() async {
-    if (_selectedImages.length >= maxImages) {
-      _showSnackBar('사진은 최대 5장까지 선택 가능합니다.');
-      return;
-    }
-
-    final XFile? image = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
+  Future<void> _openGallery() async {
+    final result = await Navigator.push<List<AssetEntity>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GalleryPickerScreen(
+          maxImages: _maxImages,
+          initialSelected: List.from(_selectedImages),
+        ),
+      ),
     );
-
-    if (image != null) {
-      setState(() => _selectedImages.add(File(image.path)));
+    if (result != null) {
+      setState(() {
+        _selectedImages
+          ..clear()
+          ..addAll(result);
+      });
     }
   }
 
@@ -43,27 +45,29 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
       _showSnackBar('사진을 먼저 선택해주세요.');
       return;
     }
-    if (_selectedImages.length < maxImages) {
-      _showSnackBar('사진 5장을 모두 선택해주세요.');
+    if (_selectedImages.length < _maxImages) {
+      _showSnackBar('사진 $_maxImages장을 모두 선택해주세요.');
       return;
     }
 
     setState(() => _isUploading = true);
-
     try {
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$_baseUrl/api/fraud/analyze'),
+        Uri.parse('${AppConfig.baseUrl}/api/fraud/analyze'),
       );
 
-      for (int i = 0; i < _selectedImages.length; i++) {
-        request.files.add(await http.MultipartFile.fromPath(
-          'images',
-          _selectedImages[i].path,
-        ));
+      for (final asset in _selectedImages) {
+        final file = await asset.file;
+        if (file != null) {
+          request.files.add(
+            await http.MultipartFile.fromPath('images', file.path),
+          );
+        }
       }
 
       final response = await request.send();
+      if (!mounted) return;
 
       if (response.statusCode == 200) {
         _showSnackBar('업로드 완료! 분석 중입니다.');
@@ -71,16 +75,15 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
         _showSnackBar('업로드 실패. 다시 시도해주세요.');
       }
     } catch (e) {
-      _showSnackBar('오류가 발생했습니다: $e');
+      if (mounted) _showSnackBar('오류가 발생했습니다: $e');
     } finally {
-      setState(() => _isUploading = false);
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -89,93 +92,212 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
       backgroundColor: const Color(0xFF1A1A2E),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('사진 업로드', style: TextStyle(color: Colors.white)),
+        title: const Text('사진 업로드',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '${_selectedImages.length} / $maxImages 장 선택됨',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
-              textAlign: TextAlign.right,
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: _selectedImages.length < maxImages
-                    ? _selectedImages.length + 1
-                    : _selectedImages.length,
-                itemBuilder: (context, index) {
-                  if (index == _selectedImages.length) {
-                    return _AddImageTile(onTap: _pickImage);
-                  }
-                  return _ImageTile(
-                    image: _selectedImages[index],
-                    onRemove: () => _removeImage(index),
-                  );
-                },
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── 이미지 선택 영역 ──
+          Container(
+            color: const Color(0xFF16213E),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: SizedBox(
+              height: 90,
+              child: Row(
+                children: [
+                  // 카메라 버튼 (항상 고정 좌측)
+                  _CameraButton(
+                    count: _selectedImages.length,
+                    maxCount: _maxImages,
+                    onTap: _openGallery,
+                  ),
+
+                  // 선택된 이미지 목록 (드래그 순서 변경 가능)
+                  if (_selectedImages.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ReorderableListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        buildDefaultDragHandles: false,
+                        proxyDecorator: (child, index, animation) {
+                          return AnimatedBuilder(
+                            animation: animation,
+                            builder: (_, __) => Transform.scale(
+                              scale: 1.08,
+                              child: child,
+                            ),
+                          );
+                        },
+                        onReorder: (oldIndex, newIndex) {
+                          setState(() {
+                            if (newIndex > oldIndex) newIndex--;
+                            final item = _selectedImages.removeAt(oldIndex);
+                            _selectedImages.insert(newIndex, item);
+                          });
+                        },
+                        itemCount: _selectedImages.length,
+                        itemBuilder: (context, index) {
+                          return ReorderableDragStartListener(
+                            key: ValueKey(_selectedImages[index].id),
+                            index: index,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _ImageThumbnail(
+                                asset: _selectedImages[index],
+                                isFirst: index == 0,
+                                onRemove: () => _removeImage(index),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
+          ),
+
+          // ── 안내 문구 ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '사기 피해 분석',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '사기 관련 사진 5장을 업로드하면 AI가 분석합니다.',
+                  style: TextStyle(
+                      color: Colors.white54, fontSize: 14, height: 1.5),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.info_outline,
+                        color: Color(0xFF4FC3F7), size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      '첫 번째 사진이 대표 이미지로 사용됩니다.',
+                      style: const TextStyle(
+                          color: Color(0xFF4FC3F7), fontSize: 13),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.info_outline,
+                        color: Color(0xFF4FC3F7), size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      '사진을 길게 눌러 드래그하면 순서를 변경할 수 있습니다.',
+                      style: const TextStyle(
+                          color: Color(0xFF4FC3F7), fontSize: 13),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // ── 진행 상태 표시 ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+            child: _ProgressIndicatorRow(
+              current: _selectedImages.length,
+              total: _maxImages,
+            ),
+          ),
+
+          const Spacer(),
+
+          // ── 분석 요청 버튼 ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+            child: ElevatedButton(
               onPressed: _isUploading ? null : _uploadImages,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4FC3F7),
+                disabledBackgroundColor:
+                const Color(0xFF4FC3F7).withOpacity(0.3),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                    borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
               ),
               child: _isUploading
                   ? const SizedBox(
                 height: 20,
                 width: 20,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
+                    strokeWidth: 2, color: Colors.white),
               )
                   : const Text(
                 '분석 요청하기',
-                style: TextStyle(fontSize: 16, color: Colors.white),
+                style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _AddImageTile extends StatelessWidget {
+// ── 카메라 버튼 위젯 ──────────────────────────────
+class _CameraButton extends StatelessWidget {
+  final int count;
+  final int maxCount;
   final VoidCallback onTap;
-  const _AddImageTile({required this.onTap});
+
+  const _CameraButton({
+    required this.count,
+    required this.maxCount,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        width: 76,
+        height: 90,
         decoration: BoxDecoration(
-          color: const Color(0xFF16213E),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF4FC3F7), width: 1.5),
+          color: const Color(0xFF0F3460),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: const Color(0xFF4FC3F7).withOpacity(0.4),
+            width: 1.2,
+          ),
         ),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_photo_alternate_outlined,
-                color: Color(0xFF4FC3F7), size: 40),
-            SizedBox(height: 8),
-            Text('사진 추가', style: TextStyle(color: Color(0xFF4FC3F7))),
+            const Icon(Icons.camera_alt_outlined,
+                color: Color(0xFF4FC3F7), size: 28),
+            const SizedBox(height: 6),
+            Text(
+              '$count/$maxCount',
+              style: const TextStyle(
+                color: Color(0xFF4FC3F7),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
@@ -183,32 +305,153 @@ class _AddImageTile extends StatelessWidget {
   }
 }
 
-class _ImageTile extends StatelessWidget {
-  final File image;
+// ── 선택된 이미지 썸네일 위젯 ────────────────────
+class _ImageThumbnail extends StatelessWidget {
+  final AssetEntity asset;
+  final bool isFirst;
   final VoidCallback onRemove;
-  const _ImageTile({required this.image, required this.onRemove});
+
+  const _ImageThumbnail({
+    required this.asset,
+    required this.isFirst,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Image.file(image, fit: BoxFit.cover,
-              width: double.infinity, height: double.infinity),
-        ),
-        Positioned(
-          top: 6,
-          right: 6,
-          child: GestureDetector(
-            onTap: onRemove,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.black54,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.close, color: Colors.white, size: 20),
+    return SizedBox(
+      width: 76,
+      height: 90,
+      child: Stack(
+        children: [
+          // 썸네일 이미지
+          FutureBuilder<Uint8List?>(
+            future: asset.thumbnailDataWithSize(
+              const ThumbnailSize.square(150),
             ),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done &&
+                  snapshot.data != null) {
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.memory(
+                    snapshot.data!,
+                    width: 76,
+                    height: 90,
+                    fit: BoxFit.cover,
+                  ),
+                );
+              }
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: 76,
+                  height: 90,
+                  color: const Color(0xFF0F3460),
+                  child: const Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: Color(0xFF4FC3F7),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // 대표 이미지 뱃지 (첫 번째 이미지)
+          if (isFirst)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.55),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(10),
+                    bottomRight: Radius.circular(10),
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: const Text(
+                  '대표',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+
+          // X 버튼
+          Positioned(
+            top: 4,
+            right: 4,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: const BoxDecoration(
+                  color: Colors.black87,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, color: Colors.white, size: 13),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 진행 상태 바 위젯 ─────────────────────────────
+class _ProgressIndicatorRow extends StatelessWidget {
+  final int current;
+  final int total;
+
+  const _ProgressIndicatorRow({required this.current, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '사진 선택',
+              style: TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+            Text(
+              '$current / $total',
+              style: TextStyle(
+                color: current == total
+                    ? const Color(0xFF4FC3F7)
+                    : Colors.white54,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: current / total,
+            backgroundColor: const Color(0xFF0F3460),
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4FC3F7)),
+            minHeight: 4,
           ),
         ),
       ],

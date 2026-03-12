@@ -36,6 +36,6 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    return auth.isLoggedIn ? const Scaffold(body: Center(child: Text('홈 화면'))) : const LoginScreen();
+    return auth.isLoggedIn ? const ImageUploadScreen() : const LoginScreen();
   }
 }
