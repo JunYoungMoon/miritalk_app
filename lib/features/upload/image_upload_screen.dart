@@ -1,13 +1,14 @@
+// lib/features/upload/image_upload_screen.dart
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:photo_manager/photo_manager.dart';
-import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:http/http.dart' as http;
 import 'gallery_picker_screen.dart';
+import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:miritalk_app/core/theme/app_theme.dart';
 
 class ImageUploadScreen extends StatefulWidget {
-  final bool showAppBar;
-  const ImageUploadScreen({super.key, this.showAppBar = true});
+  const ImageUploadScreen({super.key});
 
   @override
   State<ImageUploadScreen> createState() => _ImageUploadScreenState();
@@ -90,22 +91,13 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
-      appBar: widget.showAppBar
-          ? AppBar(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('사진 업로드',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
-      )
-          : null,
+      backgroundColor: AppTheme.background,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ── 이미지 선택 영역 ──
           Container(
-            color: const Color(0xFF16213E),
+            color: AppTheme.surface,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: SizedBox(
               height: 90,
@@ -173,7 +165,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
                 const Text(
                   '사기 피해 분석',
                   style: TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold),
                 ),
@@ -187,24 +179,24 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
                 Row(
                   children: [
                     const Icon(Icons.info_outline,
-                        color: Color(0xFF4FC3F7), size: 14),
+                        color: AppTheme.primary, size: 14),
                     const SizedBox(width: 4),
                     Text(
                       '첫 번째 사진이 대표 이미지로 사용됩니다.',
                       style: const TextStyle(
-                          color: Color(0xFF4FC3F7), fontSize: 13),
+                          color: AppTheme.primary, fontSize: 13),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.info_outline, color: Color(0xFF4FC3F7), size: 14),
+                    const Icon(Icons.info_outline, color: AppTheme.primary, size: 14),
                     const SizedBox(width: 4),
                     Expanded(  // 추가
                       child: Text(
                         '사진을 길게 눌러 드래그하면 순서를 변경할 수 있습니다.',
-                        style: const TextStyle(color: Color(0xFF4FC3F7), fontSize: 13),
+                        style: const TextStyle(color: AppTheme.primary, fontSize: 13),
                       ),
                     ),
                   ],
@@ -230,9 +222,9 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
             child: ElevatedButton(
               onPressed: _isUploading ? null : _uploadImages,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4FC3F7),
+                backgroundColor: AppTheme.primary,
                 disabledBackgroundColor:
-                const Color(0xFF4FC3F7).withOpacity(0.3),
+                AppTheme.primary.withValues(alpha:0.3),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
@@ -249,7 +241,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
                 '분석 요청하기',
                 style: TextStyle(
                     fontSize: 16,
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold),
               ),
             ),
@@ -280,10 +272,10 @@ class _CameraButton extends StatelessWidget {
         width: 76,
         height: 90,
         decoration: BoxDecoration(
-          color: const Color(0xFF0F3460),
+          color: AppTheme.surface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: const Color(0xFF4FC3F7).withOpacity(0.4),
+            color: AppTheme.primary.withValues(alpha:0.4),
             width: 1.2,
           ),
         ),
@@ -291,12 +283,12 @@ class _CameraButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.camera_alt_outlined,
-                color: Color(0xFF4FC3F7), size: 28),
+                color: AppTheme.primary, size: 28),
             const SizedBox(height: 6),
             Text(
               '$count/$maxCount',
               style: const TextStyle(
-                color: Color(0xFF4FC3F7),
+                color: AppTheme.primary,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -350,14 +342,14 @@ class _ImageThumbnail extends StatelessWidget {
                 child: Container(
                   width: 76,
                   height: 90,
-                  color: const Color(0xFF0F3460),
+                  color: AppTheme.surface,
                   child: const Center(
                     child: SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 1.5,
-                        color: Color(0xFF4FC3F7),
+                        color: AppTheme.primary,
                       ),
                     ),
                   ),
@@ -374,7 +366,7 @@ class _ImageThumbnail extends StatelessWidget {
               right: 0,
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withValues(alpha:0.55),
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(10),
                     bottomRight: Radius.circular(10),
@@ -385,7 +377,7 @@ class _ImageThumbnail extends StatelessWidget {
                   '대표',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -406,7 +398,7 @@ class _ImageThumbnail extends StatelessWidget {
                   color: Colors.black87,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.close, color: Colors.white, size: 13),
+                child: const Icon(Icons.close, color: AppTheme.textPrimary, size: 13),
               ),
             ),
           ),
@@ -439,7 +431,7 @@ class _ProgressIndicatorRow extends StatelessWidget {
               '$current / $total',
               style: TextStyle(
                 color: current == total
-                    ? const Color(0xFF4FC3F7)
+                    ? AppTheme.primary
                     : Colors.white54,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -452,8 +444,8 @@ class _ProgressIndicatorRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: current / total,
-            backgroundColor: const Color(0xFF0F3460),
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4FC3F7)),
+            backgroundColor: AppTheme.surface,
+            valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primary),
             minHeight: 4,
           ),
         ),

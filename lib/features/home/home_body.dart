@@ -1,10 +1,11 @@
 // lib/features/home/home_body.dart
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import '../upload/image_upload_screen.dart';
+import 'package:miritalk_app/core/theme/app_theme.dart';
 
 class HomeBody extends StatefulWidget {
-  const HomeBody({super.key});
+  final VoidCallback onGoToUpload;
+  const HomeBody({super.key, required this.onGoToUpload});
 
   @override
   State<HomeBody> createState() => _HomeBodyState();
@@ -33,7 +34,7 @@ class _HomeBodyState extends State<HomeBody> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
+      padding: const EdgeInsets.fromLTRB(12, 16, 12, 40), // 좌우 20→12, 상단 24→16
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -43,13 +44,13 @@ class _HomeBodyState extends State<HomeBody> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF0F3460), Color(0xFF16213E)],
+                colors: [AppTheme.surfaceDeep, AppTheme.surface],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: const Color(0xFF4FC3F7).withOpacity(0.3),
+                color: AppTheme.primary.withValues(alpha:0.3),
               ),
             ),
             child: Column(
@@ -62,20 +63,20 @@ class _HomeBodyState extends State<HomeBody> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4FC3F7).withOpacity(0.15),
+                        color: AppTheme.primary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: const Color(0xFF4FC3F7).withOpacity(0.4)),
+                            color: AppTheme.primary.withValues(alpha: 0.4)),
                       ),
                       child: const Row(
                         children: [
                           Icon(Icons.verified,
-                              color: Color(0xFF4FC3F7), size: 13),
+                              color: AppTheme.primary, size: 13),
                           SizedBox(width: 4),
                           Text(
                             '실제 피해 경험 기반 AI',
                             style: TextStyle(
-                                color: Color(0xFF4FC3F7), fontSize: 11),
+                                color: AppTheme.primary, fontSize: 11),
                           ),
                         ],
                       ),
@@ -85,10 +86,10 @@ class _HomeBodyState extends State<HomeBody> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50).withOpacity(0.15),
+                        color: AppTheme.success.withValues(alpha:0.15),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: const Color(0xFF4CAF50).withOpacity(0.4)),
+                            color: AppTheme.success.withValues(alpha:0.4)),
                       ),
                       child: const Row(
                         children: [
@@ -98,7 +99,7 @@ class _HomeBodyState extends State<HomeBody> {
                           Text(
                             '완전 무료',
                             style: TextStyle(
-                                color: Color(0xFF4CAF50), fontSize: 11),
+                                color: AppTheme.success, fontSize: 11),
                           ),
                         ],
                       ),
@@ -120,7 +121,7 @@ class _HomeBodyState extends State<HomeBody> {
                           Text(
                             '사기 당하다 보니\n전문가가 됐습니다.',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textPrimary,
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
                               height: 1.4,
@@ -130,7 +131,7 @@ class _HomeBodyState extends State<HomeBody> {
                           Text(
                             '이 경험, AI에게\n전부 학습시켰습니다.',
                             style: TextStyle(
-                              color: Colors.white60,
+                              color: AppTheme.textSecondary,
                               fontSize: 11,
                               height: 1.6,
                             ),
@@ -174,10 +175,10 @@ class _HomeBodyState extends State<HomeBody> {
                                       errorBuilder: (_, __, ___) => Container(
                                         width: 110,
                                         height: 110,
-                                        color: const Color(0xFF0F3460),
+                                        color: AppTheme.surface,
                                         child: const Icon(
                                           Icons.image_outlined,
-                                          color: Color(0xFF4FC3F7),
+                                          color: AppTheme.primary,
                                           size: 32,
                                         ),
                                       ),
@@ -193,7 +194,7 @@ class _HomeBodyState extends State<HomeBody> {
                                             begin: Alignment.bottomCenter,
                                             end: Alignment.topCenter,
                                             colors: [
-                                              Colors.black.withOpacity(0.7),
+                                              Colors.black.withValues(alpha:0.7),
                                               Colors.transparent,
                                             ],
                                           ),
@@ -202,7 +203,7 @@ class _HomeBodyState extends State<HomeBody> {
                                           item['label']!,
                                           textAlign: TextAlign.center,
                                           style: const TextStyle(
-                                            color: Colors.white,
+                                            color: AppTheme.textPrimary,
                                             fontSize: 10,
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -233,7 +234,7 @@ class _HomeBodyState extends State<HomeBody> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(3),
                                   color: _currentSlide == entry.key
-                                      ? const Color(0xFF4FC3F7)
+                                      ? AppTheme.primary
                                       : Colors.white24,
                                 ),
                               ),
@@ -248,13 +249,13 @@ class _HomeBodyState extends State<HomeBody> {
             ),
           ),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 16),
 
           // ── 사용 방법 안내 ──
           const Text(
             '이렇게 사용하세요',
             style: TextStyle(
-              color: Colors.white,
+              color: AppTheme.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -281,61 +282,24 @@ class _HomeBodyState extends State<HomeBody> {
             description: '미리톡 AI가 사기 패턴을 분석하고 결과를 알려드립니다.',
           ),
 
-          const SizedBox(height: 28),
-
-          // ── 무료 안내 배너 ──
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50).withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: const Color(0xFF4CAF50).withOpacity(0.3)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.favorite, color: Colors.red, size: 20),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'AI 분석은 완전 무료입니다.\n사기 피해를 막는 것이 가장 중요합니다.',
-                    style: TextStyle(
-                      color: Color(0xFF4CAF50),
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 28),
+          const SizedBox(height: 16),
 
           // ── 분석 시작 버튼 ──
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ImageUploadScreen(),
-                  ),
-                );
-              },
+              onPressed: widget.onGoToUpload,
               icon: const Icon(Icons.shield_outlined, color: Colors.white),
               label: const Text(
                 '지금 바로 사기 분석하기',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4FC3F7),
+                backgroundColor: AppTheme.primary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
@@ -368,9 +332,9 @@ class _StepCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF16213E),
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.07)),
       ),
       child: Row(
         children: [
@@ -378,14 +342,14 @@ class _StepCard extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: const Color(0xFF4FC3F7).withOpacity(0.15),
+              color: AppTheme.primary.withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
               child: Text(
                 step,
                 style: const TextStyle(
-                  color: Color(0xFF4FC3F7),
+                  color: AppTheme.primary,
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
                 ),
@@ -393,7 +357,7 @@ class _StepCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-          Icon(icon, color: Colors.white38, size: 20),
+          Icon(icon, color: AppTheme.textHint, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -402,7 +366,7 @@ class _StepCard extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
