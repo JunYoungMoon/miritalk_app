@@ -1,6 +1,8 @@
+// lib/features/auth/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'auth_provider.dart';
+import 'package:miritalk_app/core/theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -41,19 +43,19 @@ class _LoginScreenState extends State<LoginScreen>
     final auth = context.watch<AuthProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeIn,
           child: SlideTransition(
             position: _slideUp,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.security, size: 80, color: Color(0xFF4FC3F7)),
+                  const Icon(Icons.security, size: 80, color: AppTheme.primary),
                   const SizedBox(height: 16),
                   const Text(
                     '미리톡 사기 방지 시스템',
@@ -61,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen>
                     style: TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -107,13 +109,13 @@ class _FeatureCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.07),
+        color: Colors.white.withValues(alpha:0.07),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.1)),
       ),
       child: const Row(
         children: [
-          Icon(Icons.image_search_outlined, color: Color(0xFF4FC3F7), size: 32),
+          Icon(Icons.image_search_outlined, color: AppTheme.primary, size: 32),
           SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -124,7 +126,7 @@ class _FeatureCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
                 SizedBox(height: 4),
@@ -152,7 +154,7 @@ class _GoogleSignInButton extends StatelessWidget {
     return ElevatedButton(
       onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.textPrimary,
         foregroundColor: Colors.black87,
         padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -177,7 +179,7 @@ class _GoogleSignInButton extends StatelessWidget {
               child: Text(
                 'G',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),

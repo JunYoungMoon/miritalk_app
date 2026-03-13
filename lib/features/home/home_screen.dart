@@ -1,39 +1,71 @@
 // lib/features/home/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../auth/auth_provider.dart';
-import '../upload/image_upload_screen.dart';
 import 'conversation_drawer.dart';
 import 'home_body.dart';
+import 'package:provider/provider.dart';
+import 'package:miritalk_app/features/auth/auth_provider.dart';
+import 'package:miritalk_app/core/theme/app_theme.dart';
+import 'package:miritalk_app/features/upload/image_upload_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String _title = '미리톡';
+  bool _showUpload = false;  // 추가
+
+  void _onTitleChanged(String title) {
+    setState(() => _title = title);
+  }
+
+  void _goToUpload() {
+    setState(() {
+      _title = '사진 업로드';
+      _showUpload = true;
+    });
+  }
+
+  void _goToHome() {
+    setState(() {
+      _title = '미리톡';
+      _showUpload = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16213E),
+        backgroundColor: AppTheme.surface,
         elevation: 0,
-        // 햄버거 버튼 (자동으로 Drawer 열림)
-        leading: Builder(
+        leading: _showUpload
+            ? IconButton(
+          icon: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
+          onPressed: _goToHome,
+        )
+            : Builder(
           builder: (ctx) => IconButton(
             icon: const Icon(Icons.menu, color: Colors.white),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: const Row(
+        title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.security, color: Color(0xFF4FC3F7), size: 20),
-            SizedBox(width: 8),
+            const Icon(Icons.security, color: AppTheme.primary, size: 20),
+            const SizedBox(width: 8),
             Text(
-              '미리톡',
-              style: TextStyle(
-                color: Colors.white,
+              _title,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
               ),
@@ -48,27 +80,29 @@ class HomeScreen extends StatelessWidget {
               onTap: () => _showProfileMenu(context, auth),
               child: CircleAvatar(
                 radius: 18,
-                backgroundColor: const Color(0xFF0F3460),
+                backgroundColor: AppTheme.surface,
                 backgroundImage: auth.profileImageUrl != null
                     ? NetworkImage(auth.profileImageUrl!)
                     : null,
                 child: auth.profileImageUrl == null
-                    ? const Icon(Icons.person, color: Color(0xFF4FC3F7), size: 20)
+                    ? const Icon(Icons.person, color: AppTheme.primary, size: 20)
                     : null,
               ),
             ),
           ),
         ],
       ),
-      drawer: const ConversationDrawer(),
-      body: const HomeBody(),
+      drawer: _showUpload ? null : const ConversationDrawer(),
+      body: _showUpload
+          ? const ImageUploadScreen()
+          : HomeBody(onGoToUpload: _goToUpload),
     );
   }
 
   void _showProfileMenu(BuildContext context, AuthProvider auth) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF16213E),
+      backgroundColor: AppTheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -88,19 +122,19 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 20),
             CircleAvatar(
               radius: 36,
-              backgroundColor: const Color(0xFF0F3460),
+              backgroundColor: AppTheme.surface,
               backgroundImage: auth.profileImageUrl != null
                   ? NetworkImage(auth.profileImageUrl!)
                   : null,
               child: auth.profileImageUrl == null
-                  ? const Icon(Icons.person, color: Color(0xFF4FC3F7), size: 36)
+                  ? const Icon(Icons.person, color: AppTheme.primary, size: 36)
                   : null,
             ),
             const SizedBox(height: 12),
             Text(
               auth.userName ?? '사용자',
               style: const TextStyle(
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -111,8 +145,8 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             ListTile(
-              leading: const Icon(Icons.logout, color: Color(0xFFEF5350)),
-              title: const Text('로그아웃', style: TextStyle(color: Color(0xFFEF5350))),
+              leading: const Icon(Icons.logout, color: AppTheme.danger),
+              title: const Text('로그아웃', style: TextStyle(color: AppTheme.danger)),
               onTap: () {
                 Navigator.pop(context);
                 auth.logout();

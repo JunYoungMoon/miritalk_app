@@ -1,6 +1,8 @@
+// lib/features/upload/gallery_picker_screen.dart
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:miritalk_app/core/theme/app_theme.dart';
 
 class GalleryPickerScreen extends StatefulWidget {
   final int maxImages;
@@ -187,7 +189,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
         title: Text(
           '${_selected.length}/${widget.maxImages}',
           style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17),
+              color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 17),
         ),
         actions: [
           TextButton(
@@ -200,8 +202,8 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
               '완료',
               style: TextStyle(
                 color: _selected.isNotEmpty
-                    ? const Color(0xFF4FC3F7)
-                    : Colors.white38,
+                    ? AppTheme.primary
+                    : AppTheme.textHint,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
@@ -216,7 +218,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
   Widget _buildBody() {
     if (_loading) {
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF4FC3F7)),
+        child: CircularProgressIndicator(color: AppTheme.primary),
       );
     }
 
@@ -226,7 +228,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.photo_library_outlined,
-                color: Colors.white38, size: 52),
+                color: AppTheme.textHint, size: 52),
             const SizedBox(height: 16),
             const Text('사진 접근 권한이 필요합니다',
                 style: TextStyle(color: Colors.white70, fontSize: 15)),
@@ -234,8 +236,8 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
             OutlinedButton(
               onPressed: () => PhotoManager.openSetting(),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF4FC3F7)),
-                foregroundColor: const Color(0xFF4FC3F7),
+                side: const BorderSide(color: AppTheme.primary),
+                foregroundColor: AppTheme.primary,
               ),
               child: const Text('설정 열기'),
             ),
@@ -257,12 +259,12 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
         AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           height: _isDragSelecting ? 36 : 0,
-          color: const Color(0xFF4FC3F7).withOpacity(0.15),
+          color: AppTheme.primary.withValues(alpha:0.15),
           child: const Center(
             child: Text(
               '드래그하여 여러 장 선택',
               style: TextStyle(
-                  color: Color(0xFF4FC3F7),
+                  color: AppTheme.primary,
                   fontSize: 12,
                   fontWeight: FontWeight.w600),
             ),
@@ -317,7 +319,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
                                 );
                               }
                               return Container(
-                                  color: const Color(0xFF1A1A2E));
+                                  color: AppTheme.background);
                             },
                           ),
 
@@ -326,7 +328,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
                             duration: const Duration(milliseconds: 100),
                             opacity: (isSelected || inDragRange) ? 1.0 : 0.0,
                             child: Container(
-                              color: Colors.black.withOpacity(0.35),
+                              color: Colors.black.withValues(alpha:0.35),
                             ),
                           ),
 
@@ -340,20 +342,20 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
                               height: 24,
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? const Color(0xFF4FC3F7)
+                                    ? AppTheme.primary
                                     : Colors.transparent,
                                 shape: BoxShape.circle,
                                 border: Border.all(
                                   color: isSelected
-                                      ? const Color(0xFF4FC3F7)
-                                      : Colors.white,
+                                      ? AppTheme.primary
+                                      : AppTheme.textPrimary,
                                   width: 1.8,
                                 ),
                                 boxShadow: isSelected
                                     ? [
                                   BoxShadow(
-                                    color: const Color(0xFF4FC3F7)
-                                        .withOpacity(0.4),
+                                    color: AppTheme.primary
+                                        .withValues(alpha:0.4),
                                     blurRadius: 4,
                                   )
                                 ]
@@ -364,7 +366,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
                                 child: Text(
                                   '$selectionNumber',
                                   style: const TextStyle(
-                                    color: Colors.white,
+                                    color: AppTheme.textPrimary,
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
                                   ),
