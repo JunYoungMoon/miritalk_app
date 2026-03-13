@@ -32,16 +32,39 @@ class AuthService {
         final data = jsonDecode(response.body);
         await _storage.write(key: AppConfig.tokenKey, value: data['accessToken']);
         await _storage.write(key: 'refreshToken', value: data['refreshToken']);
-
-        // 프로필 정보도 SecureStorage에 캐싱
         await _storage.write(key: 'profileImageUrl', value: data['profileImageUrl']);
         await _storage.write(key: 'userName', value: data['userName']);
         await _storage.write(key: 'userEmail', value: data['userEmail']);
 
         return {
+          'accessToken': data['accessToken'],
+          'refreshToken': data['refreshToken'],
           'profileImageUrl': data['profileImageUrl'],
           'userName': data['userName'],
           'userEmail': data['userEmail'],
+        };
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<Map<String, String?>?> reissue(String refreshToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/api/auth/reissue'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refreshToken': refreshToken}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        await _storage.write(key: AppConfig.tokenKey, value: data['accessToken']);
+        await _storage.write(key: 'refreshToken', value: data['refreshToken']);
+        return {
+          'accessToken': data['accessToken'],
+          'refreshToken': data['refreshToken'],
         };
       }
       return null;

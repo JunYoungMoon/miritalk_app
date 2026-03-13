@@ -6,6 +6,10 @@ import 'package:http/http.dart' as http;
 import 'gallery_picker_screen.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
+import 'dart:convert';
+import 'package:miritalk_app/features/auth/auth_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:miritalk_app/core/network/api_client.dart';
 
 class ImageUploadScreen extends StatefulWidget {
   const ImageUploadScreen({super.key});
@@ -47,40 +51,80 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
       _showSnackBar('사진을 먼저 선택해주세요.');
       return;
     }
-    if (_selectedImages.length < _maxImages) {
-      _showSnackBar('사진 $_maxImages장을 모두 선택해주세요.');
-      return;
-    }
+
+    final isValid = await _validateImages();
+    if (!isValid) return;
 
     setState(() => _isUploading = true);
     try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${AppConfig.baseUrl}/api/fraud/analyze'),
-      );
-
+      final files = <http.MultipartFile>[];
       for (final asset in _selectedImages) {
         final file = await asset.file;
         if (file != null) {
-          request.files.add(
-            await http.MultipartFile.fromPath('images', file.path),
-          );
+          files.add(await http.MultipartFile.fromPath('images', file.path));
         }
       }
 
-      final response = await request.send();
+      final response = await ApiClient().postMultipart(
+        '/api/fraud/analyze',
+        files: files,
+      );
+
       if (!mounted) return;
+      debugPrint('응답 코드: ${response.statusCode}');
+      debugPrint('응답 바디: ${response.body}');
 
       if (response.statusCode == 200) {
-        _showSnackBar('업로드 완료! 분석 중입니다.');
+        final json = jsonDecode(response.body);
+        final analysisId = json['analysisId'] as String;
+        _showSnackBar('업로드 완료! 분석을 시작합니다.');
+        // TODO: AnalysisResultScreen으로 이동
       } else {
-        _showSnackBar('업로드 실패. 다시 시도해주세요.');
+        _showSnackBar('업로드 실패 (${response.statusCode})');
+      }
+    } on UnauthorizedException {
+      // 재발급도 실패 → 로그아웃 처리
+      if (mounted) {
+        context.read<AuthProvider>().logout();
+        _showSnackBar('로그인이 만료됐습니다. 다시 로그인해주세요.');
       }
     } catch (e) {
       if (mounted) _showSnackBar('오류가 발생했습니다: $e');
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
+  }
+
+  Future<bool> _validateImages() async {
+    for (int i = 0; i < _selectedImages.length; i++) {
+      final asset = _selectedImages[i];
+
+      // 1. 파일 사이즈 체크 (5MB 이하)
+      final file = await asset.file;
+      if (file != null) {
+        final bytes = await file.length();
+        final mb = bytes / (1024 * 1024);
+        if (mb > 5) {
+          _showSnackBar('${i + 1}번째 사진이 5MB를 초과합니다. (${mb.toStringAsFixed(1)}MB)');
+          return false;
+        }
+      }
+
+      // 2. 이미지 해상도 체크 (너무 작은 이미지 제외)
+      if (asset.width < 100 || asset.height < 100) {
+        _showSnackBar('${i + 1}번째 사진이 너무 작습니다. (${asset.width}x${asset.height})');
+        return false;
+      }
+
+      // 3. 파일 형식 체크
+      final mimeType = await asset.mimeTypeAsync;
+      if (mimeType != null &&
+          !['image/jpeg', 'image/png', 'image/webp'].contains(mimeType)) {
+        _showSnackBar('${i + 1}번째 사진은 지원하지 않는 형식입니다. (JPEG, PNG, WEBP만 가능)');
+        return false;
+      }
+    }
+    return true;
   }
 
   void _showSnackBar(String message) {
@@ -95,59 +139,80 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── 설명 텍스트 ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 24, 12, 20),
+            child: const Text(
+              '의심되는 대화 내역을 캡처해서 업로드하면,\n실제 사기 사례로 학습된 AI가 분석합니다.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: Colors.white54, fontSize: 14, height: 1.6),
+            ),
+          ),
+
           // ── 이미지 선택 영역 ──
           Container(
             color: AppTheme.surface,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: SizedBox(
               height: 90,
               child: Row(
                 children: [
-                  // 카메라 버튼 (항상 고정 좌측)
                   _CameraButton(
                     count: _selectedImages.length,
                     maxCount: _maxImages,
                     onTap: _openGallery,
                   ),
-
-                  // 선택된 이미지 목록 (드래그 순서 변경 가능)
                   if (_selectedImages.isNotEmpty) ...[
                     const SizedBox(width: 8),
                     Expanded(
-                      child: ReorderableListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        buildDefaultDragHandles: false,
-                        proxyDecorator: (child, index, animation) {
-                          return AnimatedBuilder(
-                            animation: animation,
-                            builder: (_, __) => Transform.scale(
-                              scale: 1.08,
-                              child: child,
-                            ),
-                          );
-                        },
-                        onReorder: (oldIndex, newIndex) {
-                          setState(() {
-                            if (newIndex > oldIndex) newIndex--;
-                            final item = _selectedImages.removeAt(oldIndex);
-                            _selectedImages.insert(newIndex, item);
-                          });
-                        },
-                        itemCount: _selectedImages.length,
-                        itemBuilder: (context, index) {
-                          return ReorderableDragStartListener(
-                            key: ValueKey(_selectedImages[index].id),
-                            index: index,
-                            child: Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: _ImageThumbnail(
-                                asset: _selectedImages[index],
-                                isFirst: index == 0,
-                                onRemove: () => _removeImage(index),
+                      child: SizedBox(
+                        height: 90,
+                        child: ReorderableListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          buildDefaultDragHandles: false,
+                          proxyDecorator: (child, index, animation) {
+                            return AnimatedBuilder(
+                              animation: animation,
+                              builder: (_, __) {
+                                final scale = Tween<double>(begin: 1.0, end: 1.15)
+                                    .evaluate(CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOut,
+                                ));
+                                return Transform.scale(
+                                  scale: scale,
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          onReorder: (oldIndex, newIndex) {
+                            setState(() {
+                              if (newIndex > oldIndex) newIndex--;
+                              final item = _selectedImages.removeAt(oldIndex);
+                              _selectedImages.insert(newIndex, item);
+                            });
+                          },
+                          itemCount: _selectedImages.length,
+                          itemBuilder: (context, index) {
+                            return ReorderableDelayedDragStartListener(
+                              key: ValueKey(_selectedImages[index].id),
+                              index: index,
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: _ImageThumbnail(
+                                  asset: _selectedImages[index],
+                                  isFirst: index == 0,
+                                  onRemove: () => _removeImage(index),
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ],
@@ -155,62 +220,32 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
               ),
             ),
           ),
-
           // ── 안내 문구 ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '사기 피해 분석',
-                  style: TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
+                const _InfoRow(
+                  icon: Icons.chat_outlined,
+                  text: '카카오톡, 문자, 거래 앱 등 모든 대화 캡처를 분석할 수 있습니다.',
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  '사기 관련 사진 5장을 업로드하면 AI가 분석합니다.',
-                  style: TextStyle(
-                      color: Colors.white54, fontSize: 14, height: 1.5),
+                const SizedBox(height: 6),
+                const _InfoRow(
+                  icon: Icons.star_outline,
+                  text: '첫 번째 사진을 가장 중요하거나 강조하고 싶은 장면으로 선택하세요.',
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        color: AppTheme.primary, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      '첫 번째 사진이 대표 이미지로 사용됩니다.',
-                      style: const TextStyle(
-                          color: AppTheme.primary, fontSize: 13),
-                    ),
-                  ],
+                const SizedBox(height: 6),
+                const _InfoRow(
+                  icon: Icons.swap_vert,
+                  text: '사진을 길게 눌러 드래그하면 순서를 변경할 수 있습니다.',
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.info_outline, color: AppTheme.primary, size: 14),
-                    const SizedBox(width: 4),
-                    Expanded(  // 추가
-                      child: Text(
-                        '사진을 길게 눌러 드래그하면 순서를 변경할 수 있습니다.',
-                        style: const TextStyle(color: AppTheme.primary, fontSize: 13),
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 6),
+                const _InfoRow(
+                  icon: Icons.lock_outline,
+                  text: '업로드된 사진은 분석에만 사용되며 AI 학습에 활용되지 않습니다.',
                 ),
               ],
-            ),
-          ),
-
-          // ── 진행 상태 표시 ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-            child: _ProgressIndicatorRow(
-              current: _selectedImages.length,
-              total: _maxImages,
             ),
           ),
 
@@ -286,10 +321,10 @@ class _CameraButton extends StatelessWidget {
                 color: AppTheme.primary, size: 28),
             const SizedBox(height: 6),
             Text(
-              '$count/$maxCount',
+              count == 0 ? '사진 선택' : '$count/$maxCount',
               style: const TextStyle(
                 color: AppTheme.primary,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -408,45 +443,28 @@ class _ImageThumbnail extends StatelessWidget {
   }
 }
 
-// ── 진행 상태 바 위젯 ─────────────────────────────
-class _ProgressIndicatorRow extends StatelessWidget {
-  final int current;
-  final int total;
+// ── 안내 아이콘 + 텍스트 위젯 ─────────────────────
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
 
-  const _ProgressIndicatorRow({required this.current, required this.total});
+  const _InfoRow({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '사진 선택',
-              style: TextStyle(color: Colors.white54, fontSize: 13),
+        Icon(icon, color: AppTheme.primary, size: 14),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: AppTheme.primary,
+              fontSize: 12,
+              height: 1.5,
             ),
-            Text(
-              '$current / $total',
-              style: TextStyle(
-                color: current == total
-                    ? AppTheme.primary
-                    : Colors.white54,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: current / total,
-            backgroundColor: AppTheme.surface,
-            valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primary),
-            minHeight: 4,
           ),
         ),
       ],

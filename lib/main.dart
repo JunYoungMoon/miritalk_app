@@ -5,7 +5,7 @@ import 'features/auth/auth_provider.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/home/conversation_provider.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:miritalk_app/core/theme/app_theme.dart';
 
 void main() {
   runApp(
@@ -26,11 +26,9 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '미리톡 사기 방지 시스템',
-      theme: ThemeData.dark().copyWith(
-        textTheme: GoogleFonts.notoSansKrTextTheme(
-          ThemeData.dark().textTheme,
-        ),
-      ),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       home: const AuthGate(),
     );
   }
