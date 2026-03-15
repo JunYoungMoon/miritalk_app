@@ -1,9 +1,13 @@
-// lib/features/home/conversation_drawer.dart
+// lib/features/home/conversation_drawer.dart 전체 교체
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'conversation_provider.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
+import 'package:miritalk_app/core/network/api_client.dart';
+import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
+import 'package:miritalk_app/features/upload/image_upload_screen.dart';
 
 class ConversationDrawer extends StatefulWidget {
   const ConversationDrawer({super.key});
@@ -27,7 +31,7 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
     final convProvider = context.watch<ConversationProvider>();
 
     return Drawer(
-      width: MediaQuery.of(context).size.width * 2 / 3,
+      width: MediaQuery.of(context).size.width * 0.82, // 3/2 → 82%로 확장
       backgroundColor: AppTheme.surface,
       child: SafeArea(
         child: Column(
@@ -40,7 +44,7 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                 children: [
                   CircleAvatar(
                     radius: 22,
-                    backgroundColor: AppTheme.surface,
+                    backgroundColor: AppTheme.surfaceDeep,
                     backgroundImage: auth.profileImageUrl != null
                         ? NetworkImage(auth.profileImageUrl!)
                         : null,
@@ -76,20 +80,30 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
 
             const Divider(color: AppTheme.divider),
 
-            // 새 분석 요청 버튼
+            // 새 분석 요청 버튼 — 업로드 화면으로 이동
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: ListTile(
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
-                tileColor: AppTheme.surface,
-                leading: const Icon(Icons.add, color: AppTheme.primary),
+                tileColor: AppTheme.surfaceDeep,
+                leading: const Icon(Icons.add_photo_alternate_outlined,
+                    color: AppTheme.primary),
                 title: const Text(
                   '새 분석 요청',
                   style: TextStyle(
-                      color: AppTheme.textPrimary, fontWeight: FontWeight.w600),
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600),
                 ),
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  Navigator.pop(context); // 드로어 닫기
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ImageUploadScreen(),
+                    ),
+                  );
+                },
               ),
             ),
 
@@ -136,57 +150,80 @@ class _ConversationTile extends StatelessWidget {
   final ConversationItem conversation;
   const _ConversationTile({required this.conversation});
 
+  Color get _riskColor =>
+      conversation.riskLevel >= 70 ? AppTheme.danger : AppTheme.primary;
+
   @override
   Widget build(BuildContext context) {
     return ListTile(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(
-          conversation.riskLevel >= 70
-              ? Icons.warning_amber_rounded
-              : Icons.check_circle_outline,
-          color: conversation.riskLevel >= 70
-              ? AppTheme.danger
-              : AppTheme.primary,
-          size: 20,
-        ),
-      ),
+      // leading 아이콘 제거 — 위험도 색상 바로 텍스트로 표현
       title: Text(
         conversation.title,
         style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
         overflow: TextOverflow.ellipsis,
+        maxLines: 2,
       ),
-      subtitle: Text(
-        conversation.createdAt,
-        style: const TextStyle(color: AppTheme.textHint, fontSize: 11),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          conversation.createdAt,
+          style: const TextStyle(color: AppTheme.textHint, fontSize: 11),
+        ),
       ),
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: conversation.riskLevel >= 70
-              ? AppTheme.danger.withValues(alpha:0.15)
-              : AppTheme.primary.withValues(alpha:0.15),
+          color: _riskColor.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
           '${conversation.riskLevel}%',
           style: TextStyle(
-            color: conversation.riskLevel >= 70
-                ? AppTheme.danger
-                : AppTheme.primary,
+            color: _riskColor,
             fontSize: 12,
             fontWeight: FontWeight.bold,
           ),
         ),
       ),
-      onTap: () => Navigator.pop(context),
+      onTap: () => _openResult(context),
     );
+  }
+
+  Future<void> _openResult(BuildContext context) async {
+    Navigator.pop(context);
+
+    try {
+      final response = await ApiClient()
+          .get('/api/fraud/result/${conversation.sessionId}');
+
+      if (response.statusCode != 200) return;
+
+      final json = jsonDecode(utf8.decode(response.bodyBytes))
+      as Map<String, dynamic>;
+
+      final messages = <ChatMessage>[
+        ChatMessage(type: 'summary',    text: json['summary'] ?? '', isDone: true),
+        ChatMessage(type: 'riskScore',  text: json['riskScore'].toString(), isDone: true),
+        ChatMessage(type: 'riskLevel',  text: json['riskLevel'] ?? '', isDone: true),
+        ChatMessage(type: 'suspicious', text: json['suspiciousPoints'] ?? '[]', isDone: true),
+        ChatMessage(type: 'action',     text: json['recommendedActions'] ?? '[]', isDone: true),
+        ChatMessage(type: 'questions',  text: json['additionalQuestions'] ?? '[]', isDone: true),
+      ];
+
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AnalysisResultScreen(messages: messages),
+          ),
+        );
+      }
+    } on UnauthorizedException {
+      debugPrint('인증 오류');
+    } catch (e) {
+      debugPrint('결과 조회 실패: $e');
+    }
   }
 }

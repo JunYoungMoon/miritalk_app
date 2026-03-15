@@ -4,12 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'gallery_picker_screen.dart';
-import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
-import 'dart:convert';
-import 'package:miritalk_app/features/auth/auth_provider.dart';
-import 'package:provider/provider.dart';
-import 'package:miritalk_app/core/network/api_client.dart';
+import 'package:miritalk_app/features/analysis/analyzing_screen.dart';
 
 class ImageUploadScreen extends StatefulWidget {
   const ImageUploadScreen({super.key});
@@ -65,33 +61,20 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
         }
       }
 
-      final response = await ApiClient().postMultipart(
-        '/api/fraud/analyze',
-        files: files,
-      );
-
       if (!mounted) return;
-      debugPrint('응답 코드: ${response.statusCode}');
-      debugPrint('응답 바디: ${response.body}');
+      setState(() => _isUploading = false);
 
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        final analysisId = json['analysisId'] as String;
-        _showSnackBar('업로드 완료! 분석을 시작합니다.');
-        // TODO: AnalysisResultScreen으로 이동
-      } else {
-        _showSnackBar('업로드 실패 (${response.statusCode})');
-      }
-    } on UnauthorizedException {
-      // 재발급도 실패 → 로그아웃 처리
-      if (mounted) {
-        context.read<AuthProvider>().logout();
-        _showSnackBar('로그인이 만료됐습니다. 다시 로그인해주세요.');
-      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AnalyzingScreen(images: files),
+        ),
+      );
     } catch (e) {
-      if (mounted) _showSnackBar('오류가 발생했습니다: $e');
-    } finally {
-      if (mounted) setState(() => _isUploading = false);
+      if (mounted) {
+        _showSnackBar('오류가 발생했습니다: $e');
+        setState(() => _isUploading = false);
+      }
     }
   }
 
@@ -136,6 +119,24 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        backgroundColor: AppTheme.surface,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded, size: 18),
+          color: AppTheme.textPrimary,
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          '대화 분석 요청',
+          style: TextStyle(
+            color: AppTheme.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

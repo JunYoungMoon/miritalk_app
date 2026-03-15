@@ -1,9 +1,16 @@
 // lib/features/analysis/analyzing_screen.dart
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:miritalk_app/core/theme/app_theme.dart';
+import 'analysis_result_screen.dart';
+import 'package:miritalk_app/core/network/api_client.dart';
+
 
 class AnalyzingScreen extends StatefulWidget {
-  const AnalyzingScreen({super.key});
+  final List<http.MultipartFile> images;
+  const AnalyzingScreen({super.key, required this.images});
 
   @override
   State<AnalyzingScreen> createState() => _AnalyzingScreenState();
@@ -22,18 +29,22 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   ];
   int _currentStep = 0;
 
+  final List<ChatMessage> _messages = [];
+  StreamSubscription? _sseSubscription;
+  http.Client? _client;
+
   @override
   void initState() {
     super.initState();
+
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8),
+      duration: const Duration(seconds: 10),
     )..forward();
 
     _progressAnimation = Tween<double>(begin: 0, end: 0.95)
         .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-    // 단계 텍스트 순환
     Future.doWhile(() async {
       await Future.delayed(const Duration(seconds: 2));
       if (!mounted) return false;
@@ -42,12 +53,80 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       });
       return true;
     });
+
+    _startAnalysis();
   }
 
   @override
   void dispose() {
+    _sseSubscription?.cancel();
+    _client?.close();
     _controller.dispose();
     super.dispose();
+  }
+
+  // analyzing_screen.dart - _startAnalysis() 전체 교체
+  Future<void> _startAnalysis() async {
+    try {
+      final streamed = await ApiClient().postMultipartStream(
+        '/api/fraud/analyze',
+        files: widget.images,
+      );
+
+      _sseSubscription = streamed.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen(
+            (line) {
+          if (line.startsWith('data:')) {
+            final data = line.substring(5).trim();
+            if (data == '[DONE]') {
+              if (mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AnalysisResultScreen(messages: _messages),
+                  ),
+                );
+              }
+              return;
+            }
+            _handleSSEData(data);
+          }
+        },
+        onDone: () {},
+        onError: (_) {
+          if (mounted) Navigator.pop(context);
+        },
+      );
+    } on UnauthorizedException {
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      debugPrint('분석 오류: $e');
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  void _handleSSEData(String data) {
+    try {
+      final json = jsonDecode(data);
+      final type = json['type'] as String;
+      final content = json['content'] as String;
+      final done = json['done'] as bool? ?? false;
+
+      setState(() {
+        if (_messages.isNotEmpty &&
+            _messages.last.type == type &&
+            !_messages.last.isDone) {
+          _messages.last = _messages.last.copyWith(
+            text: _messages.last.text + content,
+            isDone: done,
+          );
+        } else {
+          _messages.add(ChatMessage(type: type, text: content, isDone: done));
+        }
+      });
+    } catch (_) {}
   }
 
   @override
@@ -60,7 +139,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 아이콘
               Container(
                 width: 80,
                 height: 80,
@@ -78,9 +156,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                   size: 40,
                 ),
               ),
-
               const SizedBox(height: 32),
-
               const Text(
                 '대화 내역을 면밀하게\n분석 중입니다',
                 textAlign: TextAlign.center,
@@ -91,10 +167,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                   height: 1.5,
                 ),
               ),
-
               const SizedBox(height: 12),
-
-              // 단계 텍스트
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 400),
                 child: Text(
@@ -108,10 +181,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                   ),
                 ),
               ),
-
               const SizedBox(height: 40),
-
-              // 프로그레스바
               AnimatedBuilder(
                 animation: _progressAnimation,
                 builder: (context, _) {
