@@ -1,211 +1,232 @@
 // lib/features/analysis/analysis_result_screen.dart
-import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 
-class AnalysisResultScreen extends StatefulWidget {
-  final String analysisId; // 서버에서 발급한 분석 ID
+class ChatMessage {
+  final String type;
+  final String text;
+  final bool isDone;
 
-  const AnalysisResultScreen({super.key, required this.analysisId});
+  const ChatMessage({
+    required this.type,
+    required this.text,
+    this.isDone = false,
+  });
 
-  @override
-  State<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
+  ChatMessage copyWith({String? text, bool? isDone}) {
+    return ChatMessage(
+      type: type,
+      text: text ?? this.text,
+      isDone: isDone ?? this.isDone,
+    );
+  }
 }
 
-class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
-  final List<_ChatMessage> _messages = [];
-  final ScrollController _scrollController = ScrollController();
-  bool _isStreaming = true;
-  StreamSubscription? _sseSubscription;
+class AnalysisResultScreen extends StatelessWidget {
+  final List<ChatMessage> messages;
+  const AnalysisResultScreen({super.key, required this.messages});
 
-  @override
-  void initState() {
-    super.initState();
-    _connectSSE();
-  }
-
-  @override
-  void dispose() {
-    _sseSubscription?.cancel();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _connectSSE() {
-    final uri = Uri.parse(
-        '${AppConfig.baseUrl}/api/fraud/result/${widget.analysisId}');
-
-    final client = http.Client();
-    final request = http.Request('GET', uri);
-    request.headers['Accept'] = 'text/event-stream';
-    request.headers['Cache-Control'] = 'no-cache';
-
-    client.send(request).then((response) {
-      _sseSubscription = response.stream
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen(
-            (line) {
-          if (line.startsWith('data:')) {
-            final data = line.substring(5).trim();
-            if (data == '[DONE]') {
-              setState(() => _isStreaming = false);
-              client.close();
-              return;
-            }
-            _handleSSEData(data);
-          }
-        },
-        onDone: () {
-          setState(() => _isStreaming = false);
-          client.close();
-        },
-        onError: (_) {
-          setState(() => _isStreaming = false);
-          client.close();
-        },
-      );
-    });
-  }
-
-  void _handleSSEData(String data) {
+  // 메시지 목록에서 특정 타입 텍스트 추출
+  String _findText(String type) {
     try {
-      final json = jsonDecode(data);
-      final type = json['type'] as String;
-      final content = json['content'] as String;
-
-      setState(() {
-        // 같은 type의 마지막 메시지에 이어붙이기 (스트리밍 효과)
-        if (_messages.isNotEmpty && _messages.last.type == type && _messages.last.isStreaming) {
-          _messages.last = _messages.last.copyWith(
-            text: _messages.last.text + content,
-          );
-        } else {
-          _messages.add(_ChatMessage(type: type, text: content, isStreaming: true));
-        }
-      });
-
-      // 완료 신호
-      if (json['done'] == true && _messages.isNotEmpty) {
-        setState(() => _messages.last = _messages.last.copyWith(isStreaming: false));
-      }
-
-      _scrollToBottom();
-    } catch (_) {}
+      return messages.firstWhere((m) => m.type == type).text;
+    } catch (_) {
+      return '';
+    }
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+  Color _riskColor(String level) {
+    switch (level) {
+      case '매우높음': return AppTheme.danger;
+      case '높음':    return Colors.orange;
+      case '보통':    return Colors.yellow;
+      default:        return AppTheme.success;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final riskLevel = _findText('riskLevel');
+    final riskScore = _findText('riskScore');
+    final riskColor = _riskColor(riskLevel);
+
+    // 결과 화면에서 stream 타입은 숨김 (parseAndSendResult로 구조화된 타입만 표시)
+    final displayMessages = messages
+        .where((m) => m.type != 'stream' && m.type != 'riskLevel' && m.type != 'riskScore')
+        .toList();
+
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                return _ChatBubble(message: _messages[index]);
-              },
-            ),
+      appBar: AppBar(
+        backgroundColor: AppTheme.surface,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded, size: 18),
+          color: AppTheme.textPrimary,
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          '분석 결과',
+          style: TextStyle(
+            color: AppTheme.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
           ),
+        ),
+        centerTitle: true,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+        children: [
+          // ── 위험도 헤더 카드 ──────────────────────
+          _RiskHeaderCard(
+            riskLevel: riskLevel,
+            riskScore: riskScore,
+            riskColor: riskColor,
+          ),
+          const SizedBox(height: 8),
 
-          // 스트리밍 중 표시
-          if (_isStreaming)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: AppTheme.primary,
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    '분석 중...',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
+          // ── 분석 결과 카드들 ──────────────────────
+          ...displayMessages.map((m) => _ChatBubble(message: m)),
         ],
       ),
     );
   }
 }
 
-// _ChatMessage 모델 (같은 파일 하단에 추가)
-class _ChatMessage {
-  final String type; // 'summary' | 'risk' | 'suspicious' | 'action'
-  final String text;
-  final bool isStreaming;
+// ── 위험도 헤더 카드 ────────────────────────────────
+class _RiskHeaderCard extends StatelessWidget {
+  final String riskLevel;
+  final String riskScore;
+  final Color riskColor;
 
-  const _ChatMessage({
-    required this.type,
-    required this.text,
-    this.isStreaming = false,
+  const _RiskHeaderCard({
+    required this.riskLevel,
+    required this.riskScore,
+    required this.riskColor,
   });
 
-  _ChatMessage copyWith({String? text, bool? isStreaming}) {
-    return _ChatMessage(
-      type: type,
-      text: text ?? this.text,
-      isStreaming: isStreaming ?? this.isStreaming,
+  @override
+  Widget build(BuildContext context) {
+    final score = int.tryParse(riskScore) ?? 0;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            riskColor.withValues(alpha: 0.2),
+            AppTheme.surface,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: riskColor.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '사기 위험도',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    riskLevel.isEmpty ? '분석 중' : riskLevel,
+                    style: TextStyle(
+                      color: riskColor,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              // 원형 점수 표시
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: CircularProgressIndicator(
+                      value: score / 100,
+                      strokeWidth: 6,
+                      backgroundColor: AppTheme.surfaceDeep,
+                      valueColor: AlwaysStoppedAnimation<Color>(riskColor),
+                    ),
+                  ),
+                  Text(
+                    '$score%',
+                    style: TextStyle(
+                      color: riskColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // 점수 프로그레스 바
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: score / 100,
+              minHeight: 6,
+              backgroundColor: AppTheme.surfaceDeep,
+              valueColor: AlwaysStoppedAnimation<Color>(riskColor),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-// _ChatBubble 위젯 (같은 파일 하단에 추가)
+// ── 분석 결과 버블 ──────────────────────────────────
 class _ChatBubble extends StatelessWidget {
-  final _ChatMessage message;
-
+  final ChatMessage message;
   const _ChatBubble({required this.message});
 
   IconData get _icon {
     switch (message.type) {
-      case 'risk': return Icons.warning_amber_rounded;
-      case 'suspicious': return Icons.search_rounded;
-      case 'action': return Icons.tips_and_updates_outlined;
-      default: return Icons.smart_toy_outlined;
+      case 'summary':   return Icons.smart_toy_outlined;
+      case 'suspicious':return Icons.search_rounded;
+      case 'action':    return Icons.tips_and_updates_outlined;
+      case 'questions': return Icons.help_outline_rounded;
+      case 'raw':       return Icons.article_outlined;
+      default:          return Icons.info_outline;
     }
   }
 
   Color get _color {
     switch (message.type) {
-      case 'risk': return AppTheme.danger;
-      case 'suspicious': return Colors.orange;
-      case 'action': return AppTheme.success;
-      default: return AppTheme.primary;
+      case 'suspicious':return Colors.orange;
+      case 'action':    return AppTheme.success;
+      case 'questions': return Colors.blue;
+      default:          return AppTheme.primary;
     }
   }
 
   String get _label {
     switch (message.type) {
-      case 'risk': return '위험도';
-      case 'suspicious': return '의심 포인트';
-      case 'action': return '권장 행동';
-      default: return '종합 분석';
+      case 'summary':   return '종합 분석';
+      case 'suspicious':return '의심 포인트';
+      case 'action':    return '권장 행동';
+      case 'questions': return '추가 확인 질문';
+      case 'raw':       return 'AI 응답';
+      default:          return '분석 결과';
     }
   }
 
@@ -214,7 +235,7 @@ class _ChatBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppTheme.surface,
           borderRadius: BorderRadius.circular(12),
@@ -235,20 +256,9 @@ class _ChatBubble extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (message.isStreaming) ...[
-                  const SizedBox(width: 6),
-                  SizedBox(
-                    width: 10,
-                    height: 10,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.2,
-                      color: _color,
-                    ),
-                  ),
-                ],
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
               message.text,
               style: const TextStyle(

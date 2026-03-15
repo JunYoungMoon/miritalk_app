@@ -1,6 +1,5 @@
 // lib/core/network/api_client.dart
 import 'dart:convert';
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/features/auth/auth_service.dart';
@@ -76,6 +75,40 @@ class ApiClient {
       response,
           () => postMultipart(path, files: files, fields: fields),
     );
+  }
+
+  // ── POST (MultipartStream) ───────────────────────────
+  Future<http.StreamedResponse> postMultipartStream(
+      String path, {
+        required List<http.MultipartFile> files,
+        Map<String, String>? fields,
+      }) async {
+    final token = await _storage.read(key: AppConfig.tokenKey);
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${AppConfig.baseUrl}$path'),
+    );
+    if (token != null) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    request.headers['Accept'] = 'text/event-stream';
+    if (fields != null) request.fields.addAll(fields);
+    request.files.addAll(files);
+
+    final client = http.Client();
+    final streamed = await client.send(request);
+
+    if (streamed.statusCode == 401) {
+      client.close();
+      final refreshed = await _reissue();
+      if (refreshed) {
+        return postMultipartStream(path, files: files, fields: fields);
+      }
+      throw UnauthorizedException();
+    }
+
+    return streamed;
   }
 
   // ── 401 처리 (토큰 재발급 후 재시도) ───────────
