@@ -7,7 +7,6 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'analysis_result_screen.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
 
-
 class AnalyzingScreen extends StatefulWidget {
   final List<http.MultipartFile> images;
   const AnalyzingScreen({super.key, required this.images});
@@ -28,15 +27,12 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     '분석 결과를 정리하고 있습니다...',
   ];
   int _currentStep = 0;
-
   final List<ChatMessage> _messages = [];
   StreamSubscription? _sseSubscription;
-  http.Client? _client;
 
   @override
   void initState() {
     super.initState();
-
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 10),
@@ -48,9 +44,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     Future.doWhile(() async {
       await Future.delayed(const Duration(seconds: 2));
       if (!mounted) return false;
-      setState(() {
-        _currentStep = (_currentStep + 1) % _steps.length;
-      });
+      setState(() => _currentStep = (_currentStep + 1) % _steps.length);
       return true;
     });
 
@@ -60,12 +54,10 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   @override
   void dispose() {
     _sseSubscription?.cancel();
-    _client?.close();
     _controller.dispose();
     super.dispose();
   }
 
-  // analyzing_screen.dart - _startAnalysis() 전체 교체
   Future<void> _startAnalysis() async {
     try {
       final streamed = await ApiClient().postMultipartStream(
@@ -78,26 +70,26 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
           .transform(const LineSplitter())
           .listen(
             (line) {
-          if (line.startsWith('data:')) {
-            final data = line.substring(5).trim();
-            if (data == '[DONE]') {
-              if (mounted) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AnalysisResultScreen(messages: _messages),
+          if (!line.startsWith('data:')) return;
+          final data = line.substring(5).trim();
+
+          if (data == '[DONE]') {
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AnalysisResultScreen(
+                    messages: _messages,
+                    imageUrls: const [],
                   ),
-                );
-              }
-              return;
+                ),
+              );
             }
-            _handleSSEData(data);
+            return;
           }
+          _handleSSEData(data);
         },
-        onDone: () {},
-        onError: (_) {
-          if (mounted) Navigator.pop(context);
-        },
+        onError: (_) { if (mounted) Navigator.pop(context); },
       );
     } on UnauthorizedException {
       if (mounted) Navigator.pop(context);
@@ -150,11 +142,8 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                     width: 1.5,
                   ),
                 ),
-                child: const Icon(
-                  Icons.manage_search_rounded,
-                  color: AppTheme.primary,
-                  size: 40,
-                ),
+                child: const Icon(Icons.manage_search_rounded,
+                    color: AppTheme.primary, size: 40),
               ),
               const SizedBox(height: 32),
               const Text(
@@ -184,31 +173,29 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
               const SizedBox(height: 40),
               AnimatedBuilder(
                 animation: _progressAnimation,
-                builder: (context, _) {
-                  return Column(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: _progressAnimation.value,
-                          backgroundColor: AppTheme.surface,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppTheme.primary),
-                          minHeight: 6,
-                        ),
+                builder: (context, _) => Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: _progressAnimation.value,
+                        backgroundColor: AppTheme.surface,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppTheme.primary),
+                        minHeight: 6,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${(_progressAnimation.value * 100).toInt()}%',
-                        style: const TextStyle(
-                          color: AppTheme.primary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${(_progressAnimation.value * 100).toInt()}%',
+                      style: const TextStyle(
+                        color: AppTheme.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
-                  );
-                },
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -5,6 +5,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:http/http.dart' as http;
 import 'gallery_picker_screen.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
+import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'package:miritalk_app/features/analysis/analyzing_screen.dart';
 
 class ImageUploadScreen extends StatefulWidget {
@@ -66,9 +67,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
 
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => AnalyzingScreen(images: files),
-        ),
+        MaterialPageRoute(builder: (_) => AnalyzingScreen(images: files)),
       );
     } catch (e) {
       if (mounted) {
@@ -82,7 +81,6 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
     for (int i = 0; i < _selectedImages.length; i++) {
       final asset = _selectedImages[i];
 
-      // 1. 파일 사이즈 체크 (5MB 이하)
       final file = await asset.file;
       if (file != null) {
         final bytes = await file.length();
@@ -93,13 +91,11 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
         }
       }
 
-      // 2. 이미지 해상도 체크 (너무 작은 이미지 제외)
       if (asset.width < 100 || asset.height < 100) {
         _showSnackBar('${i + 1}번째 사진이 너무 작습니다. (${asset.width}x${asset.height})');
         return false;
       }
 
-      // 3. 파일 형식 체크
       final mimeType = await asset.mimeTypeAsync;
       if (mimeType != null &&
           !['image/jpeg', 'image/png', 'image/webp'].contains(mimeType)) {
@@ -119,35 +115,17 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: AppTheme.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, size: 18),
-          color: AppTheme.textPrimary,
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          '대화 분석 요청',
-          style: TextStyle(
-            color: AppTheme.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      appBar: const CommonAppBar(title: '사진 업로드'),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ── 설명 텍스트 ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 24, 12, 20),
-            child: const Text(
+          const Padding(
+            padding: EdgeInsets.fromLTRB(12, 24, 12, 20),
+            child: Text(
               '의심되는 대화 내역을 캡처해서 업로드하면,\n실제 사기 사례로 학습된 AI가 분석합니다.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: Colors.white54, fontSize: 14, height: 1.6),
+              style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.6),
             ),
           ),
 
@@ -176,17 +154,16 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
                             return AnimatedBuilder(
                               animation: animation,
                               builder: (_, __) {
-                                final scale = Tween<double>(begin: 1.0, end: 1.15)
-                                    .evaluate(CurvedAnimation(
-                                  parent: animation,
-                                  curve: Curves.easeOut,
-                                ));
+                                final scale =
+                                Tween<double>(begin: 1.0, end: 1.15).evaluate(
+                                  CurvedAnimation(
+                                      parent: animation,
+                                      curve: Curves.easeOut),
+                                );
                                 return Transform.scale(
                                   scale: scale,
                                   child: Material(
-                                    color: Colors.transparent,
-                                    child: child,
-                                  ),
+                                      color: Colors.transparent, child: child),
                                 );
                               },
                             );
@@ -221,28 +198,29 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
               ),
             ),
           ),
+
           // ── 안내 문구 ──
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _InfoRow(
+              children: const [
+                _InfoRow(
                   icon: Icons.chat_outlined,
                   text: '카카오톡, 문자, 거래 앱 등 모든 대화 캡처를 분석할 수 있습니다.',
                 ),
-                const SizedBox(height: 6),
-                const _InfoRow(
+                SizedBox(height: 6),
+                _InfoRow(
                   icon: Icons.star_outline,
                   text: '첫 번째 사진을 가장 중요하거나 강조하고 싶은 장면으로 선택하세요.',
                 ),
-                const SizedBox(height: 6),
-                const _InfoRow(
+                SizedBox(height: 6),
+                _InfoRow(
                   icon: Icons.swap_vert,
                   text: '사진을 길게 눌러 드래그하면 순서를 변경할 수 있습니다.',
                 ),
-                const SizedBox(height: 6),
-                const _InfoRow(
+                SizedBox(height: 6),
+                _InfoRow(
                   icon: Icons.lock_outline,
                   text: '업로드된 사진은 분석에만 사용되며 AI 학습에 활용되지 않습니다.',
                 ),
@@ -260,7 +238,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primary,
                 disabledBackgroundColor:
-                AppTheme.primary.withValues(alpha:0.3),
+                AppTheme.primary.withValues(alpha: 0.3),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
@@ -294,11 +272,8 @@ class _CameraButton extends StatelessWidget {
   final int maxCount;
   final VoidCallback onTap;
 
-  const _CameraButton({
-    required this.count,
-    required this.maxCount,
-    required this.onTap,
-  });
+  const _CameraButton(
+      {required this.count, required this.maxCount, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -311,9 +286,7 @@ class _CameraButton extends StatelessWidget {
           color: AppTheme.surface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: AppTheme.primary.withValues(alpha:0.4),
-            width: 1.2,
-          ),
+              color: AppTheme.primary.withValues(alpha: 0.4), width: 1.2),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -342,11 +315,8 @@ class _ImageThumbnail extends StatelessWidget {
   final bool isFirst;
   final VoidCallback onRemove;
 
-  const _ImageThumbnail({
-    required this.asset,
-    required this.isFirst,
-    required this.onRemove,
-  });
+  const _ImageThumbnail(
+      {required this.asset, required this.isFirst, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -355,22 +325,16 @@ class _ImageThumbnail extends StatelessWidget {
       height: 90,
       child: Stack(
         children: [
-          // 썸네일 이미지
           FutureBuilder<Uint8List?>(
             future: asset.thumbnailDataWithSize(
-              const ThumbnailSize.square(150),
-            ),
+                const ThumbnailSize.square(150)),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.done &&
                   snapshot.data != null) {
                 return ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.memory(
-                    snapshot.data!,
-                    width: 76,
-                    height: 90,
-                    fit: BoxFit.cover,
-                  ),
+                  child: Image.memory(snapshot.data!,
+                      width: 76, height: 90, fit: BoxFit.cover),
                 );
               }
               return ClipRRect(
@@ -384,17 +348,13 @@ class _ImageThumbnail extends StatelessWidget {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                        strokeWidth: 1.5,
-                        color: AppTheme.primary,
-                      ),
+                          strokeWidth: 1.5, color: AppTheme.primary),
                     ),
                   ),
                 ),
               );
             },
           ),
-
-          // 대표 이미지 뱃지 (첫 번째 이미지)
           if (isFirst)
             Positioned(
               bottom: 0,
@@ -402,7 +362,7 @@ class _ImageThumbnail extends StatelessWidget {
               right: 0,
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha:0.55),
+                  color: Colors.black.withValues(alpha: 0.55),
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(10),
                     bottomRight: Radius.circular(10),
@@ -410,18 +370,15 @@ class _ImageThumbnail extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: const Text(
-                  '대표',
+                  '중요',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+                      color: AppTheme.textPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ),
-
-          // X 버튼
           Positioned(
             top: 4,
             right: 4,
@@ -431,10 +388,9 @@ class _ImageThumbnail extends StatelessWidget {
                 width: 20,
                 height: 20,
                 decoration: const BoxDecoration(
-                  color: Colors.black87,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.close, color: AppTheme.textPrimary, size: 13),
+                    color: Colors.black87, shape: BoxShape.circle),
+                child: const Icon(Icons.close,
+                    color: AppTheme.textPrimary, size: 13),
               ),
             ),
           ),
@@ -462,10 +418,7 @@ class _InfoRow extends StatelessWidget {
           child: Text(
             text,
             style: const TextStyle(
-              color: AppTheme.primary,
-              fontSize: 12,
-              height: 1.5,
-            ),
+                color: AppTheme.primary, fontSize: 12, height: 1.5),
           ),
         ),
       ],

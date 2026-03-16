@@ -207,16 +207,24 @@ class _ConversationTile extends StatelessWidget {
         ChatMessage(type: 'summary',    text: json['summary'] ?? '', isDone: true),
         ChatMessage(type: 'riskScore',  text: json['riskScore'].toString(), isDone: true),
         ChatMessage(type: 'riskLevel',  text: json['riskLevel'] ?? '', isDone: true),
-        ChatMessage(type: 'suspicious', text: json['suspiciousPoints'] ?? '[]', isDone: true),
-        ChatMessage(type: 'action',     text: json['recommendedActions'] ?? '[]', isDone: true),
-        ChatMessage(type: 'questions',  text: json['additionalQuestions'] ?? '[]', isDone: true),
+        ChatMessage(type: 'suspicious', text: json['suspiciousPoints'] ?? '', isDone: true),
+        ChatMessage(type: 'action',     text: json['recommendedActions'] ?? '', isDone: true),
+        ChatMessage(type: 'questions',  text: json['additionalQuestions'] ?? '', isDone: true),
       ];
+
+      final rawUrls = json['imageUrls'];
+      final imageUrls = rawUrls is List
+          ? rawUrls.map((e) => e.toString()).toList()
+          : <String>[];
 
       if (context.mounted) {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => AnalysisResultScreen(messages: messages),
+            builder: (_) => AnalysisResultScreen(
+              messages: messages,
+              imageUrls: imageUrls,
+            ),
           ),
         );
       }
