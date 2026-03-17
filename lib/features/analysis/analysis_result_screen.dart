@@ -1,7 +1,11 @@
 // lib/features/analysis/analysis_result_screen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/widgets/common_app_bar.dart';
+import 'dart:typed_data';
+import 'package:miritalk_app/core/config/app_config.dart';
 
 class ChatMessage {
   final String type;
@@ -21,19 +25,74 @@ class ChatMessage {
   );
 }
 
-class AnalysisResultScreen extends StatelessWidget {
+class AnalysisResultScreen extends StatefulWidget {
   final List<ChatMessage> messages;
   final List<String> imageUrls;
+  final int? sessionId; // 히스토리에서 올 때 사용
 
   const AnalysisResultScreen({
     super.key,
-    required this.messages,
+    this.messages = const [],
     this.imageUrls = const [],
+    this.sessionId,
   });
+
+  @override
+  State<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
+}
+
+class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
+  late List<ChatMessage> _messages;
+  late List<String> _imageUrls;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _messages = widget.messages;
+    _imageUrls = widget.imageUrls;
+
+    // sessionId만 있고 messages가 없으면 API로 조회 (히스토리 진입)
+    if (widget.sessionId != null && widget.messages.isEmpty) {
+      _loadFromApi(widget.sessionId!);
+    }
+  }
+
+  Future<void> _loadFromApi(int sessionId) async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await ApiClient().get('/api/fraud/result/$sessionId');
+      final json = jsonDecode(response.body);
+
+      setState(() {
+        _imageUrls = (json['imageUrls'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+            [];
+        _messages = [
+          if (json['summary'] != null)
+            ChatMessage(type: 'summary', text: json['summary']),
+          if (json['riskScore'] != null)
+            ChatMessage(type: 'riskScore', text: json['riskScore'].toString()),
+          if (json['riskLevel'] != null)
+            ChatMessage(type: 'riskLevel', text: json['riskLevel']),
+          if (json['suspiciousPoints'] != null)
+            ChatMessage(type: 'suspicious', text: json['suspiciousPoints']),
+          if (json['recommendedActions'] != null)
+            ChatMessage(type: 'action', text: json['recommendedActions']),
+          if (json['additionalQuestions'] != null)
+            ChatMessage(type: 'questions', text: json['additionalQuestions']),
+        ];
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   String _findText(String type) {
     try {
-      return messages.firstWhere((m) => m.type == type).text;
+      return _messages.firstWhere((m) => m.type == type).text;
     } catch (_) {
       return '';
     }
@@ -50,11 +109,21 @@ class AnalysisResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppTheme.background,
+        appBar: const CommonAppBar(title: '분석 결과'),
+        body: const Center(
+          child: CircularProgressIndicator(color: AppTheme.primary),
+        ),
+      );
+    }
+
     final riskLevel = _findText('riskLevel');
     final riskScore = _findText('riskScore');
     final riskColor = _riskColor(riskLevel);
 
-    final displayMessages = messages
+    final displayMessages = _messages
         .where((m) =>
     m.type != 'stream' &&
         m.type != 'riskLevel' &&
@@ -67,11 +136,8 @@ class AnalysisResultScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
         children: [
-          // ── 상단 가로 썸네일 스트립 ───────────────
-          if (imageUrls.isNotEmpty)
-            _ThumbnailStrip(imageUrls: imageUrls),
-
-          // ── 위험도 + 분석 결과 ────────────────────
+          if (_imageUrls.isNotEmpty)
+            _ThumbnailStrip(imageUrls: _imageUrls),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
@@ -162,37 +228,9 @@ class _ThumbnailStrip extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // 썸네일 이미지
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            imageUrls[index],
-                            fit: BoxFit.cover,
-                            loadingBuilder: (_, child, progress) =>
-                            progress == null
-                                ? child
-                                : Container(
-                              color: AppTheme.surfaceDeep,
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1.5,
-                                    color: AppTheme.primary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            errorBuilder: (_, __, ___) => Container(
-                              color: AppTheme.surfaceDeep,
-                              child: const Icon(
-                                Icons.broken_image_outlined,
-                                color: AppTheme.textHint,
-                                size: 24,
-                              ),
-                            ),
-                          ),
+                          child: _AuthImage(url: imageUrls[index], fit: BoxFit.cover),
                         ),
 
                         // 대표 뱃지 (첫 번째만)
@@ -314,25 +352,15 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
             controller: _pageController,
             itemCount: widget.imageUrls.length,
             onPageChanged: (i) => setState(() => _currentIndex = i),
+            // ← Image.network 대신 _AuthImage
             itemBuilder: (context, index) => InteractiveViewer(
               minScale: 1.0,
               maxScale: 4.0,
               child: Center(
-                child: Image.network(
-                  widget.imageUrls[index],
+                child: _AuthImage(
+                  url: widget.imageUrls[index],
                   fit: BoxFit.contain,
-                  loadingBuilder: (_, child, progress) => progress == null
-                      ? child
-                      : const Center(
-                    child: CircularProgressIndicator(
-                      color: AppTheme.primary,
-                    ),
-                  ),
-                  errorBuilder: (_, __, ___) => const Icon(
-                    Icons.broken_image_outlined,
-                    color: Colors.white38,
-                    size: 60,
-                  ),
+                  fullscreen: true,
                 ),
               ),
             ),
@@ -536,6 +564,76 @@ class _ChatBubble extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// analysis_result_screen.dart 파일 맨 아래에 추가
+class _AuthImage extends StatefulWidget {
+  final String url;
+  final BoxFit fit;
+  final bool fullscreen;
+
+  const _AuthImage({
+    required this.url,
+    this.fit = BoxFit.cover,
+    this.fullscreen = false,
+  });
+
+  @override
+  State<_AuthImage> createState() => _AuthImageState();
+}
+
+class _AuthImageState extends State<_AuthImage> {
+  late Future<Uint8List?> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Uint8List?> _load() async {
+    try {
+      final path = widget.url.replaceFirst(AppConfig.baseUrl, '');
+      final response = await ApiClient().get(path);
+      if (response.statusCode == 200) return response.bodyBytes;
+    } catch (_) {}
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List?>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            color: widget.fullscreen ? Colors.black : AppTheme.surfaceDeep,
+            child: Center(
+              child: SizedBox(
+                width: widget.fullscreen ? 32 : 16,
+                height: widget.fullscreen ? 32 : 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: AppTheme.primary,
+                ),
+              ),
+            ),
+          );
+        }
+        if (snapshot.data == null) {
+          return Container(
+            color: widget.fullscreen ? Colors.black : AppTheme.surfaceDeep,
+            child: Icon(
+              Icons.broken_image_outlined,
+              color: widget.fullscreen ? Colors.white38 : AppTheme.textHint,
+              size: widget.fullscreen ? 60 : 24,
+            ),
+          );
+        }
+        return Image.memory(snapshot.data!, fit: widget.fit);
+      },
     );
   }
 }

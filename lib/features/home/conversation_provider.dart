@@ -6,9 +6,10 @@ import 'package:miritalk_app/core/network/api_client.dart';
 class ConversationItem {
   final int sessionId;
   final String title;
-  final int riskLevel;        // riskScore (0~100)
-  final String riskLevelLabel; // 낮음|보통|높음|매우높음
+  final int riskLevel;
+  final String riskLevelLabel;
   final String createdAt;
+  final String? thumbnailUrl;
 
   const ConversationItem({
     required this.sessionId,
@@ -16,6 +17,7 @@ class ConversationItem {
     required this.riskLevel,
     required this.riskLevelLabel,
     required this.createdAt,
+    this.thumbnailUrl,
   });
 
   factory ConversationItem.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class ConversationItem {
       riskLevel: json['riskScore'] as int? ?? 0,
       riskLevelLabel: json['riskLevel'] as String? ?? '',
       createdAt: _formatDate(json['createdAt'] as String? ?? ''),
+      thumbnailUrl: json['thumbnailUrl'] as String?, // ← 추가
     );
   }
 
@@ -58,6 +61,7 @@ class ConversationProvider extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+        debugPrint('히스토리 응답: $data');
         _conversations = data
             .map((e) => ConversationItem.fromJson(e as Map<String, dynamic>))
             .toList();

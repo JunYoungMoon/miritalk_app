@@ -8,6 +8,8 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
 import 'package:miritalk_app/features/upload/image_upload_screen.dart';
+import 'package:miritalk_app/core/config/app_config.dart';
+import 'dart:typed_data';
 
 class ConversationDrawer extends StatefulWidget {
   const ConversationDrawer({super.key});
@@ -157,32 +159,34 @@ class _ConversationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      // leading 아이콘 제거 — 위험도 색상 바로 텍스트로 표현
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+      minVerticalPadding: 4,
+      dense: true,
+      leading: _Thumbnail(url: conversation.thumbnailUrl),
       title: Text(
         conversation.title,
-        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
+        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 12),
         overflow: TextOverflow.ellipsis,
         maxLines: 2,
       ),
       subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4),
+        padding: const EdgeInsets.only(top: 2),
         child: Text(
           conversation.createdAt,
-          style: const TextStyle(color: AppTheme.textHint, fontSize: 11),
+          style: const TextStyle(color: AppTheme.textHint, fontSize: 10),
         ),
       ),
       trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
           color: _riskColor.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           '${conversation.riskLevel}%',
           style: TextStyle(
             color: _riskColor,
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -191,6 +195,7 @@ class _ConversationTile extends StatelessWidget {
     );
   }
 
+  // _openResult 동일
   Future<void> _openResult(BuildContext context) async {
     Navigator.pop(context);
 
@@ -234,4 +239,71 @@ class _ConversationTile extends StatelessWidget {
       debugPrint('결과 조회 실패: $e');
     }
   }
+}
+
+class _Thumbnail extends StatefulWidget {
+  final String? url;
+  const _Thumbnail({this.url});
+
+  @override
+  State<_Thumbnail> createState() => _ThumbnailState();
+}
+
+class _ThumbnailState extends State<_Thumbnail> {
+  late Future<Uint8List?> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Uint8List?> _load() async {
+    if (widget.url == null) return null;
+    try {
+      // baseUrl 제거하고 path만 추출
+      final path = widget.url!.replaceFirst(AppConfig.baseUrl, '');
+      final response = await ApiClient().get(path);
+      if (response.statusCode == 200) return response.bodyBytes;
+    } catch (_) {}
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: FutureBuilder<Uint8List?>(
+          future: _future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _placeholder(loading: true);
+            }
+            if (snapshot.data == null) return _placeholder();
+            return Image.memory(snapshot.data!, fit: BoxFit.cover);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _placeholder({bool loading = false}) => Container(
+    color: AppTheme.surfaceDeep,
+    child: Center(
+      child: loading
+          ? const SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(
+          strokeWidth: 1.5,
+          color: AppTheme.primary,
+        ),
+      )
+          : const Icon(Icons.image_outlined,
+          color: AppTheme.textHint, size: 20),
+    ),
+  );
 }

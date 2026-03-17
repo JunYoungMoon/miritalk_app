@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'analysis_result_screen.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
+import 'package:miritalk_app/core/config/app_config.dart';
 
 class AnalyzingScreen extends StatefulWidget {
   final List<http.MultipartFile> images;
@@ -72,24 +73,11 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
             (line) {
           if (!line.startsWith('data:')) return;
           final data = line.substring(5).trim();
-
-          if (data == '[DONE]') {
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AnalysisResultScreen(
-                    messages: _messages,
-                    imageUrls: const [],
-                  ),
-                ),
-              );
-            }
-            return;
-          }
           _handleSSEData(data);
         },
-        onError: (_) { if (mounted) Navigator.pop(context); },
+        onError: (_) {
+          if (mounted) Navigator.pop(context);
+        },
       );
     } on UnauthorizedException {
       if (mounted) Navigator.pop(context);
@@ -99,10 +87,83 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     }
   }
 
+  Future<void> _onDone(int sessionId) async {
+    try {
+      // 백엔드에서 이미지 URL 포함 전체 결과 조회
+      final response = await ApiClient().get('/api/fraud/result/$sessionId');
+      final json = jsonDecode(response.body);
+
+      final imageUrls = (json['imageUrls'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList() ??
+          [];
+
+      // SSE로 받은 messages에 없는 항목은 API 결과로 보완
+      final mergedMessages = _buildMessages(json);
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AnalysisResultScreen(
+              messages: mergedMessages,
+              imageUrls: imageUrls,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('결과 조회 오류: $e');
+      // 조회 실패 시 SSE로 받은 messages만으로 화면 전환
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AnalysisResultScreen(
+              messages: _messages,
+              imageUrls: const [],
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  List<ChatMessage> _buildMessages(Map<String, dynamic> json) {
+    // SSE로 이미 받은 타입 목록
+    final existingTypes = _messages.map((m) => m.type).toSet();
+
+    final result = List<ChatMessage>.from(_messages);
+
+    // SSE에서 못 받은 항목 보완
+    void addIfMissing(String type, String? value) {
+      if (value != null && value.isNotEmpty && !existingTypes.contains(type)) {
+        result.add(ChatMessage(type: type, text: value));
+      }
+    }
+
+    addIfMissing('summary', json['summary']);
+    addIfMissing('riskScore', json['riskScore']?.toString());
+    addIfMissing('riskLevel', json['riskLevel']);
+    addIfMissing('suspicious', json['suspiciousPoints']);
+    addIfMissing('action', json['recommendedActions']);
+    addIfMissing('questions', json['additionalQuestions']);
+
+    return result;
+  }
+
   void _handleSSEData(String data) {
     try {
       final json = jsonDecode(data);
       final type = json['type'] as String;
+
+      // done 이벤트 처리
+      if (type == 'done') {
+        final sessionId = json['sessionId'] as int;
+        _onDone(sessionId);
+        return;
+      }
+
       final content = json['content'] as String;
       final done = json['done'] as bool? ?? false;
 
