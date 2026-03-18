@@ -1,6 +1,8 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
+import 'package:miritalk_app/core/config/app_config.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
@@ -8,6 +10,8 @@ import 'features/home/conversation_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
   runApp(
     MultiProvider(
       providers: [

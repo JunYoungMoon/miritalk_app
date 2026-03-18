@@ -41,13 +41,15 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <!-- kakao + 네이티브 앱 키 -->
-                <data android:scheme="kakaoYOUR_NATIVE_APP_KEY" />
+                <data android:scheme="kakao${kakaoNativeAppKey}" />
             </intent-filter>
         </activity>
 
         <meta-data
                 android:name="flutterEmbedding"
                 android:value="2" />
+        <meta-data android:name="com.kakao.sdk.AppKey"
+                   android:value="${kakaoNativeAppKey}" />
     </application>
 
     <queries>
