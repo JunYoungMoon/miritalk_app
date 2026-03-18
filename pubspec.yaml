@@ -78,6 +78,10 @@ flutter:
     - assets/images/evidence_1.png
     - assets/images/evidence_2.png
     - assets/images/evidence_3.png
+    - assets/images/onboarding_1.png
+    - assets/images/onboarding_2.png
+    - assets/images/onboarding_3.png
+    - assets/images/onboarding_4.png
 
 
 dependencies:
@@ -92,3 +96,4 @@ dependencies:
   photo_manager: ^3.9.0
   carousel_slider: ^5.0.0
   google_fonts: ^6.2.1
+  kakao_flutter_sdk_user: ^1.9.7

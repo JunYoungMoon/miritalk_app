@@ -4,10 +4,13 @@ import 'auth_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
 
+enum LoginType { none, google, kakao }
+
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
 
   bool _isLoading = false;
+  LoginType _loadingType = LoginType.none;
   bool _isLoggedIn = false;
   String? _errorMessage;
   String? _profileImageUrl;
@@ -17,6 +20,9 @@ class AuthProvider extends ChangeNotifier {
   String? _refreshToken;
 
   bool get isLoading => _isLoading;
+  LoginType get loadingType => _loadingType;
+  bool get isGoogleLoading => _loadingType == LoginType.google;
+  bool get isKakaoLoading  => _loadingType == LoginType.kakao;
   bool get isLoggedIn => _isLoggedIn;
   String? get errorMessage => _errorMessage;
   String? get profileImageUrl => _profileImageUrl;
@@ -26,50 +32,70 @@ class AuthProvider extends ChangeNotifier {
   String? get refreshToken => _refreshToken;
 
   Future<void> signInWithGoogle() async {
-    _isLoading = true;
+    await _login(
+          () => _authService.signInWithGoogle(),
+      type: LoginType.google,
+      errorMsg: '구글 로그인에 실패했습니다.',
+    );
+  }
+
+  Future<void> signInWithKakao() async {
+    await _login(
+          () => _authService.signInWithKakao(),
+      type: LoginType.kakao,
+      errorMsg: '카카오 로그인에 실패했습니다.',
+    );
+  }
+
+  Future<void> _login(
+      Future<Map<String, String?>?> Function() loginFn, {
+        required LoginType type,
+        required String errorMsg,
+      }) async {
+    _isLoading   = true;
+    _loadingType = type;
     _errorMessage = null;
     notifyListeners();
 
-    final result = await _authService.signInWithGoogle();
+    final result = await loginFn();
 
-    _isLoading = false;
+    _isLoading   = false;
+    _loadingType = LoginType.none;
     if (result != null) {
-      _isLoggedIn = true;
+      _isLoggedIn      = true;
       _profileImageUrl = result['profileImageUrl'];
-      _userName = result['userName'];
-      _userEmail = result['userEmail'];
-      _accessToken = result['accessToken'];
-      _refreshToken = result['refreshToken'];
+      _userName        = result['userName'];
+      _userEmail       = result['userEmail'];
+      _accessToken     = result['accessToken'];
+      _refreshToken    = result['refreshToken'];
     } else {
-      _isLoggedIn = false;
-      _errorMessage = '로그인에 실패했습니다. 다시 시도해주세요.';
+      _isLoggedIn   = false;
+      _errorMessage = errorMsg;
     }
     notifyListeners();
   }
 
-  // auth_provider.dart에 추가
   Future<void> checkLoginStatus() async {
     _isLoggedIn = await _authService.isLoggedIn();
     if (_isLoggedIn) {
-      // SecureStorage에서 저장된 정보 복원
       final storage = const FlutterSecureStorage();
-      _accessToken = await storage.read(key: AppConfig.tokenKey);
-      _refreshToken = await storage.read(key: 'refreshToken');
+      _accessToken     = await storage.read(key: AppConfig.tokenKey);
+      _refreshToken    = await storage.read(key: 'refreshToken');
       _profileImageUrl = await storage.read(key: 'profileImageUrl');
-      _userName = await storage.read(key: 'userName');
-      _userEmail = await storage.read(key: 'userEmail');
+      _userName        = await storage.read(key: 'userName');
+      _userEmail       = await storage.read(key: 'userEmail');
     }
     notifyListeners();
   }
 
   Future<void> logout() async {
     await _authService.signOut();
-    _isLoggedIn = false;
+    _isLoggedIn      = false;
     _profileImageUrl = null;
-    _userName = null;
-    _userEmail = null;
-    _accessToken = null;
-    _refreshToken = null;
+    _userName        = null;
+    _userEmail       = null;
+    _accessToken     = null;
+    _refreshToken    = null;
     notifyListeners();
   }
 }

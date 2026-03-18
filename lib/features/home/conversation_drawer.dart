@@ -1,4 +1,4 @@
-// lib/features/home/conversation_drawer.dart 전체 교체
+// lib/features/home/conversation_drawer.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -152,8 +152,7 @@ class _ConversationTile extends StatelessWidget {
   final ConversationItem conversation;
   const _ConversationTile({required this.conversation});
 
-  Color get _riskColor =>
-      conversation.riskLevel >= 70 ? AppTheme.danger : AppTheme.primary;
+  Color get _riskColor => AppTheme.riskLevelColor(conversation.effectiveRiskLevel);
 
   @override
   Widget build(BuildContext context) {
@@ -229,6 +228,8 @@ class _ConversationTile extends StatelessWidget {
             builder: (_) => AnalysisResultScreen(
               messages: messages,
               imageUrls: imageUrls,
+              sessionId: conversation.sessionId,
+              feedbackHelpful: json['feedbackHelpful'] as bool?,
             ),
           ),
         );

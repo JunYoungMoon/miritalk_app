@@ -9,9 +9,9 @@ class AppTheme {
   static const Color background     = Color(0xFF1A1A2E);
   static const Color surface        = Color(0xFF16213E);
   static const Color surfaceDeep    = Color(0xFF0F3460);
-  static const Color primary        = Color(0xFF4FC3F7); // 공통
-  static const Color success        = Color(0xFF4CAF50); // 공통
-  static const Color danger         = Color(0xFFEF5350); // 공통
+  static const Color primary        = Color(0xFF4FC3F7);
+  static const Color success        = Color(0xFF4CAF50);
+  static const Color danger         = Color(0xFFEF5350);
   static const Color textPrimary    = Colors.white;
   static const Color textSecondary  = Colors.white60;
   static const Color textHint       = Colors.white38;
@@ -25,6 +25,24 @@ class AppTheme {
   static const Color lightTextSecondary  = Color(0xFF5A6070);
   static const Color lightTextHint       = Color(0xFF9AA0AD);
   static const Color lightDivider        = Color(0xFFE0E0E0);
+
+  // ── 위험도 레벨 문자열 → 색상 (결과화면과 동일한 기준) ──
+  static Color riskLevelColor(String level) {
+    switch (level) {
+      case '매우높음': return AppTheme.danger;
+      case '높음':    return Colors.orange;
+      case '보통':    return Colors.yellow;
+      default:        return AppTheme.success;
+    }
+  }
+
+// ── 점수 → 레벨 문자열 변환 (점수만 있을 때 사용) ──
+  static String riskScoreToLevel(int score) {
+    if (score >= 80) return '매우높음';
+    if (score >= 60) return '높음';
+    if (score >= 40) return '보통';
+    return '낮음';
+  }
 
   // ── ThemeData ──────────────────────────────────
   static ThemeData get dark {

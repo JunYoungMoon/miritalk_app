@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
+import 'package:miritalk_app/core/theme/app_theme.dart';
 
 class ConversationItem {
   final int sessionId;
@@ -19,6 +20,11 @@ class ConversationItem {
     required this.createdAt,
     this.thumbnailUrl,
   });
+
+  String get effectiveRiskLevel =>
+      riskLevelLabel.isNotEmpty
+          ? riskLevelLabel
+          : AppTheme.riskScoreToLevel(riskLevel);
 
   factory ConversationItem.fromJson(Map<String, dynamic> json) {
     final summary = json['summary'] as String? ?? '';

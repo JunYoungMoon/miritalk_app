@@ -1,12 +1,12 @@
 // lib/features/analysis/analyzing_screen.dart
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'analysis_result_screen.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
-import 'package:miritalk_app/core/config/app_config.dart';
 
 class AnalyzingScreen extends StatefulWidget {
   final List<http.MultipartFile> images;
@@ -17,14 +17,20 @@ class AnalyzingScreen extends StatefulWidget {
 }
 
 class _AnalyzingScreenState extends State<AnalyzingScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+    with TickerProviderStateMixin {
+  // 프로그레스 애니메이션 — 60초로 연장
+  late AnimationController _progressController;
   late Animation<double> _progressAnimation;
+
+  // shimmer 애니메이션
+  late AnimationController _shimmerController;
+  late Animation<double> _shimmerAnimation;
 
   final List<String> _steps = [
     '이미지에서 텍스트를 추출하고 있습니다...',
     '대화 패턴을 분석하고 있습니다...',
     '사기 사례와 비교하고 있습니다...',
+    '심리 조작 기법을 탐지하고 있습니다...',
     '분석 결과를 정리하고 있습니다...',
   ];
   int _currentStep = 0;
@@ -34,16 +40,30 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+
+    // ── 프로그레스바: 60초 동안 0 → 0.95
+    _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 10),
+      duration: const Duration(seconds: 60),
     )..forward();
 
-    _progressAnimation = Tween<double>(begin: 0, end: 0.95)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _progressAnimation = Tween<double>(begin: 0, end: 0.95).animate(
+      CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
+    );
 
+    // ── shimmer: 1.8초 루프
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat();
+
+    _shimmerAnimation = Tween<double>(begin: -1.5, end: 2.5).animate(
+      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
+    );
+
+    // 스텝 텍스트 순환
     Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 3));
       if (!mounted) return false;
       setState(() => _currentStep = (_currentStep + 1) % _steps.length);
       return true;
@@ -55,7 +75,8 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   @override
   void dispose() {
     _sseSubscription?.cancel();
-    _controller.dispose();
+    _progressController.dispose();
+    _shimmerController.dispose();
     super.dispose();
   }
 
@@ -88,8 +109,17 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   }
 
   Future<void> _onDone(int sessionId) async {
+    // 프로그레스를 100%로 채우고 잠깐 보여준 뒤 이동
+    _progressController.stop();
+    _progressController.animateTo(
+      1.0,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+    );
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
     try {
-      // 백엔드에서 이미지 URL 포함 전체 결과 조회
       final response = await ApiClient().get('/api/fraud/result/$sessionId');
       final json = jsonDecode(response.body);
 
@@ -98,7 +128,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
           .toList() ??
           [];
 
-      // SSE로 받은 messages에 없는 항목은 API 결과로 보완
       final mergedMessages = _buildMessages(json);
 
       if (mounted) {
@@ -108,13 +137,13 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
             builder: (_) => AnalysisResultScreen(
               messages: mergedMessages,
               imageUrls: imageUrls,
+              sessionId: sessionId,
             ),
           ),
         );
       }
     } catch (e) {
       debugPrint('결과 조회 오류: $e');
-      // 조회 실패 시 SSE로 받은 messages만으로 화면 전환
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -122,6 +151,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
             builder: (_) => AnalysisResultScreen(
               messages: _messages,
               imageUrls: const [],
+              sessionId: sessionId,
             ),
           ),
         );
@@ -130,23 +160,20 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   }
 
   List<ChatMessage> _buildMessages(Map<String, dynamic> json) {
-    // SSE로 이미 받은 타입 목록
     final existingTypes = _messages.map((m) => m.type).toSet();
-
     final result = List<ChatMessage>.from(_messages);
 
-    // SSE에서 못 받은 항목 보완
     void addIfMissing(String type, String? value) {
       if (value != null && value.isNotEmpty && !existingTypes.contains(type)) {
         result.add(ChatMessage(type: type, text: value));
       }
     }
 
-    addIfMissing('summary', json['summary']);
+    addIfMissing('summary',   json['summary']);
     addIfMissing('riskScore', json['riskScore']?.toString());
     addIfMissing('riskLevel', json['riskLevel']);
     addIfMissing('suspicious', json['suspiciousPoints']);
-    addIfMissing('action', json['recommendedActions']);
+    addIfMissing('action',    json['recommendedActions']);
     addIfMissing('questions', json['additionalQuestions']);
 
     return result;
@@ -157,7 +184,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       final json = jsonDecode(data);
       final type = json['type'] as String;
 
-      // done 이벤트 처리
       if (type == 'done') {
         final sessionId = json['sessionId'] as int;
         _onDone(sessionId);
@@ -192,21 +218,12 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppTheme.primary.withValues(alpha: 0.4),
-                    width: 1.5,
-                  ),
-                ),
-                child: const Icon(Icons.manage_search_rounded,
-                    color: AppTheme.primary, size: 40),
-              ),
+              // ── 아이콘 (shimmer 링 효과)
+              _ShimmerRing(shimmerAnimation: _shimmerAnimation),
+
               const SizedBox(height: 32),
+
+              // ── 타이틀
               const Text(
                 '대화 내역을 면밀하게\n분석 중입니다',
                 textAlign: TextAlign.center,
@@ -217,51 +234,296 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                   height: 1.5,
                 ),
               ),
+
               const SizedBox(height: 12),
+
+              // ── 스텝 텍스트 (shimmer 효과)
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 400),
-                child: Text(
-                  _steps[_currentStep],
+                child: _ShimmerText(
                   key: ValueKey(_currentStep),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 13,
-                    height: 1.5,
-                  ),
+                  text: _steps[_currentStep],
+                  shimmerAnimation: _shimmerAnimation,
                 ),
               ),
-              const SizedBox(height: 40),
+
+              const SizedBox(height: 32),
+
+              // ── SSE로 들어오는 실시간 텍스트 (shimmer)
+              if (_messages.isNotEmpty)
+                _StreamingTextArea(
+                  messages: _messages,
+                  shimmerAnimation: _shimmerAnimation,
+                ),
+
+              const SizedBox(height: 32),
+
+              // ── 프로그레스바
               AnimatedBuilder(
                 animation: _progressAnimation,
-                builder: (context, _) => Column(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: _progressAnimation.value,
-                        backgroundColor: AppTheme.surface,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                            AppTheme.primary),
-                        minHeight: 6,
+                builder: (context, _) {
+                  final percent =
+                  (_progressAnimation.value * 100).toInt();
+                  return Column(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: LinearProgressIndicator(
+                          value: _progressAnimation.value,
+                          backgroundColor: AppTheme.surface,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                              AppTheme.primary),
+                          minHeight: 6,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${(_progressAnimation.value * 100).toInt()}%',
-                      style: const TextStyle(
-                        color: AppTheme.primary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                      const SizedBox(height: 8),
+                      Text(
+                        '$percent%',
+                        style: const TextStyle(
+                          color: AppTheme.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── shimmer 링이 감싸는 아이콘 ───────────────────────
+class _ShimmerRing extends StatelessWidget {
+  final Animation<double> shimmerAnimation;
+  const _ShimmerRing({required this.shimmerAnimation});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: shimmerAnimation,
+      builder: (_, __) {
+        return Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: SweepGradient(
+              startAngle: 0,
+              endAngle: 2 * pi,
+              transform: GradientRotation(shimmerAnimation.value * pi),
+              colors: [
+                AppTheme.primary.withValues(alpha: 0.0),
+                AppTheme.primary.withValues(alpha: 0.6),
+                AppTheme.primary.withValues(alpha: 0.0),
+              ],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.primary.withValues(alpha: 0.15),
+              ),
+              child: const Icon(
+                Icons.manage_search_rounded,
+                color: AppTheme.primary,
+                size: 40,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── shimmer 텍스트 ───────────────────────────────────
+class _ShimmerText extends StatelessWidget {
+  final String text;
+  final Animation<double> shimmerAnimation;
+
+  const _ShimmerText({
+    super.key,
+    required this.text,
+    required this.shimmerAnimation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: shimmerAnimation,
+      builder: (_, __) {
+        return ShaderMask(
+          shaderCallback: (bounds) => LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            stops: [
+              (shimmerAnimation.value - 0.4).clamp(0.0, 1.0),
+              shimmerAnimation.value.clamp(0.0, 1.0),
+              (shimmerAnimation.value + 0.4).clamp(0.0, 1.0),
+            ],
+            colors: const [
+              AppTheme.textSecondary,
+              Colors.white,
+              AppTheme.textSecondary,
+            ],
+          ).createShader(bounds),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── SSE 실시간 텍스트 영역 ───────────────────────────
+class _StreamingTextArea extends StatelessWidget {
+  final List<ChatMessage> messages;
+  final Animation<double> shimmerAnimation;
+
+  const _StreamingTextArea({
+    required this.messages,
+    required this.shimmerAnimation,
+  });
+
+  String get _latestText {
+    if (messages.isEmpty) return '';
+    final last = messages.last;
+    // 마지막 메시지에서 최대 80자만 표시
+    final text = last.text;
+    return text.length > 80 ? '...${text.substring(text.length - 80)}' : text;
+  }
+
+  String get _typeLabel {
+    switch (messages.last.type) {
+      case 'summary':             return '종합 분석 작성 중';
+      case 'suspicious':          return '의심 포인트 탐지 중';
+      case 'action':              return '권장 행동 도출 중';
+      case 'questions':           return '확인 질문 생성 중';
+      case 'psychologicalTactics':return '심리 조작 기법 분석 중';
+      default:                    return '분석 중';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: shimmerAnimation,
+      builder: (_, __) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppTheme.primary.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 타입 레이블 + 깜빡이는 커서 점
+              Row(
+                children: [
+                  ShaderMask(
+                    shaderCallback: (bounds) => LinearGradient(
+                      stops: [
+                        (shimmerAnimation.value - 0.3).clamp(0.0, 1.0),
+                        shimmerAnimation.value.clamp(0.0, 1.0),
+                        (shimmerAnimation.value + 0.3).clamp(0.0, 1.0),
+                      ],
+                      colors: const [
+                        AppTheme.primary,
+                        Colors.white,
+                        AppTheme.primary,
+                      ],
+                    ).createShader(bounds),
+                    child: Text(
+                      _typeLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _BlinkingDots(shimmerAnimation: shimmerAnimation),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // 실시간 텍스트
+              ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.white,
+                  ],
+                  stops: const [0.0, 0.4],
+                ).createShader(bounds),
+                blendMode: BlendMode.dstIn,
+                child: Text(
+                  _latestText,
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── 깜빡이는 점 3개 ──────────────────────────────────
+class _BlinkingDots extends StatelessWidget {
+  final Animation<double> shimmerAnimation;
+  const _BlinkingDots({required this.shimmerAnimation});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: shimmerAnimation,
+      builder: (_, __) {
+        return Row(
+          children: List.generate(3, (i) {
+            // 각 점마다 위상 다르게
+            final phase = (shimmerAnimation.value + i * 0.3) % 1.0;
+            final opacity = (sin(phase * pi)).clamp(0.2, 1.0);
+            return Container(
+              margin: const EdgeInsets.only(right: 3),
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.primary.withValues(alpha: opacity),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }
