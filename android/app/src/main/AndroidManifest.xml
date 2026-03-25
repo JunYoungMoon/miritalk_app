@@ -32,16 +32,15 @@
             </intent-filter>
         </activity>
 
-        <!-- 카카오 로그인 Activity -->
+        <!-- 카카오 로그인 커스텀 URL 스킴 설정 -->
         <activity
-                android:name="com.kakao.sdk.auth.AuthCodeHandlerActivity"
+                android:name="com.kakao.sdk.flutter.AuthCodeCustomTabsActivity"
                 android:exported="true">
-            <intent-filter>
+            <intent-filter android:label="flutter_web_auth">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- kakao + 네이티브 앱 키 -->
-                <data android:scheme="kakao${kakaoNativeAppKey}" />
+                <data android:scheme="kakao${kakaoNativeAppKey}" android:host="oauth"/>
             </intent-filter>
         </activity>
 
