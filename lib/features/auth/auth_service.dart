@@ -34,6 +34,7 @@ class AuthService {
       }
       return null;
     } catch (e) {
+      debugPrint('구글 로그인 에러: $e');
       return null;
     }
   }
