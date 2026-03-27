@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'analysis_result_screen.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
+import 'package:miritalk_app/features/analysis/analysis_error.dart';
 
 class AnalyzingScreen extends StatefulWidget {
   final List<http.MultipartFile> images;
@@ -97,14 +98,30 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
           _handleSSEData(data);
         },
         onError: (_) {
-          if (mounted) Navigator.pop(context);
+          // 네트워크 단절 등 SSE 스트림 자체 오류
+          if (mounted) {
+            Navigator.pop(
+              context,
+              const AnalysisError(
+                  'NETWORK_ERROR', '네트워크 연결이 끊겼습니다. 다시 시도해주세요.'),
+            );
+          }
         },
       );
+    } on QuotaExceededException catch (e) {
+      if (mounted) Navigator.pop(
+          context, AnalysisError('QUOTA_ERROR', e.message));
     } on UnauthorizedException {
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(
+          context, const AnalysisError('AUTH_ERROR', ''));
     } catch (e) {
       debugPrint('분석 오류: $e');
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(
+          context,
+          const AnalysisError('NETWORK_ERROR', '네트워크 연결을 확인해주세요.'),
+        );
+      }
     }
   }
 
@@ -183,6 +200,14 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     try {
       final json = jsonDecode(data);
       final type = json['type'] as String;
+
+      // ── 에러 이벤트 처리 ──
+      if (type == 'error') {
+        final errorCode = json['errorCode'] as String? ?? 'UNKNOWN_ERROR';
+        final message = json['message'] as String? ?? '오류가 발생했습니다.';
+        if (mounted) Navigator.pop(context, AnalysisError(errorCode, message));
+        return;
+      }
 
       if (type == 'done') {
         final sessionId = json['sessionId'] as int;

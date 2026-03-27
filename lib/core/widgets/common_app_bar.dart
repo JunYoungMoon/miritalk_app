@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
+import 'package:miritalk_app/features/auth/login_screen.dart';
+import 'package:miritalk_app/features/home/conversation_provider.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -21,6 +23,16 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   void _showProfileMenu(BuildContext context) {
     final auth = context.read<AuthProvider>();
+
+    // 비로그인 → 로그인 화면으로
+    if (!auth.isLoggedIn) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surface,
@@ -72,6 +84,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               onTap: () {
                 Navigator.pop(context);
                 auth.logout();
+                context.read<ConversationProvider>().clear();
               },
             ),
             const SizedBox(height: 8),
@@ -106,7 +119,15 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.security, color: AppTheme.primary, size: 20),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Image.asset(
+              'assets/icons/app_icon5.png',
+              width: 26,
+              height: 26,
+              fit: BoxFit.contain,
+            ),
+          ),
           const SizedBox(width: 8),
           Text(
             title,
@@ -124,15 +145,37 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
           padding: const EdgeInsets.only(right: 12),
           child: GestureDetector(
             onTap: () => _showProfileMenu(context),
-            child: CircleAvatar(
+            child: auth.isLoggedIn
+            // 로그인 상태 — 프로필 아바타
+                ? CircleAvatar(
               radius: 18,
               backgroundColor: AppTheme.surfaceDeep,
               backgroundImage: auth.profileImageUrl != null
                   ? NetworkImage(auth.profileImageUrl!)
                   : null,
               child: auth.profileImageUrl == null
-                  ? const Icon(Icons.person, color: AppTheme.primary, size: 20)
+                  ? const Icon(Icons.person,
+                  color: AppTheme.primary, size: 20)
                   : null,
+            )
+            // 비로그인 상태 — 로그인 텍스트 버튼
+                : Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.4)),
+              ),
+              child: const Text(
+                '로그인',
+                style: TextStyle(
+                  color: AppTheme.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),

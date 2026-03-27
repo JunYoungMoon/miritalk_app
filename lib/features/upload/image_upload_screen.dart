@@ -7,6 +7,8 @@ import 'gallery_picker_screen.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'package:miritalk_app/features/analysis/analyzing_screen.dart';
+import 'package:miritalk_app/features/analysis/analysis_error.dart';
+import 'package:miritalk_app/features/auth/login_screen.dart';
 
 class ImageUploadScreen extends StatefulWidget {
   const ImageUploadScreen({super.key});
@@ -62,19 +64,108 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
         }
       }
 
-      if (!mounted) return;
       setState(() => _isUploading = false);
 
-      Navigator.push(
+      final result = await Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => AnalyzingScreen(images: files)),
       );
+
+      if (!mounted) return;
+
+      if (result is AnalysisError) {
+        switch (result.errorCode) {
+          case 'QUOTA_ERROR':
+            _showQuotaDialog(result.message);
+            break;
+          case 'AUTH_ERROR':
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
+            break;
+          default:
+            _showErrorDialog(result.message);
+            break;
+        }
+      }
     } catch (e) {
       if (mounted) {
         _showSnackBar('오류가 발생했습니다: $e');
         setState(() => _isUploading = false);
       }
     }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline, color: AppTheme.danger, size: 20),
+            SizedBox(width: 8),
+            Text(
+              '분석 실패',
+              style: TextStyle(color: AppTheme.textPrimary, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 13,
+            height: 1.6,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인', style: TextStyle(color: AppTheme.primary)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQuotaDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.block, color: AppTheme.danger, size: 20),
+            SizedBox(width: 8),
+            Text(
+              '오늘 분석 횟수 초과',
+              style: TextStyle(color: AppTheme.textPrimary, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 13,
+            height: 1.6,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              '확인',
+              style: TextStyle(color: AppTheme.primary),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool> _validateImages() async {

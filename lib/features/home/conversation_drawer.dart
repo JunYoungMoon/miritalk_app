@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'conversation_provider.dart';
+import 'analysis_quota_provider.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
 import 'package:miritalk_app/features/upload/image_upload_screen.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'dart:typed_data';
 
 class ConversationDrawer extends StatefulWidget {
@@ -27,13 +29,56 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
     });
   }
 
+  /// 새 분석 요청 버튼 탭 핸들러
+  Future<void> _onNewAnalysisTap() async {
+    final auth = context.read<AuthProvider>();
+    final quotaProvider = context.read<AnalysisQuotaProvider>();
+
+    Navigator.pop(context); // 드로어 닫기
+
+    // ── 1. 로그인 체크 ──
+    if (!auth.isLoggedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      return;
+    }
+
+    // ── 2. 쿼터 최신화 후 소진 여부 확인 ──
+    await quotaProvider.loadQuota();
+    if (!mounted) return;
+
+    if (quotaProvider.isExhausted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('오늘 분석 횟수를 모두 사용했습니다. 내일 다시 이용해주세요.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    // ── 3. 업로드 화면으로 이동, 완료 후 quota 재조회 ──
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
+    );
+
+    // 화면에서 돌아왔을 때 quota 갱신 (분석이 실제로 이뤄졌을 수도 있으므로)
+    if (mounted) {
+      await quotaProvider.loadQuota();
+      await context.read<ConversationProvider>().loadConversations();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final convProvider = context.watch<ConversationProvider>();
 
     return Drawer(
-      width: MediaQuery.of(context).size.width * 0.82, // 3/2 → 82%로 확장
+      width: MediaQuery.of(context).size.width * 0.82,
       backgroundColor: AppTheme.surface,
       child: SafeArea(
         child: Column(
@@ -42,7 +87,8 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
             // 프로필 헤더
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-              child: Row(
+              child: auth.isLoggedIn
+                  ? Row(
                 children: [
                   CircleAvatar(
                     radius: 22,
@@ -51,7 +97,8 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                         ? NetworkImage(auth.profileImageUrl!)
                         : null,
                     child: auth.profileImageUrl == null
-                        ? const Icon(Icons.person, color: AppTheme.primary)
+                        ? const Icon(Icons.person,
+                        color: AppTheme.primary)
                         : null,
                   ),
                   const SizedBox(width: 12),
@@ -77,12 +124,67 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                     ),
                   ),
                 ],
+              )
+                  : Column(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: AppTheme.surfaceDeep,
+                    child: const Icon(Icons.person,
+                        color: AppTheme.primary, size: 28),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    '로그인이 필요합니다',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '로그인하고 분석 내역을 확인하세요',
+                    style:
+                    TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const LoginScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        padding:
+                        const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        '로그인하기',
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
 
             const Divider(color: AppTheme.divider),
 
-            // 새 분석 요청 버튼 — 업로드 화면으로 이동
+            // 새 분석 요청 버튼
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: ListTile(
@@ -97,15 +199,7 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                       color: AppTheme.textPrimary,
                       fontWeight: FontWeight.w600),
                 ),
-                onTap: () {
-                  Navigator.pop(context); // 드로어 닫기
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ImageUploadScreen(),
-                    ),
-                  );
-                },
+                onTap: _onNewAnalysisTap,
               ),
             ),
 
@@ -133,10 +227,12 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                 ),
               )
                   : ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: convProvider.conversations.length,
                 itemBuilder: (context, index) {
-                  final conv = convProvider.conversations[index];
+                  final conv =
+                  convProvider.conversations[index];
                   return _ConversationTile(conversation: conv);
                 },
               ),
@@ -152,19 +248,23 @@ class _ConversationTile extends StatelessWidget {
   final ConversationItem conversation;
   const _ConversationTile({required this.conversation});
 
-  Color get _riskColor => AppTheme.riskLevelColor(conversation.effectiveRiskLevel);
+  Color get _riskColor =>
+      AppTheme.riskLevelColor(conversation.effectiveRiskLevel);
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+      shape:
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      contentPadding:
+      const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
       minVerticalPadding: 4,
       dense: true,
       leading: _Thumbnail(url: conversation.thumbnailUrl),
       title: Text(
         conversation.title,
-        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 12),
+        style:
+        const TextStyle(color: AppTheme.textPrimary, fontSize: 12),
         overflow: TextOverflow.ellipsis,
         maxLines: 2,
       ),
@@ -172,11 +272,13 @@ class _ConversationTile extends StatelessWidget {
         padding: const EdgeInsets.only(top: 2),
         child: Text(
           conversation.createdAt,
-          style: const TextStyle(color: AppTheme.textHint, fontSize: 10),
+          style:
+          const TextStyle(color: AppTheme.textHint, fontSize: 10),
         ),
       ),
       trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        padding:
+        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
           color: _riskColor.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(8),
@@ -194,26 +296,41 @@ class _ConversationTile extends StatelessWidget {
     );
   }
 
-  // _openResult 동일
   Future<void> _openResult(BuildContext context) async {
     Navigator.pop(context);
-
     try {
       final response = await ApiClient()
           .get('/api/fraud/result/${conversation.sessionId}');
-
       if (response.statusCode != 200) return;
 
       final json = jsonDecode(utf8.decode(response.bodyBytes))
       as Map<String, dynamic>;
 
       final messages = <ChatMessage>[
-        ChatMessage(type: 'summary',    text: json['summary'] ?? '', isDone: true),
-        ChatMessage(type: 'riskScore',  text: json['riskScore'].toString(), isDone: true),
-        ChatMessage(type: 'riskLevel',  text: json['riskLevel'] ?? '', isDone: true),
-        ChatMessage(type: 'suspicious', text: json['suspiciousPoints'] ?? '', isDone: true),
-        ChatMessage(type: 'action',     text: json['recommendedActions'] ?? '', isDone: true),
-        ChatMessage(type: 'questions',  text: json['additionalQuestions'] ?? '', isDone: true),
+        ChatMessage(
+            type: 'summary',
+            text: json['summary'] ?? '',
+            isDone: true),
+        ChatMessage(
+            type: 'riskScore',
+            text: json['riskScore'].toString(),
+            isDone: true),
+        ChatMessage(
+            type: 'riskLevel',
+            text: json['riskLevel'] ?? '',
+            isDone: true),
+        ChatMessage(
+            type: 'suspicious',
+            text: json['suspiciousPoints'] ?? '',
+            isDone: true),
+        ChatMessage(
+            type: 'action',
+            text: json['recommendedActions'] ?? '',
+            isDone: true),
+        ChatMessage(
+            type: 'questions',
+            text: json['additionalQuestions'] ?? '',
+            isDone: true),
       ];
 
       final rawUrls = json['imageUrls'];
@@ -262,8 +379,8 @@ class _ThumbnailState extends State<_Thumbnail> {
   Future<Uint8List?> _load() async {
     if (widget.url == null) return null;
     try {
-      // baseUrl 제거하고 path만 추출
-      final path = widget.url!.replaceFirst(AppConfig.baseUrl, '');
+      final path =
+      widget.url!.replaceFirst(AppConfig.baseUrl, '');
       final response = await ApiClient().get(path);
       if (response.statusCode == 200) return response.bodyBytes;
     } catch (_) {}

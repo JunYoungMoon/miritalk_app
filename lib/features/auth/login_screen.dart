@@ -40,13 +40,14 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _handleLogin(
-    BuildContext context,
-    Future<void> Function() loginFn,
-  ) async {
+      BuildContext context,
+      Future<void> Function() loginFn,
+      ) async {
     await loginFn();
     final auth = context.read<AuthProvider>();
     if (auth.isLoggedIn && context.mounted) {
-      Navigator.pushReplacementNamed(context, '/home');
+      // 로그인 성공 시 이전 화면(HomeScreen)으로 복귀
+      Navigator.pop(context);
     }
   }
 
@@ -56,6 +57,16 @@ class _LoginScreenState extends State<LoginScreen>
 
     return Scaffold(
       backgroundColor: AppTheme.background,
+      // 상단 뒤로가기 버튼
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white54),
+          tooltip: '홈으로 돌아가기',
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeIn,
@@ -67,7 +78,7 @@ class _LoginScreenState extends State<LoginScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.security, size: 72, color: AppTheme.primary),
+                  Image.asset('assets/icons/app_icon5.png', width: 72, height: 72),
                   const SizedBox(height: 12),
                   const Text(
                     '미리톡 사기 방지 시스템',
@@ -86,10 +97,36 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   const SizedBox(height: 20),
 
-                  // 온보딩 슬라이더
                   const _OnboardingSlider(),
 
                   const SizedBox(height: 20),
+
+                  // 로그인이 필요한 이유 안내 문구
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: AppTheme.primary.withValues(alpha: 0.2)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            color: AppTheme.primary, size: 16),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '분석 기능을 사용하려면 로그인이 필요합니다.',
+                            style: TextStyle(
+                                color: AppTheme.primary, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                   if (auth.errorMessage != null)
                     Padding(
@@ -111,6 +148,17 @@ class _LoginScreenState extends State<LoginScreen>
                     isLoading: auth.isKakaoLoading,
                     onPressed: () =>
                         _handleLogin(context, () => auth.signInWithKakao()),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // 하단 텍스트 버튼으로도 홈 복귀 가능
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      '로그인 없이 둘러보기',
+                      style: TextStyle(color: Colors.white38, fontSize: 13),
+                    ),
                   ),
                 ],
               ),
@@ -137,36 +185,36 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
 
   static const _slides = [
     (
-      imagePath: 'assets/images/onboarding_1.png', // 업로드 화면 스크린샷
-      icon: Icons.upload_rounded,
-      iconColor: Color(0xFF4FC3F7),
-      tag: '1단계',
-      title: '대화 캡처 업로드',
-      desc: '카카오톡, 문자, 거래앱 등\n의심되는 대화를 캡처해서 올려주세요.',
+    imagePath: 'assets/images/onboarding_1.png',
+    icon: Icons.upload_rounded,
+    iconColor: Color(0xFF4FC3F7),
+    tag: '1단계',
+    title: '대화 캡처 업로드',
+    desc: '카카오톡, 문자, 거래앱 등\n의심되는 대화를 캡처해서 올려주세요.',
     ),
     (
-      imagePath: 'assets/images/onboarding_2.png', // 분석 중 화면 스크린샷
-      icon: Icons.manage_search_rounded,
-      iconColor: Color(0xFFCE93D8),
-      tag: '2단계',
-      title: 'AI 사기 패턴 분석',
-      desc: '실제 100건 이상의 피해 경험을 학습한\nAI가 대화를 면밀하게 분석합니다.',
+    imagePath: 'assets/images/onboarding_2.png',
+    icon: Icons.manage_search_rounded,
+    iconColor: Color(0xFFCE93D8),
+    tag: '2단계',
+    title: 'AI 사기 패턴 분석',
+    desc: '실제 100건 이상의 피해 경험을 학습한\nAI가 대화를 면밀하게 분석합니다.',
     ),
     (
-      imagePath: 'assets/images/onboarding_3.png', // 분석 결과 화면 스크린샷
-      icon: Icons.psychology_outlined,
-      iconColor: Color(0xFFFFB74D),
-      tag: '분석 결과',
-      title: '심리 조작 기법 탐지',
-      desc: '긴급함 유도, 감정 자극 등\n사기범의 심리 전술을 탐지합니다.',
+    imagePath: 'assets/images/onboarding_3.png',
+    icon: Icons.psychology_outlined,
+    iconColor: Color(0xFFFFB74D),
+    tag: '분석 결과',
+    title: '심리 조작 기법 탐지',
+    desc: '긴급함 유도, 감정 자극 등\n사기범의 심리 전술을 탐지합니다.',
     ),
     (
-      imagePath: 'assets/images/onboarding_4.png', // 권장 행동 화면 스크린샷
-      icon: Icons.tips_and_updates_outlined,
-      iconColor: Color(0xFF81C784),
-      tag: '대응 가이드',
-      title: '맞춤 행동 지침 제공',
-      desc: '즉시/단기 행동 지침과\n추가 확인 질문을 알려드립니다.',
+    imagePath: 'assets/images/onboarding_4.png',
+    icon: Icons.tips_and_updates_outlined,
+    iconColor: Color(0xFF81C784),
+    tag: '대응 가이드',
+    title: '맞춤 행동 지침 제공',
+    desc: '즉시/단기 행동 지침과\n추가 확인 질문을 알려드립니다.',
     ),
   ];
 
@@ -195,7 +243,6 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // 슬라이드 카드
         SizedBox(
           height: 168,
           child: PageView.builder(
@@ -215,10 +262,7 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
             },
           ),
         ),
-
         const SizedBox(height: 10),
-
-        // 인디케이터 점
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(_slides.length, (i) {
@@ -239,7 +283,6 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
   }
 }
 
-// ── 슬라이드 카드 ────────────────────────────────────
 class _SlideCard extends StatelessWidget {
   final String imagePath;
   final IconData icon;
@@ -269,7 +312,6 @@ class _SlideCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // 좌측 — 이미지 + 중앙 아이콘만
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(
@@ -287,10 +329,10 @@ class _SlideCard extends StatelessWidget {
                     ),
                   )
                       : Container(color: iconColor.withValues(alpha: 0.1)),
-
-                  // 하단 그라데이션
                   Positioned(
-                    bottom: 0, left: 0, right: 0,
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
                     child: Container(
                       height: 60,
                       decoration: BoxDecoration(
@@ -305,8 +347,6 @@ class _SlideCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
-                  // 중앙 아이콘
                   Center(
                     child: Container(
                       width: 44,
@@ -326,16 +366,12 @@ class _SlideCard extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(width: 14),
-
-          // 우측 — 아이콘+태그 묶음 + 타이틀 + 설명
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 아이콘 + 태그 묶음
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -394,7 +430,6 @@ class _SlideCard extends StatelessWidget {
   }
 }
 
-// ── 구글 로그인 버튼 ─────────────────────────────────
 class _GoogleSignInButton extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onPressed;
@@ -413,43 +448,32 @@ class _GoogleSignInButton extends StatelessWidget {
       ),
       child: isLoading
           ? const SizedBox(
-              height: 20,
-              width: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
+        height: 20,
+        width: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      )
           : Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'G',
-                      style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Google로 계속하기',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ],
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Image.asset(
+              'assets/icons/google_logo.png',
+              width: 20,
+              height: 20,
             ),
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            'Google로 계속하기',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ── 카카오 로그인 버튼 ───────────────────────────────
 class _KakaoSignInButton extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onPressed;
@@ -470,32 +494,35 @@ class _KakaoSignInButton extends StatelessWidget {
       ),
       child: isLoading
           ? const SizedBox(
-              height: 20,
+        height: 20,
+        width: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Color(0xFF391B1B),
+        ),
+      )
+          : Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Image.asset(
+              'assets/icons/kakao_logo.png',
               width: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Color(0xFF391B1B),
-              ),
-            )
-          : const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.chat_bubble_rounded,
-                  color: Color(0xFF391B1B),
-                  size: 20,
-                ),
-                SizedBox(width: 12),
-                Text(
-                  '카카오로 계속하기',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF391B1B),
-                  ),
-                ),
-              ],
+              height: 20,
             ),
+          ),
+          SizedBox(width: 6),
+          Text(
+            '카카오로 계속하기',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF391B1B),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

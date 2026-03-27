@@ -34,7 +34,7 @@ class ConversationItem {
       riskLevel: json['riskScore'] as int? ?? 0,
       riskLevelLabel: json['riskLevel'] as String? ?? '',
       createdAt: _formatDate(json['createdAt'] as String? ?? ''),
-      thumbnailUrl: json['thumbnailUrl'] as String?, // ← 추가
+      thumbnailUrl: json['thumbnailUrl'] as String?,
     );
   }
 
@@ -57,6 +57,14 @@ class ConversationProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  /// 로그아웃 시 호출 — 목록과 에러 상태를 모두 초기화
+  void clear() {
+    _conversations = [];
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> loadConversations() async {
     _isLoading = true;
     _error = null;
@@ -67,7 +75,6 @@ class ConversationProvider extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
-        debugPrint('히스토리 응답: $data');
         _conversations = data
             .map((e) => ConversationItem.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -75,7 +82,9 @@ class ConversationProvider extends ChangeNotifier {
         _error = '내역을 불러오지 못했습니다.';
       }
     } on UnauthorizedException {
-      _error = '로그인이 필요합니다.';
+      // 인증 오류 시 조용히 목록 비우기
+      _conversations = [];
+      _error = null;
     } catch (e) {
       _error = '네트워크 오류가 발생했습니다.';
     } finally {

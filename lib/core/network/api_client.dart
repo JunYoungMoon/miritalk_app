@@ -13,7 +13,6 @@ class ApiClient {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final AuthService _authService = AuthService();
 
-  // ── 공통 헤더 ──────────────────────────────────
   Future<Map<String, String>> _headers() async {
     final token = await _storage.read(key: AppConfig.tokenKey);
     return {
@@ -22,16 +21,13 @@ class ApiClient {
     };
   }
 
-  // ── 토큰 재발급 ────────────────────────────────
   Future<bool> _reissue() async {
     final refreshToken = await _storage.read(key: 'refreshToken');
     if (refreshToken == null) return false;
-
     final result = await _authService.reissue(refreshToken);
     return result != null;
   }
 
-  // ── GET ────────────────────────────────────────
   Future<http.Response> get(String path) async {
     final response = await http.get(
       Uri.parse('${AppConfig.baseUrl}$path'),
@@ -40,7 +36,6 @@ class ApiClient {
     return _handleUnauthorized(response, () => get(path));
   }
 
-  // ── POST (JSON) ────────────────────────────────
   Future<http.Response> post(String path, {Map<String, dynamic>? body}) async {
     final response = await http.post(
       Uri.parse('${AppConfig.baseUrl}$path'),
@@ -50,14 +45,12 @@ class ApiClient {
     return _handleUnauthorized(response, () => post(path, body: body));
   }
 
-  // ── POST (Multipart) ───────────────────────────
   Future<http.Response> postMultipart(
       String path, {
         required List<http.MultipartFile> files,
         Map<String, String>? fields,
       }) async {
     final token = await _storage.read(key: AppConfig.tokenKey);
-
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('${AppConfig.baseUrl}$path'),
@@ -67,24 +60,20 @@ class ApiClient {
     }
     if (fields != null) request.fields.addAll(fields);
     request.files.addAll(files);
-
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);
-
     return _handleUnauthorized(
       response,
           () => postMultipart(path, files: files, fields: fields),
     );
   }
 
-  // ── POST (MultipartStream) ───────────────────────────
   Future<http.StreamedResponse> postMultipartStream(
       String path, {
         required List<http.MultipartFile> files,
         Map<String, String>? fields,
       }) async {
     final token = await _storage.read(key: AppConfig.tokenKey);
-
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('${AppConfig.baseUrl}$path'),
@@ -108,25 +97,39 @@ class ApiClient {
       throw UnauthorizedException();
     }
 
+    // ── 429 처리 추가 ──
+    if (streamed.statusCode == 429) {
+      client.close();
+      // 서버 응답 바디에서 메시지 파싱 시도
+      final body = await http.Response.fromStream(streamed);
+      String message = '오늘 무료 분석 횟수(3회)를 모두 사용했습니다.\n내일 자정에 초기화됩니다.';
+      try {
+        final json = jsonDecode(utf8.decode(body.bodyBytes));
+        if (json['message'] != null) message = json['message'] as String;
+      } catch (_) {}
+      throw QuotaExceededException(message);
+    }
+
     return streamed;
   }
 
-  // ── 401 처리 (토큰 재발급 후 재시도) ───────────
   Future<http.Response> _handleUnauthorized(
       http.Response response,
       Future<http.Response> Function() retry,
       ) async {
     if (response.statusCode == 401) {
       final refreshed = await _reissue();
-      if (refreshed) {
-        return retry(); // 재발급 성공 → 재시도
-      }
-      // 재발급 실패 → 로그아웃 필요 신호
+      if (refreshed) return retry();
       throw UnauthorizedException();
     }
     return response;
   }
 }
 
-// 로그아웃 필요 시 던지는 예외
 class UnauthorizedException implements Exception {}
+
+// ── 신규 추가 ──
+class QuotaExceededException implements Exception {
+  final String message;
+  const QuotaExceededException(this.message);
+}
