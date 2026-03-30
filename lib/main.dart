@@ -44,8 +44,8 @@ class MyApp extends StatelessWidget {
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            // 시스템의 글꼴 크기 변경을 무시하고 1.0 배율로 고정합니다.
-            textScaler: TextScaler.noScaling,
+            // 시스템의 글꼴 크기 변경을 무시하고 1.2 배율로 고정합니다.
+            textScaler: const TextScaler.linear(1.2),
           ),
           child: child!,
         );
