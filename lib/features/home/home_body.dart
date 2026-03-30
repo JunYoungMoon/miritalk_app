@@ -6,6 +6,7 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class HomeBody extends StatefulWidget {
   final VoidCallback onGoToUpload;
@@ -17,8 +18,40 @@ class HomeBody extends StatefulWidget {
 
 class _HomeBodyState extends State<HomeBody> {
   int _currentSlide = 0;
+  BannerAd? _bannerAd;
+  bool _isBannerLoaded = false;
+
   final CarouselSliderController _carouselController =
   CarouselSliderController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBannerAd();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3940256099942544/6300978111', // 테스트 ID
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          if (mounted) setState(() => _isBannerLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          _bannerAd = null;
+        },
+      ),
+    )..load();
+  }
 
   final List<Map<String, String>> _evidenceImages = [
     {'path': 'assets/images/evidence_1.png', 'label': '진정서'},
@@ -79,285 +112,281 @@ class _HomeBodyState extends State<HomeBody> {
     final auth = context.watch<AuthProvider>();
     final quota = context.watch<AnalysisQuotaProvider>();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(12, 16, 12, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── 1. 헤더 스토리 카드 ──
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppTheme.surfaceDeep, AppTheme.surface],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border:
-              Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
-            ),
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 40),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: AppTheme.primaryBadgeDecoration(),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.verified,
-                                  color: AppTheme.primary, size: 13),
-                              SizedBox(width: 4),
-                              Text('실제 피해 경험 기반 AI',
-                                  style: TextStyle(
-                                      color: AppTheme.primary, fontSize: 11)),
-                            ],
-                          ),
-                        ),
-                      ),
+                // ── 1. 헤더 스토리 카드 ──
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppTheme.surfaceDeep, AppTheme.surface],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    Expanded(
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: AppTheme.successBadgeDecoration(),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.favorite, color: Colors.red, size: 13),
-                              SizedBox(width: 4),
-                              Text('완전 무료',
-                                  style: TextStyle(
-                                      color: AppTheme.success, fontSize: 11)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            '사기 당하다 보니\n전문가가 됐습니다.',
-                            style: TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              height: 1.4,
+                          Expanded(
+                            child: Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: AppTheme.primaryBadgeDecoration(),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.verified, color: AppTheme.primary, size: 13),
+                                    SizedBox(width: 4),
+                                    Text('실제 피해 경험 기반 AI',
+                                        style: TextStyle(color: AppTheme.primary, fontSize: 11)),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
-                          SizedBox(height: 10),
-                          Text(
-                            '이 경험, AI에게\n전부 학습시켰습니다.',
-                            style: TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 11,
-                              height: 1.6,
+                          Expanded(
+                            child: Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: AppTheme.successBadgeDecoration(),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.favorite, color: Colors.red, size: 13),
+                                    SizedBox(width: 4),
+                                    Text('완전 무료',
+                                        style: TextStyle(color: AppTheme.success, fontSize: 11)),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Column(
-                      children: [
-                        SizedBox(
-                          width: 110,
-                          height: 110,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: CarouselSlider(
-                              carouselController: _carouselController,
-                              options: CarouselOptions(
-                                height: 110,
-                                viewportFraction: 1.0,
-                                autoPlay: true,
-                                autoPlayInterval: const Duration(seconds: 3),
-                                autoPlayCurve: Curves.easeInOut,
-                                onPageChanged: (index, _) =>
-                                    setState(() => _currentSlide = index),
-                              ),
-                              items: _evidenceImages.map((item) {
-                                return Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    Image.asset(
-                                      item['path']!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                        color: AppTheme.surface,
-                                        child: const Icon(Icons.image_outlined,
-                                            color: AppTheme.primary, size: 32),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      bottom: 0,
-                                      left: 0,
-                                      right: 0,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 4),
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.bottomCenter,
-                                            end: Alignment.topCenter,
-                                            colors: [
-                                              Colors.black
-                                                  .withValues(alpha: 0.7),
-                                              Colors.transparent,
-                                            ],
-                                          ),
-                                        ),
-                                        child: Text(
-                                          item['label']!,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            color: AppTheme.textPrimary,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '사기 당하다 보니\n전문가가 됐습니다.',
+                                  style: TextStyle(
+                                    color: AppTheme.textPrimary,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                SizedBox(height: 10),
+                                Text(
+                                  '이 경험, AI에게\n전부 학습시켰습니다.',
+                                  style: TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 11,
+                                    height: 1.6,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: _evidenceImages.asMap().entries.map((e) {
-                            return GestureDetector(
-                              onTap: () =>
-                                  _carouselController.animateToPage(e.key),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                width: _currentSlide == e.key ? 16 : 6,
-                                height: 6,
-                                margin:
-                                const EdgeInsets.symmetric(horizontal: 2),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(3),
-                                  color: _currentSlide == e.key
-                                      ? AppTheme.primary
-                                      : Colors.white24,
+                          const SizedBox(width: 16),
+                          Column(
+                            children: [
+                              SizedBox(
+                                width: 110,
+                                height: 110,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: CarouselSlider(
+                                    carouselController: _carouselController,
+                                    options: CarouselOptions(
+                                      height: 110,
+                                      viewportFraction: 1.0,
+                                      autoPlay: true,
+                                      autoPlayInterval: const Duration(seconds: 3),
+                                      autoPlayCurve: Curves.easeInOut,
+                                      onPageChanged: (index, _) =>
+                                          setState(() => _currentSlide = index),
+                                    ),
+                                    items: _evidenceImages.map((item) {
+                                      return Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Image.asset(
+                                            item['path']!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Container(
+                                              color: AppTheme.surface,
+                                              child: const Icon(Icons.image_outlined,
+                                                  color: AppTheme.primary, size: 32),
+                                            ),
+                                          ),
+                                          Positioned(
+                                            bottom: 0,
+                                            left: 0,
+                                            right: 0,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(vertical: 4),
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.bottomCenter,
+                                                  end: Alignment.topCenter,
+                                                  colors: [
+                                                    Colors.black.withValues(alpha: 0.7),
+                                                    Colors.transparent,
+                                                  ],
+                                                ),
+                                              ),
+                                              child: Text(
+                                                item['label']!,
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  color: AppTheme.textPrimary,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
                                 ),
                               ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: _evidenceImages.asMap().entries.map((e) {
+                                  return GestureDetector(
+                                    onTap: () => _carouselController.animateToPage(e.key),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      width: _currentSlide == e.key ? 16 : 6,
+                                      height: 6,
+                                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(3),
+                                        color: _currentSlide == e.key
+                                            ? AppTheme.primary
+                                            : Colors.white24,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // ── 3. 사기 유형 카드 ──
+                const _FraudTypeCards(),
+
+                const SizedBox(height: 20),
+
+                // ── 4. 사용 방법 안내 ──
+                const Text('이렇게 사용하세요',
+                    style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 14),
+                const _StepCard(
+                  step: '1',
+                  icon: Icons.chat_bubble_outline,
+                  title: '대화 화면 캡처',
+                  description: '의심되는 상대방과의 대화 내용을 캡처해 주세요.',
+                ),
+                const SizedBox(height: 10),
+                const _StepCard(
+                  step: '2',
+                  icon: Icons.upload_outlined,
+                  title: '사진 업로드',
+                  description: '캡처한 사진을 최대 5장까지 업로드합니다.',
+                ),
+                const SizedBox(height: 10),
+                const _StepCard(
+                  step: '3',
+                  icon: Icons.analytics_outlined,
+                  title: 'AI 분석',
+                  description: '미리톡 AI가 사기 패턴을 분석하고 결과를 알려드립니다.',
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── 6. 잔여 횟수 뱃지 (로그인 시만) ──
+                if (auth.isLoggedIn)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _QuotaBadge(
+                      used: quota.usedCount,
+                      max: quota.maxCount,
                     ),
-                  ],
+                  ),
+
+                // ── 7. 분석 시작 버튼 ──
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _onAnalysisTap(context),
+                    icon: Icon(
+                      auth.isLoggedIn ? Icons.shield_outlined : Icons.lock_outline,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      auth.isLoggedIn ? '지금 바로 사기 분석하기' : '로그인 후 사기 분석하기',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: auth.isLoggedIn
+                          ? AppTheme.primary
+                          : AppTheme.primary.withValues(alpha: 0.6),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
+        ),
 
-          const SizedBox(height: 16),
-
-          // ── 2. 통계 뱃지 ──
-          // const _StatsBadges(),
-
-          // const SizedBox(height: 20),
-
-          // ── 3. 사기 유형 카드 ──
-          const _FraudTypeCards(),
-
-          const SizedBox(height: 20),
-
-          // ── 4. 사용 방법 안내 ──
-          const Text('이렇게 사용하세요',
-              style: TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(height: 14),
-          const _StepCard(
-            step: '1',
-            icon: Icons.chat_bubble_outline,
-            title: '대화 화면 캡처',
-            description: '의심되는 상대방과의 대화 내용을 캡처해 주세요.',
-          ),
-          const SizedBox(height: 10),
-          const _StepCard(
-            step: '2',
-            icon: Icons.upload_outlined,
-            title: '사진 업로드',
-            description: '캡처한 사진을 최대 5장까지 업로드합니다.',
-          ),
-          const SizedBox(height: 10),
-          const _StepCard(
-            step: '3',
-            icon: Icons.analytics_outlined,
-            title: 'AI 분석',
-            description: '미리톡 AI가 사기 패턴을 분석하고 결과를 알려드립니다.',
-          ),
-
-          const SizedBox(height: 20),
-
-          // ── 5. 분석 결과 예시 ──
-          // const _SampleResultCard(),
-
-          // const SizedBox(height: 16),
-
-          // ── 6. 잔여 횟수 뱃지 (로그인 시만) ──
-          if (auth.isLoggedIn)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _QuotaBadge(
-                used: quota.usedCount,
-                max: quota.maxCount,
-              ),
-            ),
-
-          // ── 7. 분석 시작 버튼 ──
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _onAnalysisTap(context),
-              icon: Icon(
-                auth.isLoggedIn ? Icons.shield_outlined : Icons.lock_outline,
-                color: Colors.white,
-              ),
-              label: Text(
-                auth.isLoggedIn ? '지금 바로 사기 분석하기' : '로그인 후 사기 분석하기',
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: auth.isLoggedIn
-                    ? AppTheme.primary
-                    : AppTheme.primary.withValues(alpha: 0.6),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
+        // ── 하단 Banner 광고 ──
+        if (_isBannerLoaded && _bannerAd != null)
+          SafeArea(
+            child: SizedBox(
+              height: _bannerAd!.size.height.toDouble(),
+              width: double.infinity,
+              child: AdWidget(ad: _bannerAd!),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -461,16 +490,22 @@ class _FraudTypeCards extends StatelessWidget {
     desc: '고수익 미끼로\n투자 유도',
     ),
     (
-    icon: Icons.work_outline,
-    color: Color(0xFFFFB74D),
-    title: '취업 사기',
-    desc: '허위 채용으로\n개인정보 탈취',
+    icon: Icons.sports_esports_outlined,
+    color: Color(0xFFEF9A9A),
+    title: '게임 아이템 사기',
+    desc: '아이템 거래 후\n잠적·미지급',
     ),
     (
     icon: Icons.phone_outlined,
     color: Color(0xFFCE93D8),
     title: '보이스피싱',
     desc: '기관 사칭으로\n송금 유도',
+    ),
+    (
+    icon: Icons.work_outline,
+    color: Color(0xFFFFB74D),
+    title: '취업 사기',
+    desc: '허위 채용으로\n개인정보 탈취',
     ),
   ];
 
@@ -489,7 +524,7 @@ class _FraudTypeCards extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 100,
+          height: 110, // 100 → 110
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _types.length,
@@ -498,7 +533,7 @@ class _FraudTypeCards extends StatelessWidget {
               final t = _types[index];
               return Container(
                 width: 90,
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
                 decoration: BoxDecoration(
                   color: t.color.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
@@ -507,8 +542,8 @@ class _FraudTypeCards extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(t.icon, color: t.color, size: 24),
-                    const SizedBox(height: 6),
+                    Icon(t.icon, color: t.color, size: 22),
+                    const SizedBox(height: 5),
                     Text(
                       t.title,
                       textAlign: TextAlign.center,
@@ -518,7 +553,7 @@ class _FraudTypeCards extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       t.desc,
                       textAlign: TextAlign.center,

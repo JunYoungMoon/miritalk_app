@@ -49,6 +49,12 @@
                 android:value="2" />
         <meta-data android:name="com.kakao.sdk.AppKey"
                    android:value="${kakaoNativeAppKey}" />
+
+        <!-- AdMob 앱 ID — 출시 전 실제 ID로 교체 필요 -->
+        <meta-data
+                android:name="com.google.android.gms.ads.APPLICATION_ID"
+                android:value="ca-app-pub-3940256099942544~3347511713"/>
+
     </application>
 
     <queries>
