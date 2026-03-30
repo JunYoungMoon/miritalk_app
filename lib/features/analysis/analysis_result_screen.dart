@@ -6,6 +6,7 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'dart:typed_data';
 import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 
 class ChatMessage {
   final String type;
@@ -156,6 +157,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: const CommonAppBar(title: '분석 결과'),
+      bottomNavigationBar: const BannerAdWidget(),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
         children: [
