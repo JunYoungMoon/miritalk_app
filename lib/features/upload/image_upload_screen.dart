@@ -10,6 +10,7 @@ import 'package:miritalk_app/features/analysis/analyzing_screen.dart';
 import 'package:miritalk_app/features/analysis/analysis_error.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
+import 'package:miritalk_app/features/consent/consent_dialog.dart';
 
 class ImageUploadScreen extends StatefulWidget {
   const ImageUploadScreen({super.key});
@@ -51,6 +52,10 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
       _showSnackBar('사진을 먼저 선택해주세요.');
       return;
     }
+
+    // ── 동의 확인 (한 번만 표시, 이후 스킵) ──
+    final consented = await ConsentDialog.ensureConsent(context);
+    if (!consented) return; // 거부 시 업로드 중단
 
     final isValid = await _validateImages();
     if (!isValid) return;

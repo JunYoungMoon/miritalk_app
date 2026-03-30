@@ -40,9 +40,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   final List<ChatMessage> _messages = [];
   StreamSubscription? _sseSubscription;
 
-  bool _isInterstitialLoaded = false;
-  bool _isBannerLoaded = false;
-
   @override
   void initState() {
     super.initState();

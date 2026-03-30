@@ -6,6 +6,7 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 
 class HomeBody extends StatefulWidget {
@@ -18,6 +19,8 @@ class HomeBody extends StatefulWidget {
 
 class _HomeBodyState extends State<HomeBody> {
   int _currentSlide = 0;
+  BannerAd? _bannerAd;
+  bool _isBannerLoaded = false;
 
   final CarouselSliderController _carouselController =
   CarouselSliderController();
@@ -25,11 +28,30 @@ class _HomeBodyState extends State<HomeBody> {
   @override
   void initState() {
     super.initState();
+    _loadBannerAd();
   }
 
   @override
   void dispose() {
+    _bannerAd?.dispose();
     super.dispose();
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3940256099942544/6300978111', // 테스트 ID
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          if (mounted) setState(() => _isBannerLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          _bannerAd = null;
+        },
+      ),
+    )..load();
   }
 
   final List<Map<String, String>> _evidenceImages = [
@@ -158,119 +180,124 @@ class _HomeBodyState extends State<HomeBody> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const Flexible(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '사기 당하다 보니\n전문가가 됐습니다.',
-                                  style: TextStyle(
-                                    color: AppTheme.textPrimary,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.4,
+                          const Expanded(
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '사기 당하다 보니\n전문가가 됐습니다.',
+                                    style: TextStyle(
+                                      color: AppTheme.textPrimary,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      height: 1.4,
+                                    ),
                                   ),
-                                ),
-                                SizedBox(height: 10),
-                                Text(
-                                  '이 경험, AI에게\n전부 학습시켰습니다.',
-                                  style: TextStyle(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 11,
-                                    height: 1.6,
+                                  SizedBox(height: 10),
+                                  Text(
+                                    '이 경험, AI에게\n전부 학습시켰습니다.',
+                                    style: TextStyle(
+                                      color: AppTheme.textSecondary,
+                                      fontSize: 11,
+                                      height: 1.6,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                           const SizedBox(width: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 110,
-                                height: 110,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: CarouselSlider(
-                                    carouselController: _carouselController,
-                                    options: CarouselOptions(
-                                      height: 110,
-                                      viewportFraction: 1.0,
-                                      autoPlay: true,
-                                      autoPlayInterval: const Duration(seconds: 3),
-                                      autoPlayCurve: Curves.easeInOut,
-                                      onPageChanged: (index, _) =>
-                                          setState(() => _currentSlide = index),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 110,
+                                  height: 110,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: CarouselSlider(
+                                      carouselController: _carouselController,
+                                      options: CarouselOptions(
+                                        height: 110,
+                                        viewportFraction: 1.0,
+                                        autoPlay: true,
+                                        autoPlayInterval: const Duration(seconds: 3),
+                                        autoPlayCurve: Curves.easeInOut,
+                                        onPageChanged: (index, _) =>
+                                            setState(() => _currentSlide = index),
+                                      ),
+                                      items: _evidenceImages.map((item) {
+                                        return Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            Image.asset(
+                                              item['path']!,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => Container(
+                                                color: AppTheme.surface,
+                                                child: const Icon(Icons.image_outlined,
+                                                    color: AppTheme.primary, size: 32),
+                                              ),
+                                            ),
+                                            Positioned(
+                                              bottom: 0,
+                                              left: 0,
+                                              right: 0,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.bottomCenter,
+                                                    end: Alignment.topCenter,
+                                                    colors: [
+                                                      Colors.black.withValues(alpha: 0.7),
+                                                      Colors.transparent,
+                                                    ],
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  item['label']!,
+                                                  textAlign: TextAlign.center,
+                                                  style: const TextStyle(
+                                                    color: AppTheme.textPrimary,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }).toList(),
                                     ),
-                                    items: _evidenceImages.map((item) {
-                                      return Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          Image.asset(
-                                            item['path']!,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Container(
-                                              color: AppTheme.surface,
-                                              child: const Icon(Icons.image_outlined,
-                                                  color: AppTheme.primary, size: 32),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            bottom: 0,
-                                            left: 0,
-                                            right: 0,
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(vertical: 4),
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  begin: Alignment.bottomCenter,
-                                                  end: Alignment.topCenter,
-                                                  colors: [
-                                                    Colors.black.withValues(alpha: 0.7),
-                                                    Colors.transparent,
-                                                  ],
-                                                ),
-                                              ),
-                                              child: Text(
-                                                item['label']!,
-                                                textAlign: TextAlign.center,
-                                                style: const TextStyle(
-                                                  color: AppTheme.textPrimary,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    }).toList(),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: _evidenceImages.asMap().entries.map((e) {
-                                  return GestureDetector(
-                                    onTap: () => _carouselController.animateToPage(e.key),
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      width: _currentSlide == e.key ? 16 : 6,
-                                      height: 6,
-                                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(3),
-                                        color: _currentSlide == e.key
-                                            ? AppTheme.primary
-                                            : Colors.white24,
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: _evidenceImages.asMap().entries.map((e) {
+                                    return GestureDetector(
+                                      onTap: () => _carouselController.animateToPage(e.key),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        width: _currentSlide == e.key ? 16 : 6,
+                                        height: 6,
+                                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(3),
+                                          color: _currentSlide == e.key
+                                              ? AppTheme.primary
+                                              : Colors.white24,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -498,7 +525,7 @@ class _FraudTypeCards extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 110, // 100 → 110
+          height: 115, // 100 → 110
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _types.length,
@@ -506,7 +533,7 @@ class _FraudTypeCards extends StatelessWidget {
             itemBuilder: (context, index) {
               final t = _types[index];
               return Container(
-                width: 90,
+                constraints: BoxConstraints(minWidth: 100, maxWidth: 120),
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
                 decoration: BoxDecoration(
                   color: t.color.withValues(alpha: 0.08),
