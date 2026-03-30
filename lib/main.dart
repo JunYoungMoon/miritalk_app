@@ -40,6 +40,16 @@ class MyApp extends StatelessWidget {
       routes: {
         '/home': (_) => const HomeScreen(),
       },
+      // builder 속성을 추가하여 MediaQuery 설정을 덮어씌웁니다.
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            // 시스템의 글꼴 크기 변경을 무시하고 1.0 배율로 고정합니다.
+            textScaler: TextScaler.noScaling,
+          ),
+          child: child!,
+        );
+      },
     );
   }
 }

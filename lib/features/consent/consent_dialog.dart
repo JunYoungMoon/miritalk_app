@@ -78,8 +78,11 @@ class _ConsentDialogState extends State<ConsentDialog> {
             child: CircularProgressIndicator(
                 strokeWidth: 2, color: Colors.white),
           )
-              : const Text('동의하고 분석하기',
-              style: TextStyle(color: Colors.white)),
+              : const Text('동의',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              )),
         ),
       ],
     );
