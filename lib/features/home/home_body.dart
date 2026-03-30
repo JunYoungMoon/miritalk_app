@@ -6,7 +6,7 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 
 class HomeBody extends StatefulWidget {
   final VoidCallback onGoToUpload;
@@ -18,8 +18,6 @@ class HomeBody extends StatefulWidget {
 
 class _HomeBodyState extends State<HomeBody> {
   int _currentSlide = 0;
-  BannerAd? _bannerAd;
-  bool _isBannerLoaded = false;
 
   final CarouselSliderController _carouselController =
   CarouselSliderController();
@@ -27,30 +25,11 @@ class _HomeBodyState extends State<HomeBody> {
   @override
   void initState() {
     super.initState();
-    _loadBannerAd();
   }
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
     super.dispose();
-  }
-
-  void _loadBannerAd() {
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-3940256099942544/6300978111', // 테스트 ID
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (mounted) setState(() => _isBannerLoaded = true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          _bannerAd = null;
-        },
-      ),
-    )..load();
   }
 
   final List<Map<String, String>> _evidenceImages = [
@@ -176,9 +155,10 @@ class _HomeBodyState extends State<HomeBody> {
                       ),
                       const SizedBox(height: 16),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const Expanded(
+                          const Flexible(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -205,6 +185,7 @@ class _HomeBodyState extends State<HomeBody> {
                           ),
                           const SizedBox(width: 16),
                           Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               SizedBox(
                                 width: 110,
@@ -378,14 +359,7 @@ class _HomeBodyState extends State<HomeBody> {
         ),
 
         // ── 하단 Banner 광고 ──
-        if (_isBannerLoaded && _bannerAd != null)
-          SafeArea(
-            child: SizedBox(
-              height: _bannerAd!.size.height.toDouble(),
-              width: double.infinity,
-              child: AdWidget(ad: _bannerAd!),
-            ),
-          ),
+        const BannerAdWidget(),
       ],
     );
   }

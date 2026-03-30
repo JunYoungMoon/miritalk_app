@@ -9,6 +9,7 @@ import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'package:miritalk_app/features/analysis/analyzing_screen.dart';
 import 'package:miritalk_app/features/analysis/analysis_error.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
+import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 
 class ImageUploadScreen extends StatefulWidget {
   const ImageUploadScreen({super.key});
@@ -207,6 +208,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: const CommonAppBar(title: '사진 업로드'),
+      bottomNavigationBar: const BannerAdWidget(),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -323,7 +325,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
 
           // ── 분석 요청 버튼 ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
             child: ElevatedButton(
               onPressed: _isUploading ? null : _uploadImages,
               style: ElevatedButton.styleFrom(

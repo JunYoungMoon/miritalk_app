@@ -8,7 +8,8 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'analysis_result_screen.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/features/analysis/analysis_error.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:miritalk_app/core/ads/ad_manager.dart';
+import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 
 class AnalyzingScreen extends StatefulWidget {
   final List<http.MultipartFile> images;
@@ -39,9 +40,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   final List<ChatMessage> _messages = [];
   StreamSubscription? _sseSubscription;
 
-  InterstitialAd? _interstitialAd;
   bool _isInterstitialLoaded = false;
-  BannerAd? _bannerAd;
   bool _isBannerLoaded = false;
 
   @override
@@ -76,8 +75,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       return true;
     });
 
-    _loadInterstitialAd();
-    _loadBannerAd();
+    AdManager.instance.loadInterstitial();
     _startAnalysis();
   }
 
@@ -86,43 +84,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     _sseSubscription?.cancel();
     _progressController.dispose();
     _shimmerController.dispose();
-    _interstitialAd?.dispose();
-    _bannerAd?.dispose();
     super.dispose();
-  }
-
-  void _loadInterstitialAd() {
-    InterstitialAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/1033173712', // 테스트 ID
-      request: const AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) {
-          _interstitialAd = ad;
-          _isInterstitialLoaded = true;
-        },
-        onAdFailedToLoad: (error) {
-          _interstitialAd = null;
-          _isInterstitialLoaded = false;
-        },
-      ),
-    );
-  }
-
-  void _loadBannerAd() {
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-3940256099942544/6300978111', // 테스트 ID
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (mounted) setState(() => _isBannerLoaded = true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          _bannerAd = null;
-        },
-      ),
-    )..load();
   }
 
   Future<void> _startAnalysis() async {
@@ -216,25 +178,12 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeOut,
     );
-
     await Future.delayed(const Duration(milliseconds: 500));
 
-    // ── 전면광고 표시 후 결과화면 이동 ──
-    if (_isInterstitialLoaded && _interstitialAd != null) {
-      _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
-        onAdDismissedFullScreenContent: (ad) {
-          ad.dispose();
-          _navigateToResult(sessionId); // 광고 닫으면 결과화면
-        },
-        onAdFailedToShowFullScreenContent: (ad, error) {
-          ad.dispose();
-          _navigateToResult(sessionId); // 광고 실패해도 결과화면
-        },
-      );
-      _interstitialAd!.show();
-    } else {
-      _navigateToResult(sessionId); // 광고 없으면 바로 결과화면
-    }
+    // ← 전면광고 로직 전부 이 한 줄로 교체
+    AdManager.instance.showInterstitial(
+      onClosed: () => _navigateToResult(sessionId),
+    );
   }
 
   List<ChatMessage> _buildMessages(Map<String, dynamic> json) {
@@ -298,14 +247,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-        bottomNavigationBar: _isBannerLoaded && _bannerAd != null
-            ? SafeArea(
-          child: SizedBox(
-            height: _bannerAd!.size.height.toDouble(),
-            child: AdWidget(ad: _bannerAd!),
-          ),
-        )
-            : null,
+      bottomNavigationBar: const BannerAdWidget(),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
