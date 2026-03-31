@@ -140,7 +140,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       final mergedMessages = _buildMessages(json);
 
       if (mounted) {
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (_) => AnalysisResultScreen(
@@ -149,12 +149,14 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
               sessionId: sessionId,
             ),
           ),
+          // modalRoute.isFirst가 true가 될 때까지 이전의 모든 화면을 제거합니다.
+              (Route<dynamic> route) => route.isFirst,
         );
       }
     } catch (e) {
       debugPrint('결과 조회 오류: $e');
       if (mounted) {
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (_) => AnalysisResultScreen(
@@ -163,6 +165,8 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
               sessionId: sessionId,
             ),
           ),
+          // modalRoute.isFirst가 true가 될 때까지 이전의 모든 화면을 제거합니다.
+              (Route<dynamic> route) => route.isFirst,
         );
       }
     }
