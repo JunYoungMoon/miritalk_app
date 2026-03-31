@@ -242,87 +242,90 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      bottomNavigationBar: const BannerAdWidget(),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // ── 아이콘 (shimmer 링 효과)
-              _ShimmerRing(shimmerAnimation: _shimmerAnimation),
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: AppTheme.background,
+        bottomNavigationBar: const BannerAdWidget(),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // ── 아이콘 (shimmer 링 효과)
+                _ShimmerRing(shimmerAnimation: _shimmerAnimation),
 
-              const SizedBox(height: 32),
+                const SizedBox(height: 32),
 
-              // ── 타이틀
-              const Text(
-                '대화 내역을 면밀하게\n분석 중입니다',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  height: 1.5,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ── 스텝 텍스트 (shimmer 효과)
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 400),
-                child: _ShimmerText(
-                  key: ValueKey(_currentStep),
-                  text: _steps[_currentStep],
-                  shimmerAnimation: _shimmerAnimation,
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // ── SSE로 들어오는 실시간 텍스트 (shimmer)
-              if (_messages.isNotEmpty)
-                _StreamingTextArea(
-                  messages: _messages,
-                  shimmerAnimation: _shimmerAnimation,
+                // ── 타이틀
+                const Text(
+                  '대화 내역을 면밀하게\n분석 중입니다',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    height: 1.5,
+                  ),
                 ),
 
-              const SizedBox(height: 32),
+                const SizedBox(height: 12),
 
-              // ── 프로그레스바
-              AnimatedBuilder(
-                animation: _progressAnimation,
-                builder: (context, _) {
-                  final percent =
-                  (_progressAnimation.value * 100).toInt();
-                  return Column(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: _progressAnimation.value,
-                          backgroundColor: AppTheme.surface,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppTheme.primary),
-                          minHeight: 6,
+                // ── 스텝 텍스트 (shimmer 효과)
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  child: _ShimmerText(
+                    key: ValueKey(_currentStep),
+                    text: _steps[_currentStep],
+                    shimmerAnimation: _shimmerAnimation,
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // ── SSE로 들어오는 실시간 텍스트 (shimmer)
+                if (_messages.isNotEmpty)
+                  _StreamingTextArea(
+                    messages: _messages,
+                    shimmerAnimation: _shimmerAnimation,
+                  ),
+
+                const SizedBox(height: 32),
+
+                // ── 프로그레스바
+                AnimatedBuilder(
+                  animation: _progressAnimation,
+                  builder: (context, _) {
+                    final percent =
+                    (_progressAnimation.value * 100).toInt();
+                    return Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: _progressAnimation.value,
+                            backgroundColor: AppTheme.surface,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppTheme.primary),
+                            minHeight: 6,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '$percent%',
-                        style: const TextStyle(
-                          color: AppTheme.primary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        const SizedBox(height: 8),
+                        Text(
+                          '$percent%',
+                          style: const TextStyle(
+                            color: AppTheme.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
