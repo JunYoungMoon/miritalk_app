@@ -47,9 +47,10 @@ class _ConsentDialogState extends State<ConsentDialog> {
         ],
       ),
       content: const Text(
-        '사기 분석을 위해 업로드하신 대화 캡처 이미지가 서버로 전송됩니다.\n\n'
-            '전송된 이미지는 사기 패턴 분석 목적으로만 사용되며, '
-            'AI 학습이나 제3자 제공에는 활용되지 않습니다.\n\n'
+        '사기 분석을 위해 업로드하신 대화 내용이 서버로 전송됩니다.\n\n'
+            '전송된 데이터는 사기 패턴 분석 목적으로만 사용되며, '
+            '분석을 위해 AI 서비스가 활용됩니다. '
+            '업로드하신 데이터는 AI 학습에 사용되지 않습니다.\n\n'
             '동의하시면 분석이 시작됩니다.',
         style: TextStyle(
           color: AppTheme.textSecondary,
