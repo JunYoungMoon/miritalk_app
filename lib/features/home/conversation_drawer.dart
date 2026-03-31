@@ -14,7 +14,8 @@ import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'dart:typed_data';
 
 class ConversationDrawer extends StatefulWidget {
-  const ConversationDrawer({super.key});
+  final VoidCallback onGoToUpload;
+  const ConversationDrawer({super.key, required this.onGoToUpload});
 
   @override
   State<ConversationDrawer> createState() => _ConversationDrawerState();
@@ -59,17 +60,19 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
       return;
     }
 
-    // ── 3. 업로드 화면으로 이동, 완료 후 quota 재조회 ──
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
-    );
+    widget.onGoToUpload();
 
-    // 화면에서 돌아왔을 때 quota 갱신 (분석이 실제로 이뤄졌을 수도 있으므로)
-    if (mounted) {
-      await quotaProvider.loadQuota();
-      await context.read<ConversationProvider>().loadConversations();
-    }
+    // // ── 3. 업로드 화면으로 이동, 완료 후 quota 재조회 ──
+    // await Navigator.push(
+    //   context,
+    //   MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
+    // );
+    //
+    // // 화면에서 돌아왔을 때 quota 갱신 (분석이 실제로 이뤄졌을 수도 있으므로)
+    // if (mounted) {
+    //   await quotaProvider.loadQuota();
+    //   await context.read<ConversationProvider>().loadConversations();
+    // }
   }
 
   @override
@@ -185,21 +188,24 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
             const Divider(color: AppTheme.divider),
 
             // 새 분석 요청 버튼
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: ListTile(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                tileColor: AppTheme.surfaceDeep,
-                leading: const Icon(Icons.add_photo_alternate_outlined,
-                    color: AppTheme.primary),
-                title: const Text(
-                  '새 분석 요청',
-                  style: TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.w600),
+            Visibility(
+              visible: auth.isLoggedIn,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                child: ListTile(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  tileColor: AppTheme.surfaceDeep,
+                  leading: const Icon(Icons.add_photo_alternate_outlined,
+                      color: AppTheme.primary),
+                  title: const Text(
+                    '새 분석 요청',
+                    style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.w600),
+                  ),
+                  onTap: _onNewAnalysisTap,
                 ),
-                onTap: _onNewAnalysisTap,
               ),
             ),
 

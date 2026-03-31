@@ -18,13 +18,23 @@ class HomeScreen extends StatelessWidget {
         showMenu: true,
         showBack: false,
       ),
-      drawer: const ConversationDrawer(),
-      body: HomeBody(
-        onGoToUpload: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
-        ),
+      drawer: ConversationDrawer(
+          onGoToUpload: () {
+            _onGoToUpload(context);
+          }
       ),
+      body: HomeBody(
+        onGoToUpload: () {
+          _onGoToUpload(context);
+        },
+      ),
+    );
+  }
+
+  void _onGoToUpload(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
     );
   }
 }
