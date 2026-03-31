@@ -166,43 +166,51 @@ class _HomeBodyState extends State<HomeBody> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: AppTheme.primaryBadgeDecoration(),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.verified, color: AppTheme.primary, size: 13),
-                                        SizedBox(width: 4),
-                                        Text('실제 피해 경험 기반 AI',
-                                            style: TextStyle(color: AppTheme.primary, fontSize: 11)),
-                                      ],
+                          IntrinsicHeight(
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Center(
+                                    child: Container(
+                                      height: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: AppTheme.primaryBadgeDecoration(),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.verified, color: AppTheme.primary, size: 13),
+                                          SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text('실제 피해 경험 기반 AI',
+                                                style: TextStyle(color: AppTheme.primary, fontSize: 11)),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: AppTheme.successBadgeDecoration(),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.favorite, color: Colors.red, size: 13),
-                                        SizedBox(width: 4),
-                                        Text('완전 무료',
-                                            style: TextStyle(color: AppTheme.success, fontSize: 11)),
-                                      ],
+                                Expanded(
+                                  child: Center(
+                                    child: Container(
+                                      height: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: AppTheme.successBadgeDecoration(),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.favorite, color: Colors.red, size: 13),
+                                          SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text('완전 무료',
+                                                style: TextStyle(color: AppTheme.success, fontSize: 11)),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Row(
