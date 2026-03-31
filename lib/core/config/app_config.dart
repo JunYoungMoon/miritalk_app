@@ -2,7 +2,7 @@
 class AppConfig {
   AppConfig._();
 
-  static const String baseUrl = 'https://55e8-221-150-126-74.ngrok-free.app';
+  static const String baseUrl = 'http://10.0.2.2:8080';
   static const String tokenKey = 'access_token';
   static const int maxImages = 5;
   static const String androidClientID = String.fromEnvironment('GOOGLE_CLIENT_ID');

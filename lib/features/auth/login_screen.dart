@@ -185,36 +185,28 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
 
   static const _slides = [
     (
-    imagePath: 'assets/images/onboarding_1.png',
+    imagePath: 'assets/images/onboarding_1.gif',
     icon: Icons.upload_rounded,
     iconColor: Color(0xFF4FC3F7),
     tag: '1단계',
-    title: '대화 캡처 업로드',
-    desc: '카카오톡, 문자, 거래앱 등\n의심되는 대화를 캡처해서 올려주세요.',
+    title: '대화 사진 업로드',
+    desc: '카카오톡·당근·문자 등 의심되는 대화를\n캡처해서 최대 5장 업로드하세요.',
     ),
     (
-    imagePath: 'assets/images/onboarding_2.png',
-    icon: Icons.manage_search_rounded,
-    iconColor: Color(0xFFCE93D8),
-    tag: '2단계',
-    title: 'AI 사기 패턴 분석',
-    desc: '실제 100건 이상의 피해 경험을 학습한\nAI가 대화를 면밀하게 분석합니다.',
-    ),
-    (
-    imagePath: 'assets/images/onboarding_3.png',
+    imagePath: 'assets/images/onboarding_2.gif',
     icon: Icons.psychology_outlined,
     iconColor: Color(0xFFFFB74D),
-    tag: '분석 결과',
+    tag: '2단계',
     title: '심리 조작 기법 탐지',
-    desc: '긴급함 유도, 감정 자극 등\n사기범의 심리 전술을 탐지합니다.',
+    desc: '긴급함 유도·감정 자극·신뢰 선점 등\n사기범의 심리 전술을 정밀 분석합니다.',
     ),
     (
-    imagePath: 'assets/images/onboarding_4.png',
+    imagePath: 'assets/images/onboarding_3.gif',
     icon: Icons.tips_and_updates_outlined,
     iconColor: Color(0xFF81C784),
-    tag: '대응 가이드',
-    title: '맞춤 행동 지침 제공',
-    desc: '즉시/단기 행동 지침과\n추가 확인 질문을 알려드립니다.',
+    tag: '3단계',
+    title: '결과 및 행동 지침 제공',
+    desc: 'AI 사기 패턴 분석 결과와\n맞춤 행동 지침을 알려드립니다.',
     ),
   ];
 

@@ -177,7 +177,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     );
     await Future.delayed(const Duration(milliseconds: 500));
 
-    // ← 전면광고 로직 전부 이 한 줄로 교체
+    // 전면광고 로직
     AdManager.instance.showInterstitial(
       onClosed: () => _navigateToResult(sessionId),
     );

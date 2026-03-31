@@ -468,7 +468,7 @@ class _ImageThumbnail extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: const Text(
-                  '중요',
+                  '대표',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       color: AppTheme.textPrimary,

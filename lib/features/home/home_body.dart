@@ -9,6 +9,7 @@ import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/features/home/widgets/scroll_hint_arrow.dart';
+import 'package:miritalk_app/core/utils/screen_secure_util.dart';
 
 class HomeBody extends StatefulWidget {
   final VoidCallback onGoToUpload;
@@ -79,9 +80,10 @@ class _HomeBodyState extends State<HomeBody> {
   }
 
   final List<Map<String, String>> _evidenceImages = [
-    {'path': 'assets/images/evidence_1.png', 'label': '진정서'},
-    {'path': 'assets/images/evidence_2.png', 'label': '경찰 조사 메시지'},
-    {'path': 'assets/images/evidence_3.png', 'label': '사기 피해 대화'},
+    {'path': 'assets/images/evidence_1.jpg', 'label': '진정서 작성'},
+    {'path': 'assets/images/evidence_2.jpg', 'label': '경찰 조사'},
+    {'path': 'assets/images/evidence_3.jpg', 'label': '사기 피해 대화'},
+    {'path': 'assets/images/evidence_4.jpg', 'label': '사기접수 및 검거'},
   ];
 
   Future<void> _onAnalysisTap(BuildContext context) async {
@@ -214,7 +216,7 @@ class _HomeBodyState extends State<HomeBody> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        '사기 당하다 보니\n전문가가 됐습니다.',
+                                        '사기를 당하다 보니\n전문가가 됐습니다.',
                                         style: TextStyle(
                                           color: AppTheme.textPrimary,
                                           fontSize: 15,
@@ -240,24 +242,50 @@ class _HomeBodyState extends State<HomeBody> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    SizedBox(
-                                      width: 110,
-                                      height: 110,
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: CarouselSlider(
-                                          carouselController: _carouselController,
-                                          options: CarouselOptions(
-                                            height: 110,
-                                            viewportFraction: 1.0,
-                                            autoPlay: true,
-                                            autoPlayInterval: const Duration(seconds: 3),
-                                            autoPlayCurve: Curves.easeInOut,
-                                            onPageChanged: (index, _) =>
-                                                setState(() => _currentSlide = index),
-                                          ),
-                                          items: _evidenceImages.map((item) {
-                                            return Stack(
+                                    // ── 탭 안내 문구 ──
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(Icons.touch_app_outlined, color: AppTheme.textHint, size: 11),
+                                        SizedBox(width: 3),
+                                        Text(
+                                          '탭하면 크게 볼 수 있어요',
+                                          style: TextStyle(color: AppTheme.textHint, fontSize: 10),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    // ── 캐러셀 (가로 확장) ──
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: CarouselSlider(
+                                        carouselController: _carouselController,
+                                        options: CarouselOptions(
+                                          height: 120,           // 110 → 120
+                                          viewportFraction: 1.0,
+                                          autoPlay: true,
+                                          autoPlayInterval: const Duration(seconds: 3),
+                                          autoPlayCurve: Curves.easeInOut,
+                                          onPageChanged: (index, _) =>
+                                              setState(() => _currentSlide = index),
+                                        ),
+                                        items: _evidenceImages.asMap().entries.map((entry) {
+                                          final index = entry.key;
+                                          final item = entry.value;
+                                          return GestureDetector(
+                                            onTap: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  fullscreenDialog: true,
+                                                  builder: (_) => _AssetFullscreenViewer(
+                                                    images: _evidenceImages,
+                                                    initialIndex: index,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            child: Stack(
                                               fit: StackFit.expand,
                                               children: [
                                                 Image.asset(
@@ -296,13 +324,23 @@ class _HomeBodyState extends State<HomeBody> {
                                                     ),
                                                   ),
                                                 ),
+                                                const Positioned(
+                                                  top: 4,
+                                                  right: 4,
+                                                  child: Icon(
+                                                    Icons.zoom_in,
+                                                    color: Colors.white70,
+                                                    size: 14,
+                                                  ),
+                                                ),
                                               ],
-                                            );
-                                          }).toList(),
-                                        ),
+                                            ),
+                                          );
+                                        }).toList(),
                                       ),
                                     ),
                                     const SizedBox(height: 8),
+                                    // ── 인디케이터 ──
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: _evidenceImages.asMap().entries.map((e) {
@@ -351,6 +389,7 @@ class _HomeBodyState extends State<HomeBody> {
                       icon: Icons.chat_bubble_outline,
                       title: '대화 화면 캡처',
                       description: '의심되는 상대방과의 대화 내용을 캡처해 주세요.',
+                      imagePath: 'assets/images/step_capture.jpg',
                     ),
                     const SizedBox(height: 10),
                     const _StepCard(
@@ -358,6 +397,7 @@ class _HomeBodyState extends State<HomeBody> {
                       icon: Icons.upload_outlined,
                       title: '사진 업로드',
                       description: '캡처한 사진을 최대 5장까지 업로드합니다.',
+                      imagePath: 'assets/images/step_upload.gif',
                     ),
                     const SizedBox(height: 10),
                     const _StepCard(
@@ -365,6 +405,7 @@ class _HomeBodyState extends State<HomeBody> {
                       icon: Icons.analytics_outlined,
                       title: 'AI 분석',
                       description: '미리톡 AI가 사기 패턴을 분석하고 결과를 알려드립니다.',
+                      imagePath: 'assets/images/step_result.gif',
                     ),
 
                     const SizedBox(height: 20),
@@ -838,17 +879,21 @@ class _QuotaBadge extends StatelessWidget {
 }
 
 // ── 단계 안내 카드 ─────────────────────────────────────
+// _StepCard 위젯 전체 교체
+
 class _StepCard extends StatelessWidget {
   final String step;
   final IconData icon;
   final String title;
   final String description;
+  final String? imagePath;
 
   const _StepCard({
     required this.step,
     required this.icon,
     required this.title,
     required this.description,
+    this.imagePath,
   });
 
   @override
@@ -862,6 +907,7 @@ class _StepCard extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // ── 스텝 번호 ──
           Container(
             width: 36,
             height: 36,
@@ -881,8 +927,10 @@ class _StepCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
+          // ── 아이콘 ──
           Icon(icon, color: AppTheme.textHint, size: 20),
           const SizedBox(width: 10),
+          // ── 텍스트 ──
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -899,8 +947,304 @@ class _StepCard extends StatelessWidget {
               ],
             ),
           ),
+          // ── 오른쪽 이미지 ──
+          if (imagePath != null) ...[
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    fullscreenDialog: true,
+                    builder: (_) => _AssetFullscreenViewer(
+                      images: [{'path': imagePath!, 'label': title}],
+                      initialIndex: 0,
+                      showWatermark: false, // 스텝 이미지는 워터마크 없음
+                    ),
+                  ),
+                );
+              },
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      imagePath!,
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: AppTheme.primary.withValues(alpha: 0.2)),
+                        ),
+                        child: const Icon(Icons.image_outlined,
+                            color: AppTheme.primary, size: 24),
+                      ),
+                    ),
+                  ),
+                  // 확대 힌트 아이콘
+                  Positioned(
+                    top: 3,
+                    right: 3,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(Icons.zoom_in,
+                          color: Colors.white70, size: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
+}
+
+// 1. 풀스크린 뷰어 위젯 추가
+class _AssetFullscreenViewer extends StatefulWidget {
+  final List<Map<String, String>> images;
+  final int initialIndex;
+  final bool showWatermark;
+
+  const _AssetFullscreenViewer({
+    required this.images,
+    required this.initialIndex,
+    this.showWatermark = true,
+  });
+
+  @override
+  State<_AssetFullscreenViewer> createState() => _AssetFullscreenViewerState();
+}
+
+class _AssetFullscreenViewerState extends State<_AssetFullscreenViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+    ScreenSecureUtil.enable();
+  }
+
+  @override
+  void dispose() {
+    ScreenSecureUtil.disable();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.images[_currentIndex]['label'] ?? '',
+          style: const TextStyle(color: Colors.white, fontSize: 15),
+        ),
+        centerTitle: true,
+      ),
+      body: Stack(
+        children: [
+          // ── 이미지 페이지뷰 ──
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.images.length,
+            onPageChanged: (i) => setState(() => _currentIndex = i),
+            itemBuilder: (context, index) {
+              return InteractiveViewer(
+                minScale: 1.0,
+                maxScale: 4.0,
+                child: Center(
+                  child: Image.asset(
+                    widget.images[index]['path']!,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.image_outlined,
+                      color: Colors.white38,
+                      size: 60,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // ── 워터마크 오버레이 (포인터 이벤트 통과) ──
+          if (widget.showWatermark)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: _WatermarkOverlay(),
+              ),
+            ),
+
+          // ── 하단 인디케이터 ──
+          if (widget.images.length > 1)
+            Positioned(
+              bottom: 24,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: widget.images.asMap().entries.map((entry) {
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: _currentIndex == entry.key ? 16 : 6,
+                    height: 6,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(3),
+                      color: _currentIndex == entry.key
+                          ? AppTheme.primary
+                          : Colors.white30,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// lib/features/home/home_body.dart 하단에 추가
+
+class _WatermarkOverlay extends StatelessWidget {
+  const _WatermarkOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _WatermarkPainter(),
+      child: Container(), // CustomPaint가 Positioned.fill을 채우도록
+    );
+  }
+}
+
+class _WatermarkPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+
+    // 대각선으로 텍스트를 반복 배치
+    final lines = [
+      '© 미리톡  무단 캡처 금지',
+      '저작권법 위반 시 민·형사상 책임',
+    ];
+
+    for (final line in lines) {
+      textPainter.text = TextSpan(
+        text: line,
+        style: const TextStyle(
+          color: Color(0x12FFFFFF), // 매우 연하게
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1.2,
+        ),
+      );
+      textPainter.layout(maxWidth: size.width);
+    }
+
+    // 대각선 패턴으로 전체 화면에 반복 출력
+    canvas.save();
+    canvas.rotate(-0.45); // 약 -25도 기울기
+
+    const spacingX = 220.0;
+    const spacingY = 90.0;
+    final cols = (size.width * 1.5 / spacingX).ceil() + 2;
+    final rows = (size.height * 1.5 / spacingY).ceil() + 2;
+
+    for (int row = -2; row < rows; row++) {
+      for (int col = -2; col < cols; col++) {
+        final x = col * spacingX + (row.isEven ? 0 : spacingX / 2);
+        final y = row * spacingY;
+
+        // 홀수 행: 저작권 경고, 짝수 행: 앱 이름
+        final text = row.isEven ? '© 미리톡  무단캡처금지' : '저작권법 위반 시 법적 책임';
+        textPainter.text = TextSpan(
+          text: text,
+          style: const TextStyle(
+            color: Color(0x12FFFFFF),
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 1.0,
+          ),
+        );
+        textPainter.layout();
+        textPainter.paint(canvas, Offset(x, y));
+      }
+    }
+
+    canvas.restore();
+
+    // ── 하단 법적 경고 바 ──
+    final warningRect = Rect.fromLTWH(0, size.height - 52, size.width, 52);
+    canvas.drawRect(
+      warningRect,
+      Paint()..color = Colors.black.withValues(alpha: 0.65),
+    );
+
+    final warningPainter = TextPainter(
+      text: const TextSpan(
+        children: [
+          TextSpan(
+            text: '⚠️  ',
+            style: TextStyle(fontSize: 12),
+          ),
+          TextSpan(
+            text: '본 이미지는 저작권법의 보호를 받습니다.\n',
+            style: TextStyle(
+              color: Color(0xFFFFD54F),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          TextSpan(
+            text: '무단 캡처·배포 시 민·형사상 책임이 발생할 수 있습니다.',
+            style: TextStyle(
+              color: Color(0xAAFFFFFF),
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 2,
+      textAlign: TextAlign.center,
+    );
+
+    warningPainter.layout(maxWidth: size.width - 32);
+    warningPainter.paint(
+      canvas,
+      Offset(
+        (size.width - warningPainter.width) / 2,
+        size.height - 52 + (52 - warningPainter.height) / 2,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

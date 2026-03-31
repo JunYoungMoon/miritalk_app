@@ -294,9 +294,9 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
                     final inDragRange = _isInDragRange(index);
 
                     return GestureDetector(
-                      behavior: HitTestBehavior.opaque, // 추가
+                      behavior: HitTestBehavior.opaque,
                       onTap: () {
-                        if (_isPopping) return; // 추가
+                        if (_isPopping) return;
                         _toggleSelection(asset);
                       },
                       child: Stack(
