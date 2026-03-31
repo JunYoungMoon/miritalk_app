@@ -11,6 +11,8 @@ import 'package:miritalk_app/features/analysis/analysis_error.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/features/consent/consent_dialog.dart';
+import 'package:provider/provider.dart';
+import 'package:miritalk_app/features/auth/auth_provider.dart';
 
 class ImageUploadScreen extends StatefulWidget {
   const ImageUploadScreen({super.key});
@@ -51,6 +53,19 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
     if (_selectedImages.isEmpty) {
       _showSnackBar('사진을 먼저 선택해주세요.');
       return;
+    }
+
+    // ── 로그인 체크 ──
+    final auth = context.read<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LoginScreen(popAll: true),
+        ),
+      );
+      if (!mounted) return;
+      if (!context.read<AuthProvider>().isLoggedIn) return;
     }
 
     // ── 동의 확인 (한 번만 표시, 이후 스킵) ──
@@ -213,7 +228,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: const CommonAppBar(title: '사진 업로드'),
-      bottomNavigationBar: const BannerAdWidget(),
+      // bottomNavigationBar: const BannerAdWidget(),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

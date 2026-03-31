@@ -14,11 +14,17 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
   await MobileAds.instance.initialize();
+
+  final conversationProvider = ConversationProvider();
+  final authProvider = AuthProvider()
+    ..checkLoginStatus()
+    ..setConversationProvider(conversationProvider);
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()..checkLoginStatus()),
-        ChangeNotifierProvider(create: (_) => ConversationProvider()),
+        ChangeNotifierProvider(create: (_) => authProvider),
+        ChangeNotifierProvider(create: (_) => conversationProvider),
         ChangeNotifierProvider(create: (_) => AnalysisQuotaProvider()),
       ],
       child: const MyApp(),
@@ -33,6 +39,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '미리톡 사기 방지 시스템',
+      debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,

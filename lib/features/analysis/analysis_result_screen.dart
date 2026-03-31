@@ -157,7 +157,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: const CommonAppBar(title: '분석 결과'),
-      bottomNavigationBar: const BannerAdWidget(),
+      // bottomNavigationBar: const BannerAdWidget(),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
         children: [

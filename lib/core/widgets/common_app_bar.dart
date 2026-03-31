@@ -5,6 +5,7 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/features/home/conversation_provider.dart';
+import 'package:miritalk_app/features/settings/settings_bottom_sheet.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -33,65 +34,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       return;
     }
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            CircleAvatar(
-              radius: 36,
-              backgroundColor: AppTheme.surfaceDeep,
-              backgroundImage: auth.profileImageUrl != null
-                  ? NetworkImage(auth.profileImageUrl!)
-                  : null,
-              child: auth.profileImageUrl == null
-                  ? const Icon(Icons.person, color: AppTheme.primary, size: 36)
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              auth.userName ?? '사용자',
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              auth.userEmail ?? '',
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
-            ),
-            const SizedBox(height: 24),
-            ListTile(
-              leading: const Icon(Icons.logout, color: AppTheme.danger),
-              title: const Text('로그아웃',
-                  style: TextStyle(color: AppTheme.danger)),
-              onTap: () {
-                Navigator.pop(context);
-                auth.logout();
-                context.read<ConversationProvider>().clear();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+    SettingsBottomSheet.show(context);
   }
 
   @override

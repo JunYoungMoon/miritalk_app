@@ -1,4 +1,5 @@
-// lib/features/auth/auth_service.dart
+// lib/features/auth/auth_service.dart — 전체
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -6,6 +7,11 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
+
+// ── 클래스 밖에 선언 ──
+enum WithdrawResult { success, notFound, error }
+
+class WithdrawnAccountException implements Exception {}
 
 class AuthService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
@@ -31,11 +37,13 @@ class AuthService {
 
       if (response.statusCode == 200) {
         return await _saveAndReturn(jsonDecode(response.body));
+      } else if (response.statusCode == 403) {
+        throw WithdrawnAccountException();
       }
       return null;
     } catch (e) {
       debugPrint('구글 로그인 에러: $e');
-      return null;
+      rethrow;
     }
   }
 
@@ -56,11 +64,13 @@ class AuthService {
 
       if (response.statusCode == 200) {
         return await _saveAndReturn(jsonDecode(response.body));
+      } else if (response.statusCode == 403) {
+        throw WithdrawnAccountException();
       }
       return null;
     } catch (e) {
       debugPrint('카카오 로그인 오류: $e');
-      return null;
+      rethrow;
     }
   }
 
@@ -75,9 +85,9 @@ class AuthService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         await _storage.write(key: AppConfig.tokenKey, value: data['accessToken']);
-        await _storage.write(key: 'refreshToken',     value: data['refreshToken']);
+        await _storage.write(key: 'refreshToken', value: data['refreshToken']);
         return {
-          'accessToken':  data['accessToken'],
+          'accessToken': data['accessToken'],
           'refreshToken': data['refreshToken'],
         };
       }
@@ -87,10 +97,34 @@ class AuthService {
     }
   }
 
+  Future<WithdrawResult> withdraw() async {
+    try {
+      final token = await _storage.read(key: AppConfig.tokenKey);
+      final response = await http.delete(
+        Uri.parse('${AppConfig.baseUrl}/api/auth/withdraw'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      switch (response.statusCode) {
+        case 204:
+          await signOut();
+          return WithdrawResult.success;
+        case 404:
+          return WithdrawResult.notFound;
+        default:
+          return WithdrawResult.error;
+      }
+    } catch (e) {
+      debugPrint('회원 탈퇴 오류: $e');
+      return WithdrawResult.error;
+    }
+  }
+
   Future<void> signOut() async {
-    // 구글 로그아웃
     try { await _googleSignIn.signOut(); } catch (_) {}
-    // 카카오 로그아웃
     try { await UserApi.instance.logout(); } catch (_) {}
     await _storage.deleteAll();
   }
@@ -98,19 +132,18 @@ class AuthService {
   Future<String?> getToken() => _storage.read(key: AppConfig.tokenKey);
   Future<bool> isLoggedIn() async => await getToken() != null;
 
-  // 공통 저장 로직 분리
   Future<Map<String, String?>?> _saveAndReturn(Map<String, dynamic> data) async {
     await _storage.write(key: AppConfig.tokenKey, value: data['accessToken']);
-    await _storage.write(key: 'refreshToken',     value: data['refreshToken']);
-    await _storage.write(key: 'profileImageUrl',  value: data['profileImageUrl']);
-    await _storage.write(key: 'userName',         value: data['userName']);
-    await _storage.write(key: 'userEmail',        value: data['userEmail']);
+    await _storage.write(key: 'refreshToken', value: data['refreshToken']);
+    await _storage.write(key: 'profileImageUrl', value: data['profileImageUrl']);
+    await _storage.write(key: 'userName', value: data['userName']);
+    await _storage.write(key: 'userEmail', value: data['userEmail']);
     return {
-      'accessToken':     data['accessToken'],
-      'refreshToken':    data['refreshToken'],
+      'accessToken': data['accessToken'],
+      'refreshToken': data['refreshToken'],
       'profileImageUrl': data['profileImageUrl'],
-      'userName':        data['userName'],
-      'userEmail':       data['userEmail'],
+      'userName': data['userName'],
+      'userEmail': data['userEmail'],
     };
   }
 }

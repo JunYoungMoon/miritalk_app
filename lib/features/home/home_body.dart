@@ -482,7 +482,7 @@ class _HomeBodyState extends State<HomeBody> {
         ),
 
         // ── 하단 Banner 광고 ──
-        const BannerAdWidget(),
+        // const BannerAdWidget(),
       ],
     );
   }

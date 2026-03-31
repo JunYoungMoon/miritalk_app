@@ -182,9 +182,11 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     await Future.delayed(const Duration(milliseconds: 500));
 
     // 전면광고 로직
-    AdManager.instance.showInterstitial(
-      onClosed: () => _navigateToResult(sessionId),
-    );
+    // AdManager.instance.showInterstitial(
+    //   onClosed: () => _navigateToResult(sessionId),
+    // );
+
+    _navigateToResult(sessionId);
   }
 
   List<ChatMessage> _buildMessages(Map<String, dynamic> json) {
@@ -250,7 +252,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       canPop: false,
       child: Scaffold(
         backgroundColor: AppTheme.background,
-        bottomNavigationBar: const BannerAdWidget(),
+        // bottomNavigationBar: const BannerAdWidget(),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),

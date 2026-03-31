@@ -8,7 +8,6 @@ import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
-import 'package:miritalk_app/features/upload/image_upload_screen.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'dart:typed_data';

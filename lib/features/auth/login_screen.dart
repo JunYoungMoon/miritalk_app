@@ -6,7 +6,8 @@ import 'auth_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool popAll;
+  const LoginScreen({super.key, this.popAll = false});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -154,7 +155,14 @@ class _LoginScreenState extends State<LoginScreen>
 
                   // 하단 텍스트 버튼으로도 홈 복귀 가능
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      if (widget.popAll) {
+                        // 업로드 화면 + 로그인 화면 모두 닫고 홈으로
+                        Navigator.popUntil(context, (route) => route.isFirst);
+                      } else {
+                        Navigator.pop(context);
+                      }
+                    },
                     child: const Text(
                       '로그인 없이 둘러보기',
                       style: TextStyle(color: Colors.white38, fontSize: 13),

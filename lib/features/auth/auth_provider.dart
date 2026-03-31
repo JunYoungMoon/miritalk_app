@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:miritalk_app/features/home/conversation_provider.dart';
 
 enum LoginType { none, google, kakao }
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
+
+  ConversationProvider? _conversationProvider;
 
   bool _isLoading = false;
   LoginType _loadingType = LoginType.none;
@@ -30,6 +33,13 @@ class AuthProvider extends ChangeNotifier {
   String? get userEmail => _userEmail;
   String? get accessToken => _accessToken;
   String? get refreshToken => _refreshToken;
+
+  bool _isWithdrawing = false;
+  bool get isWithdrawing => _isWithdrawing;
+
+  void setConversationProvider(ConversationProvider provider) {
+    _conversationProvider = provider;
+  }
 
   Future<void> signInWithGoogle() async {
     await _login(
@@ -57,21 +67,30 @@ class AuthProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final result = await loginFn();
-
-    _isLoading   = false;
-    _loadingType = LoginType.none;
-    if (result != null) {
-      _isLoggedIn      = true;
-      _profileImageUrl = result['profileImageUrl'];
-      _userName        = result['userName'];
-      _userEmail       = result['userEmail'];
-      _accessToken     = result['accessToken'];
-      _refreshToken    = result['refreshToken'];
-    } else {
-      _isLoggedIn   = false;
-      _errorMessage = errorMsg;
+    try {
+      final result = await loginFn();
+      _isLoading   = false;
+      _loadingType = LoginType.none;
+      if (result != null) {
+        _isLoggedIn      = true;
+        _profileImageUrl = result['profileImageUrl'];
+        _userName        = result['userName'];
+        _userEmail       = result['userEmail'];
+        _accessToken     = result['accessToken'];
+        _refreshToken    = result['refreshToken'];
+      } else {
+        _isLoggedIn   = false;
+        _errorMessage = errorMsg;
+      }
+    } catch (e) {
+      _isLoading   = false;
+      _loadingType = LoginType.none;
+      _isLoggedIn  = false;
+      _errorMessage = e is WithdrawnAccountException
+          ? '탈퇴한 계정입니다.'
+          : errorMsg;
     }
+
     notifyListeners();
   }
 
@@ -96,6 +115,29 @@ class AuthProvider extends ChangeNotifier {
     _userEmail       = null;
     _accessToken     = null;
     _refreshToken    = null;
+    _conversationProvider?.clear();
     notifyListeners();
+  }
+
+  Future<WithdrawResult> withdraw() async {
+    _isWithdrawing = true;
+    notifyListeners();
+
+    final result = await _authService.withdraw();
+
+    _isWithdrawing = false;
+
+    if (result == WithdrawResult.success) {
+      _isLoggedIn      = false;
+      _profileImageUrl = null;
+      _userName        = null;
+      _userEmail       = null;
+      _accessToken     = null;
+      _refreshToken    = null;
+      _conversationProvider?.clear();
+    }
+
+    notifyListeners();
+    return result;
   }
 }
