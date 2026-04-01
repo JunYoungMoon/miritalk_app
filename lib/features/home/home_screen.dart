@@ -3,11 +3,45 @@ import 'package:flutter/material.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'package:miritalk_app/features/upload/image_upload_screen.dart';
+import 'package:miritalk_app/core/update/app_update_service.dart';
+import 'package:miritalk_app/core/update/update_dialog.dart';
 import 'conversation_drawer.dart';
 import 'home_body.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkUpdate());
+  }
+
+  Future<void> _checkUpdate() async {
+    final result = await AppUpdateService().checkVersion();
+    if (result == null || !mounted) return;
+
+    if (result.forceUpdate || result.optionalUpdate) {
+      await UpdateDialog.show(
+        context,
+        forceUpdate: result.forceUpdate,
+        latestVersion: result.latestVersion,
+        storeUrl: result.storeUrl,
+      );
+    }
+  }
+
+  void _onGoToUpload() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,25 +52,10 @@ class HomeScreen extends StatelessWidget {
         showMenu: true,
         showBack: false,
       ),
-      drawer: ConversationDrawer(
-          onGoToUpload: () {
-            _onGoToUpload(context);
-          }
-      ),
+      drawer: ConversationDrawer(onGoToUpload: _onGoToUpload),
       body: SafeArea(
-        child: HomeBody(
-          onGoToUpload: () {
-            _onGoToUpload(context);
-          },
-        ),
-      )
-    );
-  }
-
-  void _onGoToUpload(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
+        child: HomeBody(onGoToUpload: _onGoToUpload),
+      ),
     );
   }
 }
