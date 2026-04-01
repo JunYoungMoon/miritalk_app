@@ -302,11 +302,20 @@ class _ConversationTile extends StatelessWidget {
   }
 
   Future<void> _openResult(BuildContext context) async {
-    Navigator.pop(context);
+    // ✅ pop 전에 navigator 참조를 저장
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
       final response = await ApiClient()
           .get('/api/fraud/result/${conversation.sessionId}');
-      if (response.statusCode != 200) return;
+
+      if (response.statusCode != 200) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('결과 조회 실패: ${response.statusCode}')),
+        );
+        return;
+      }
 
       final json = jsonDecode(utf8.decode(response.bodyBytes))
       as Map<String, dynamic>;
@@ -314,27 +323,27 @@ class _ConversationTile extends StatelessWidget {
       final messages = <ChatMessage>[
         ChatMessage(
             type: 'summary',
-            text: json['summary'] ?? '',
+            text: json['summary'] as String? ?? '',
             isDone: true),
         ChatMessage(
             type: 'riskScore',
-            text: json['riskScore'].toString(),
+            text: (json['riskScore'] ?? 0).toString(),
             isDone: true),
         ChatMessage(
             type: 'riskLevel',
-            text: json['riskLevel'] ?? '',
+            text: json['riskLevel'] as String? ?? '',
             isDone: true),
         ChatMessage(
             type: 'suspicious',
-            text: json['suspiciousPoints'] ?? '',
+            text: json['suspiciousPoints'] as String? ?? '',
             isDone: true),
         ChatMessage(
             type: 'action',
-            text: json['recommendedActions'] ?? '',
+            text: json['recommendedActions'] as String? ?? '',
             isDone: true),
         ChatMessage(
             type: 'questions',
-            text: json['additionalQuestions'] ?? '',
+            text: json['additionalQuestions'] as String? ?? '',
             isDone: true),
       ];
 
@@ -343,23 +352,26 @@ class _ConversationTile extends StatelessWidget {
           ? rawUrls.map((e) => e.toString()).toList()
           : <String>[];
 
-      if (context.mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AnalysisResultScreen(
-              messages: messages,
-              imageUrls: imageUrls,
-              sessionId: conversation.sessionId,
-              feedbackHelpful: json['feedbackHelpful'] as bool?,
-            ),
+      navigator.pop();
+
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => AnalysisResultScreen(
+            messages: messages,
+            imageUrls: imageUrls,
+            sessionId: conversation.sessionId,
+            feedbackHelpful: json['feedbackHelpful'] as bool?,
           ),
-        );
-      }
+        ),
+      );
     } on UnauthorizedException {
-      debugPrint('인증 오류');
-    } catch (e) {
-      debugPrint('결과 조회 실패: $e');
+      messenger.showSnackBar(
+        const SnackBar(content: Text('로그인이 필요합니다.')),
+      );
+    } catch (e, stack) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('오류가 발생했습니다: $e')),
+      );
     }
   }
 }
