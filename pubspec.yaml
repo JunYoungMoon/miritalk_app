@@ -3,7 +3,7 @@ description: "miritalk project"
 
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.11.1
@@ -45,7 +45,6 @@ dependencies:
   carousel_slider: ^5.0.0
   google_fonts: ^6.2.1
   kakao_flutter_sdk_user: ^1.9.7
-  google_mobile_ads: ^7.0.0
 
 flutter_launcher_icons:
   android: true

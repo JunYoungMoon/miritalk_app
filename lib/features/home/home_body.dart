@@ -6,8 +6,6 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/features/home/widgets/scroll_hint_arrow.dart';
 import 'package:miritalk_app/core/utils/screen_secure_util.dart';
 
@@ -21,7 +19,6 @@ class HomeBody extends StatefulWidget {
 
 class _HomeBodyState extends State<HomeBody> {
   int _currentSlide = 0;
-  BannerAd? _bannerAd;
   bool _isBannerLoaded = false;
 
   final CarouselSliderController _carouselController =
@@ -34,7 +31,6 @@ class _HomeBodyState extends State<HomeBody> {
   @override
   void initState() {
     super.initState();
-    _loadBannerAd();
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkButtonVisibility());
     _scrollController.addListener(_checkButtonVisibility);
   }
@@ -42,7 +38,6 @@ class _HomeBodyState extends State<HomeBody> {
   @override
   void dispose() {
     _scrollController.dispose();
-    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -60,23 +55,6 @@ class _HomeBodyState extends State<HomeBody> {
     if (mounted && _showScrollHint != !isVisible) {
       setState(() => _showScrollHint = !isVisible);
     }
-  }
-
-  void _loadBannerAd() {
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-3940256099942544/6300978111', // 테스트 ID
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (mounted) setState(() => _isBannerLoaded = true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          _bannerAd = null;
-        },
-      ),
-    )..load();
   }
 
   final List<Map<String, String>> _evidenceImages = [
