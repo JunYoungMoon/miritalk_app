@@ -23,11 +23,13 @@ class HomeScreen extends StatelessWidget {
             _onGoToUpload(context);
           }
       ),
-      body: HomeBody(
-        onGoToUpload: () {
-          _onGoToUpload(context);
-        },
-      ),
+      body: SafeArea(
+        child: HomeBody(
+          onGoToUpload: () {
+            _onGoToUpload(context);
+          },
+        ),
+      )
     );
   }
 
