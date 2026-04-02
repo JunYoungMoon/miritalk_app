@@ -20,25 +20,57 @@ class HomeBody extends StatefulWidget {
 class _HomeBodyState extends State<HomeBody> {
   int _currentSlide = 0;
   bool _isBannerLoaded = false;
+  late AuthProvider _authProvider;
+  bool _listenerAttached = false;
 
   final CarouselSliderController _carouselController =
   CarouselSliderController();
-
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _analyzeButtonKey = GlobalKey();
   bool _showScrollHint = false;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_listenerAttached) {
+      _authProvider = context.read<AuthProvider>();
+      _authProvider.addListener(_onAuthChanged);
+      _listenerAttached = true;
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkButtonVisibility());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkButtonVisibility();
+      _refreshQuotaIfLoggedIn();
+    });
     _scrollController.addListener(_checkButtonVisibility);
   }
 
   @override
   void dispose() {
+    if (_listenerAttached) {
+      _authProvider.removeListener(_onAuthChanged);
+    }
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _refreshQuotaIfLoggedIn() {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    if (auth.isLoggedIn) {
+      context.read<AnalysisQuotaProvider>().loadQuota();
+    } else {
+      context.read<AnalysisQuotaProvider>().clear();
+    }
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    _refreshQuotaIfLoggedIn();
   }
 
   void _checkButtonVisibility() {

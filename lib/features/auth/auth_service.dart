@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 // ── 클래스 밖에 선언 ──
 enum WithdrawResult { success, notFound, error }
@@ -138,6 +139,10 @@ class AuthService {
     await _storage.write(key: 'profileImageUrl', value: data['profileImageUrl']);
     await _storage.write(key: 'userName', value: data['userName']);
     await _storage.write(key: 'userEmail', value: data['userEmail']);
+
+    // ── 로그인 직후 FCM 토큰 서버 등록 ──
+    await _registerFcmToken(data['accessToken']);
+
     return {
       'accessToken': data['accessToken'],
       'refreshToken': data['refreshToken'],
@@ -145,5 +150,25 @@ class AuthService {
       'userName': data['userName'],
       'userEmail': data['userEmail'],
     };
+  }
+
+  Future<void> _registerFcmToken(String? accessToken) async {
+    if (accessToken == null) return;
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken == null) return;
+
+      await http.post(
+        Uri.parse('${AppConfig.baseUrl}/api/user/fcm-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode({'token': fcmToken}),
+      );
+    } catch (e) {
+      debugPrint('FCM 토큰 등록 실패: $e');
+      // FCM 등록 실패가 로그인 자체를 막으면 안 되므로 예외 삼킴
+    }
   }
 }

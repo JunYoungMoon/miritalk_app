@@ -69,38 +69,28 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     setState(() => _isLoading = true);
     try {
       final response = await ApiClient().get('/api/fraud/result/$sessionId');
-      final json = jsonDecode(response.body);
+      final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       setState(() {
         _imageUrls = (json['imageUrls'] as List<dynamic>?)
             ?.map((e) => e.toString())
-            .toList() ??
-            [];
+            .toList() ?? [];
         _messages = [
           if (json['summary'] != null)
-            ChatMessage(type: 'summary', text: json['summary']),
+            ChatMessage(type: 'summary', text: json['summary'] as String, isDone: true),
           if (json['riskScore'] != null)
-            ChatMessage(
-                type: 'riskScore', text: json['riskScore'].toString()),
+            ChatMessage(type: 'riskScore', text: json['riskScore'].toString(), isDone: true),
           if (json['riskLevel'] != null)
-            ChatMessage(type: 'riskLevel', text: json['riskLevel']),
+            ChatMessage(type: 'riskLevel', text: json['riskLevel'] as String, isDone: true),
           if (json['verdict'] != null)
-            ChatMessage(type: 'verdict', text: json['verdict']),
+            ChatMessage(type: 'verdict', text: json['verdict'] as String, isDone: true),
           if (json['psychologicalTactics'] != null)
-            ChatMessage(
-                type: 'psychologicalTactics',
-                text: jsonEncode(json['psychologicalTactics'])),
+            ChatMessage(type: 'psychologicalTactics', text: json['psychologicalTactics'] as String, isDone: true),
           if (json['suspiciousPoints'] != null)
-            ChatMessage(
-                type: 'suspicious',
-                text: jsonEncode(json['suspiciousPoints'])),
+            ChatMessage(type: 'suspicious', text: json['suspiciousPoints'] as String, isDone: true),
           if (json['recommendedActions'] != null)
-            ChatMessage(
-                type: 'action',
-                text: jsonEncode(json['recommendedActions'])),
+            ChatMessage(type: 'action', text: json['recommendedActions'] as String, isDone: true),
           if (json['additionalQuestions'] != null)
-            ChatMessage(
-                type: 'questions',
-                text: jsonEncode(json['additionalQuestions'])),
+            ChatMessage(type: 'questions', text: json['additionalQuestions'] as String, isDone: true),
         ];
         if (json['feedbackHelpful'] != null) {
           _feedbackSubmitted = true;

@@ -62,9 +62,9 @@ class _MyAppState extends State<MyApp> {
   Future<void> _initFcm() async {
     await FcmService.instance.initialize(
       onAnalysisComplete: (sessionId) {
-        // 분석 완료 알림 탭 시 결과 화면으로 이동
-        navigatorKey.currentState?.pushNamed(
+        navigatorKey.currentState?.pushNamedAndRemoveUntil(
           '/result',
+              (route) => route.settings.name == '/home' || route.isFirst,
           arguments: sessionId,
         );
       },

@@ -5,12 +5,15 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:miritalk_app/firebase_options.dart';
 
 // ── 백그라운드 메시지 핸들러 (top-level 함수여야 함) ──
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // 백그라운드에서 알림 수신 시 처리
-  debugPrint('백그라운드 FCM 수신: ${message.messageId}');
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 }
 
 class FcmService {
@@ -148,7 +151,8 @@ class FcmService {
       channelDescription: _channelDesc,
       importance: Importance.high,
       priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
+      icon: 'ic_notification',
+      color: const Color(0xFF0F3460),
     );
 
     const iosDetails = DarwinNotificationDetails(

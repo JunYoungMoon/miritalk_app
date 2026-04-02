@@ -7,6 +7,9 @@ import 'package:miritalk_app/core/update/app_update_service.dart';
 import 'package:miritalk_app/core/update/update_dialog.dart';
 import 'conversation_drawer.dart';
 import 'home_body.dart';
+import 'package:provider/provider.dart';
+import 'package:miritalk_app/features/auth/auth_provider.dart';
+import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -40,7 +43,13 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
-    );
+    ).then((_) {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      if (auth.isLoggedIn) {
+        context.read<AnalysisQuotaProvider>().loadQuota();
+      }
+    });
   }
 
   @override
