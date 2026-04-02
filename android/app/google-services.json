@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "571153870835",
+    "project_id": "miritalk-d1dc6",
+    "storage_bucket": "miritalk-d1dc6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:571153870835:android:98dc990158f967646eac86",
+        "android_client_info": {
+          "package_name": "com.miritalk.miritalk_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCzyeM0OhtWDyr5gk-_5KWlv_old__iFS0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

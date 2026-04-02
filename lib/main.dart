@@ -2,18 +2,29 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:miritalk_app/core/notifications/fcm_service.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/home/home_screen.dart';
 import 'features/home/conversation_provider.dart';
 import 'features/home/analysis_quota_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
+import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
+import 'firebase_options.dart';
+
+// 앱 전역에서 Navigator 접근을 위한 키
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase 초기화
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
-  // await MobileAds.instance.initialize();
 
   final conversationProvider = ConversationProvider();
   final authProvider = AuthProvider()
@@ -32,12 +43,38 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // 로그인 상태일 때만 FCM 초기화 (토큰 서버 등록 포함)
+    // 위젯 트리 빌드 후 실행
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initFcm());
+  }
+
+  Future<void> _initFcm() async {
+    await FcmService.instance.initialize(
+      onAnalysisComplete: (sessionId) {
+        // 분석 완료 알림 탭 시 결과 화면으로 이동
+        navigatorKey.currentState?.pushNamed(
+          '/result',
+          arguments: sessionId,
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: '미리톡 사기 방지 시스템',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
@@ -46,12 +83,15 @@ class MyApp extends StatelessWidget {
       home: const HomeScreen(),
       routes: {
         '/home': (_) => const HomeScreen(),
+        '/result': (context) {
+          final sessionId =
+          ModalRoute.of(context)!.settings.arguments as int;
+          return AnalysisResultScreen(sessionId: sessionId);
+        },
       },
-      // builder 속성을 추가하여 MediaQuery 설정을 덮어씌웁니다.
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            // 시스템의 글꼴 크기 변경을 무시하고 1.2 배율로 고정합니다.
             textScaler: const TextScaler.linear(1.2),
           ),
           child: child!,
