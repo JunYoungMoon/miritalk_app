@@ -55,22 +55,9 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
       return;
     }
 
-    // ── 로그인 체크 ──
-    final auth = context.read<AuthProvider>();
-    if (!auth.isLoggedIn) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const LoginScreen(popAll: true),
-        ),
-      );
-      if (!mounted) return;
-      if (!context.read<AuthProvider>().isLoggedIn) return;
-    }
-
-    // ── 동의 확인 (한 번만 표시, 이후 스킵) ──
+    // ── 동의 확인 ──
     final consented = await ConsentDialog.ensureConsent(context);
-    if (!consented) return; // 거부 시 업로드 중단
+    if (!consented) return;
 
     final isValid = await _validateImages();
     if (!isValid) return;
@@ -87,9 +74,29 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
 
       setState(() => _isUploading = false);
 
+      final auth = context.read<AuthProvider>();
+
+      // 게스트일 때 미리 바이트 수집
+      List<Uint8List>? guestImageBytes;
+      if (!auth.isLoggedIn) {
+        guestImageBytes = [];
+        for (final asset in _selectedImages) {
+          final bytes = await asset.thumbnailDataWithSize(
+            const ThumbnailSize(800, 800), // 적당한 해상도
+          );
+          if (bytes != null) guestImageBytes.add(bytes);
+        }
+      }
+
       final result = await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => AnalyzingScreen(images: files)),
+        MaterialPageRoute(
+          builder: (_) => AnalyzingScreen(
+            images: files,
+            isGuest: !auth.isLoggedIn,
+            guestImageBytes: guestImageBytes,
+          ),
+        ),
       );
 
       if (!mounted) return;

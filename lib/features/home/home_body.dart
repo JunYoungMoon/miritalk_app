@@ -10,7 +10,7 @@ import 'package:miritalk_app/features/home/widgets/scroll_hint_arrow.dart';
 import 'package:miritalk_app/core/utils/screen_secure_util.dart';
 
 class HomeBody extends StatefulWidget {
-  final VoidCallback onGoToUpload;
+  final Future<void> Function() onGoToUpload;
   const HomeBody({super.key, required this.onGoToUpload});
 
   @override
@@ -61,11 +61,9 @@ class _HomeBodyState extends State<HomeBody> {
   void _refreshQuotaIfLoggedIn() {
     if (!mounted) return;
     final auth = context.read<AuthProvider>();
-    if (auth.isLoggedIn) {
-      context.read<AnalysisQuotaProvider>().loadQuota();
-    } else {
-      context.read<AnalysisQuotaProvider>().clear();
-    }
+    context
+        .read<AnalysisQuotaProvider>()
+        .loadQuota(isLoggedIn: auth.isLoggedIn);
   }
 
   void _onAuthChanged() {
@@ -98,21 +96,80 @@ class _HomeBodyState extends State<HomeBody> {
 
   Future<void> _onAnalysisTap(BuildContext context) async {
     final auth = context.read<AuthProvider>();
+    final quota = context.read<AnalysisQuotaProvider>();
+
     if (!auth.isLoggedIn) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+      await quota.loadQuota(isLoggedIn: false);
+      if (!context.mounted) return;
+
+      if (quota.isExhausted) {
+        _showGuestQuotaDialog(context);
+        return;
+      }
+
+      await widget.onGoToUpload(); // 결과 화면까지 갔다가 돌아올 때까지 대기
+      if (!context.mounted) return;
+      await quota.loadQuota(isLoggedIn: false); // ← 돌아온 뒤 갱신
       return;
     }
-    final quota = context.read<AnalysisQuotaProvider>();
-    await quota.loadQuota();
+
+    await quota.loadQuota(isLoggedIn: true);
     if (!context.mounted) return;
+
     if (quota.isExhausted) {
       _showQuotaDialog(context, quota.usedCount, quota.maxCount);
       return;
     }
-    widget.onGoToUpload();
+
+    await widget.onGoToUpload();
+    if (!context.mounted) return;
+    await quota.loadQuota(isLoggedIn: true); // 로그인 유저도 동일하게 갱신
+  }
+
+  void _showGuestQuotaDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_outline, color: AppTheme.primary, size: 20),
+            SizedBox(width: 8),
+            Text(
+              '분석 횟수 소진',
+              style: TextStyle(color: AppTheme.textPrimary, fontSize: 16),
+            ),
+          ],
+        ),
+        content: const Text(
+          '비로그인 1회를 사용했습니다.\n로그인하면 매일 3회 분석할 수 있어요!',
+          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              '취소',
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+            child: const Text(
+              '로그인하기',
+              style: TextStyle(color: AppTheme.primary),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showQuotaDialog(BuildContext context, int used, int max) {
@@ -130,7 +187,7 @@ class _HomeBodyState extends State<HomeBody> {
           ],
         ),
         content: Text(
-          '오늘 무료 분석 횟수($max회)를 모두 사용했습니다.\n내일 자정에 횟수가 초기화됩니다.',
+          '오늘 분석 횟수($max회)를 모두 사용했습니다.\n내일 자정에 횟수가 초기화됩니다.',
           style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
         ),
         actions: [
@@ -428,15 +485,15 @@ class _HomeBodyState extends State<HomeBody> {
 
                     const SizedBox(height: 20),
 
-                    // ── 6. 잔여 횟수 뱃지 (로그인 시만) ──
-                    if (auth.isLoggedIn)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _QuotaBadge(
-                          used: quota.usedCount,
-                          max: quota.maxCount,
-                        ),
+                    // ── 6. 잔여 횟수 뱃지 ──
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _QuotaBadge(
+                        used: quota.usedCount,
+                        max: quota.maxCount,
+                        isGuest: quota.isGuest,
                       ),
+                    ),
 
                     // ── 7. 분석 시작 버튼 ──
                     SizedBox(
@@ -445,11 +502,15 @@ class _HomeBodyState extends State<HomeBody> {
                       child: ElevatedButton.icon(
                         onPressed: () => _onAnalysisTap(context),
                         icon: Icon(
-                          auth.isLoggedIn ? Icons.shield_outlined : Icons.lock_outline,
+                          (!auth.isLoggedIn && quota.isExhausted)
+                              ? Icons.lock_outline
+                              : Icons.shield_outlined,
                           color: Colors.white,
                         ),
                         label: Text(
-                          auth.isLoggedIn ? '지금 바로 사기 분석하기' : '로그인 후 사기 분석하기',
+                          (!auth.isLoggedIn && quota.isExhausted)
+                              ? '로그인하고 계속 분석하기'
+                              : '지금 바로 사기 분석하기',
                           style: const TextStyle(
                             fontSize: 16,
                             color: AppTheme.textPrimary,
@@ -457,9 +518,9 @@ class _HomeBodyState extends State<HomeBody> {
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: auth.isLoggedIn
-                              ? AppTheme.primary
-                              : AppTheme.primary.withValues(alpha: 0.6),
+                          backgroundColor: (!auth.isLoggedIn && quota.isExhausted)
+                              ? AppTheme.primary.withValues(alpha: 0.6)
+                              : AppTheme.primary,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
@@ -850,7 +911,12 @@ class _ActionRow extends StatelessWidget {
 class _QuotaBadge extends StatelessWidget {
   final int used;
   final int max;
-  const _QuotaBadge({required this.used, required this.max});
+  final bool isGuest;
+  const _QuotaBadge({
+    required this.used,
+    required this.max,
+    this.isGuest = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -878,8 +944,10 @@ class _QuotaBadge extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 isExhausted
-                    ? '오늘 무료 분석 횟수를 모두 사용했습니다'
-                    : '오늘 남은 분석 횟수',
+                    ? (isGuest
+                    ? '로그인하면 매일 3회 분석할 수 있어요'
+                    : '오늘 분석 횟수를 모두 사용했습니다')
+                    : (isGuest ? '오늘 남은 분석 횟수' : '오늘 남은 분석 횟수'),
                 style: TextStyle(color: color, fontSize: 12),
               ),
             ],

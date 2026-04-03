@@ -10,10 +10,19 @@ import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/features/analysis/analysis_error.dart';
 import 'package:miritalk_app/core/ads/ad_manager.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
+import 'dart:typed_data';
 
 class AnalyzingScreen extends StatefulWidget {
   final List<http.MultipartFile> images;
-  const AnalyzingScreen({super.key, required this.images});
+  final bool isGuest;
+  final List<Uint8List>? guestImageBytes;
+
+  const AnalyzingScreen({
+    super.key,
+    required this.images,
+    this.isGuest = false,
+    this.guestImageBytes,
+  });
 
   @override
   State<AnalyzingScreen> createState() => _AnalyzingScreenState();
@@ -86,9 +95,14 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
 
   Future<void> _startAnalysis() async {
     try {
+      final endpoint = widget.isGuest
+          ? '/api/fraud/analyze/guest'
+          : '/api/fraud/analyze';
+
       final streamed = await ApiClient().postMultipartStream(
-        '/api/fraud/analyze',
+        endpoint,
         files: widget.images,
+        includeDeviceId: widget.isGuest, // 게스트만 X-Device-Id 헤더 추가
       );
 
       _sseSubscription = streamed.stream
@@ -101,22 +115,18 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
           _handleSSEData(data);
         },
         onError: (_) {
-          // 네트워크 단절 등 SSE 스트림 자체 오류
           if (mounted) {
             Navigator.pop(
               context,
-              const AnalysisError(
-                  'NETWORK_ERROR', '네트워크 연결이 끊겼습니다. 다시 시도해주세요.'),
+              const AnalysisError('NETWORK_ERROR', '네트워크 연결이 끊겼습니다. 다시 시도해주세요.'),
             );
           }
         },
       );
     } on QuotaExceededException catch (e) {
-      if (mounted) Navigator.pop(
-          context, AnalysisError('QUOTA_ERROR', e.message));
+      if (mounted) Navigator.pop(context, AnalysisError('QUOTA_ERROR', e.message));
     } on UnauthorizedException {
-      if (mounted) Navigator.pop(
-          context, const AnalysisError('AUTH_ERROR', ''));
+      if (mounted) Navigator.pop(context, const AnalysisError('AUTH_ERROR', ''));
     } catch (e) {
       debugPrint('분석 오류: $e');
       if (mounted) {
@@ -172,7 +182,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     }
   }
 
-  Future<void> _onDone(int sessionId) async {
+  Future<void> _onDone(int? sessionId) async {
     _progressController.stop();
     _progressController.animateTo(
       1.0,
@@ -181,12 +191,31 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     );
     await Future.delayed(const Duration(milliseconds: 500));
 
+    if (widget.isGuest) {
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AnalysisResultScreen(
+              messages: _messages,
+              imageUrls: const [],
+              sessionId: null,
+              guestImageBytes: widget.guestImageBytes, // 추가
+            ),
+          ),
+              (route) => route.isFirst,
+        );
+      }
+      return;
+    }
+
     // 전면광고 로직
     // AdManager.instance.showInterstitial(
     //   onClosed: () => _navigateToResult(sessionId),
     // );
 
-    _navigateToResult(sessionId);
+    // ── 로그인 유저: 기존 서버 결과 조회
+    if (sessionId != null) _navigateToResult(sessionId);
   }
 
   List<ChatMessage> _buildMessages(Map<String, dynamic> json) {
@@ -214,7 +243,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       final json = jsonDecode(data);
       final type = json['type'] as String;
 
-      // ── 에러 이벤트 처리 ──
       if (type == 'error') {
         final errorCode = json['errorCode'] as String? ?? 'UNKNOWN_ERROR';
         final message = json['message'] as String? ?? '오류가 발생했습니다.';
@@ -223,7 +251,8 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       }
 
       if (type == 'done') {
-        final sessionId = json['sessionId'] as int;
+        // 게스트는 sessionId가 null일 수 있음
+        final sessionId = json['sessionId'] as int?;
         _onDone(sessionId);
         return;
       }

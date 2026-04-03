@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/features/auth/auth_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:miritalk_app/features/home/guest_quota_service.dart';
 
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
@@ -13,12 +14,20 @@ class ApiClient {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final AuthService _authService = AuthService();
 
-  Future<Map<String, String>> _headers() async {
+  Future<Map<String, String>> _headers({bool includeDeviceId = false}) async {
     final token = await _storage.read(key: AppConfig.tokenKey);
-    return {
+    final headers = <String, String>{
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
     };
+
+    // 비로그인 상태이고 deviceId가 필요한 요청일 때만 추가
+    if (token == null && includeDeviceId) {
+      final deviceId = await GuestQuotaService.getAndroidId();
+      if (deviceId != null) headers['X-Device-Id'] = deviceId;
+    }
+
+    return headers;
   }
 
   Future<bool> _reissue() async {
@@ -28,27 +37,35 @@ class ApiClient {
     return result != null;
   }
 
-  Future<http.Response> get(String path) async {
+  Future<http.Response> get(String path, {bool includeDeviceId = false}) async {
     final response = await http.get(
       Uri.parse('${AppConfig.baseUrl}$path'),
-      headers: await _headers(),
+      headers: await _headers(includeDeviceId: includeDeviceId),
     );
-    return _handleUnauthorized(response, () => get(path));
+    return _handleUnauthorized(
+      response,
+          () => get(path, includeDeviceId: includeDeviceId),
+    );
   }
 
-  Future<http.Response> post(String path, {Map<String, dynamic>? body}) async {
+  Future<http.Response> post(String path,
+      {Map<String, dynamic>? body, bool includeDeviceId = false}) async {
     final response = await http.post(
       Uri.parse('${AppConfig.baseUrl}$path'),
-      headers: await _headers(),
+      headers: await _headers(includeDeviceId: includeDeviceId),
       body: body != null ? jsonEncode(body) : null,
     );
-    return _handleUnauthorized(response, () => post(path, body: body));
+    return _handleUnauthorized(
+      response,
+          () => post(path, body: body, includeDeviceId: includeDeviceId),
+    );
   }
 
   Future<http.Response> postMultipart(
       String path, {
         required List<http.MultipartFile> files,
         Map<String, String>? fields,
+        bool includeDeviceId = false,
       }) async {
     final token = await _storage.read(key: AppConfig.tokenKey);
     final request = http.MultipartRequest(
@@ -57,6 +74,9 @@ class ApiClient {
     );
     if (token != null) {
       request.headers['Authorization'] = 'Bearer $token';
+    } else if (includeDeviceId) {
+      final deviceId = await GuestQuotaService.getAndroidId();
+      if (deviceId != null) request.headers['X-Device-Id'] = deviceId;
     }
     if (fields != null) request.fields.addAll(fields);
     request.files.addAll(files);
@@ -64,7 +84,8 @@ class ApiClient {
     final response = await http.Response.fromStream(streamed);
     return _handleUnauthorized(
       response,
-          () => postMultipart(path, files: files, fields: fields),
+          () => postMultipart(path,
+          files: files, fields: fields, includeDeviceId: includeDeviceId),
     );
   }
 
@@ -72,15 +93,22 @@ class ApiClient {
       String path, {
         required List<http.MultipartFile> files,
         Map<String, String>? fields,
+        bool includeDeviceId = false,
       }) async {
     final token = await _storage.read(key: AppConfig.tokenKey);
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('${AppConfig.baseUrl}$path'),
     );
+
     if (token != null) {
       request.headers['Authorization'] = 'Bearer $token';
+    } else if (includeDeviceId) {
+      // 비로그인 분석 요청 시 Android ID 헤더 추가
+      final deviceId = await GuestQuotaService.getAndroidId();
+      if (deviceId != null) request.headers['X-Device-Id'] = deviceId;
     }
+
     request.headers['Accept'] = 'text/event-stream';
     if (fields != null) request.fields.addAll(fields);
     request.files.addAll(files);
@@ -92,17 +120,16 @@ class ApiClient {
       client.close();
       final refreshed = await _reissue();
       if (refreshed) {
-        return postMultipartStream(path, files: files, fields: fields);
+        return postMultipartStream(path,
+            files: files, fields: fields, includeDeviceId: includeDeviceId);
       }
       throw UnauthorizedException();
     }
 
-    // ── 429 처리 추가 ──
     if (streamed.statusCode == 429) {
       client.close();
-      // 서버 응답 바디에서 메시지 파싱 시도
       final body = await http.Response.fromStream(streamed);
-      String message = '오늘 무료 분석 횟수(3회)를 모두 사용했습니다.\n내일 자정에 초기화됩니다.';
+      String message = '오늘 무료 분석 횟수를 모두 사용했습니다.\n내일 자정에 초기화됩니다.';
       try {
         final json = jsonDecode(utf8.decode(body.bodyBytes));
         if (json['message'] != null) message = json['message'] as String;
@@ -128,7 +155,6 @@ class ApiClient {
 
 class UnauthorizedException implements Exception {}
 
-// ── 신규 추가 ──
 class QuotaExceededException implements Exception {
   final String message;
   const QuotaExceededException(this.message);

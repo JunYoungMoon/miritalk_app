@@ -31,6 +31,7 @@ class AnalysisResultScreen extends StatefulWidget {
   final List<String> imageUrls;
   final int? sessionId;
   final bool? feedbackHelpful;
+  final List<Uint8List>? guestImageBytes;
 
   const AnalysisResultScreen({
     super.key,
@@ -38,6 +39,7 @@ class AnalysisResultScreen extends StatefulWidget {
     this.imageUrls = const [],
     this.sessionId,
     this.feedbackHelpful,
+    this.guestImageBytes,
   });
 
   @override
@@ -151,7 +153,10 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
         children: [
-          if (_imageUrls.isNotEmpty) _ThumbnailStrip(imageUrls: _imageUrls),
+          if (_imageUrls.isNotEmpty)
+            _ThumbnailStrip(imageUrls: _imageUrls)
+          else if (widget.guestImageBytes != null && widget.guestImageBytes!.isNotEmpty)
+            _GuestThumbnailStrip(imageBytes: widget.guestImageBytes!),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
@@ -1193,6 +1198,178 @@ class _FeedbackButton extends StatelessWidget {
                     fontSize: 13,
                     fontWeight: FontWeight.w600)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GuestThumbnailStrip extends StatelessWidget {
+  final List<Uint8List> imageBytes;
+  const _GuestThumbnailStrip({required this.imageBytes});
+
+  void _openFullscreen(BuildContext context, int initialIndex) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _GuestFullscreenViewer(
+          imageBytes: imageBytes,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppTheme.surface,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.photo_library_outlined,
+                    color: AppTheme.primary, size: 13),
+                const SizedBox(width: 5),
+                const Text('분석한 이미지',
+                    style: TextStyle(
+                        color: AppTheme.primary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(width: 6),
+                Text('${imageBytes.length}장 · 탭하면 확대됩니다',
+                    style: const TextStyle(
+                        color: AppTheme.textHint, fontSize: 11)),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 72,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: imageBytes.length,
+              itemBuilder: (context, index) {
+                return GestureDetector(
+                  onTap: () => _openFullscreen(context, index),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    width: 72,
+                    height: 72,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(imageBytes[index],
+                              fit: BoxFit.cover),
+                        ),
+                        if (index == 0)
+                          Positioned(
+                            bottom: 0, left: 0, right: 0,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.55),
+                                borderRadius: const BorderRadius.only(
+                                  bottomLeft: Radius.circular(8),
+                                  bottomRight: Radius.circular(8),
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: const Text('대표',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        Positioned(
+                          top: 3, right: 3,
+                          child: Container(
+                            width: 18, height: 18,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text('${index + 1}',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuestFullscreenViewer extends StatefulWidget {
+  final List<Uint8List> imageBytes;
+  final int initialIndex;
+  const _GuestFullscreenViewer(
+      {required this.imageBytes, required this.initialIndex});
+
+  @override
+  State<_GuestFullscreenViewer> createState() => _GuestFullscreenViewerState();
+}
+
+class _GuestFullscreenViewerState extends State<_GuestFullscreenViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('${_currentIndex + 1} / ${widget.imageBytes.length}',
+            style: const TextStyle(color: Colors.white, fontSize: 15)),
+        centerTitle: true,
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        itemCount: widget.imageBytes.length,
+        onPageChanged: (i) => setState(() => _currentIndex = i),
+        itemBuilder: (context, index) => InteractiveViewer(
+          minScale: 1.0,
+          maxScale: 4.0,
+          child: Center(
+            child: Image.memory(widget.imageBytes[index], fit: BoxFit.contain),
+          ),
         ),
       ),
     );

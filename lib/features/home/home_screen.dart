@@ -39,17 +39,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onGoToUpload() {
-    Navigator.push(
+  Future<void> _onGoToUpload() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
-    ).then((_) {
-      if (!mounted) return;
-      final auth = context.read<AuthProvider>();
-      if (auth.isLoggedIn) {
-        context.read<AnalysisQuotaProvider>().loadQuota();
-      }
-    });
+    );
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    // 로그인/게스트 구분 없이 항상 갱신
+    context.read<AnalysisQuotaProvider>().loadQuota(isLoggedIn: auth.isLoggedIn);
   }
 
   @override
