@@ -8,6 +8,8 @@ import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
 import 'package:miritalk_app/features/home/widgets/scroll_hint_arrow.dart';
 import 'package:miritalk_app/core/utils/screen_secure_util.dart';
+import 'package:miritalk_app/features/analysis/analytics_service.dart';
+import 'package:miritalk_app/features/analysis/screen_time_tracker.dart';
 
 class HomeBody extends StatefulWidget {
   final Future<void> Function() onGoToUpload;
@@ -22,6 +24,7 @@ class _HomeBodyState extends State<HomeBody> {
   bool _isBannerLoaded = false;
   late AuthProvider _authProvider;
   bool _listenerAttached = false;
+  late final ScreenTimeTracker _tracker;
 
   final CarouselSliderController _carouselController =
   CarouselSliderController();
@@ -42,6 +45,7 @@ class _HomeBodyState extends State<HomeBody> {
   @override
   void initState() {
     super.initState();
+    _tracker = ScreenTimeTracker('home');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkButtonVisibility();
       _refreshQuotaIfLoggedIn();
@@ -51,6 +55,7 @@ class _HomeBodyState extends State<HomeBody> {
 
   @override
   void dispose() {
+    _tracker.dispose();
     if (_listenerAttached) {
       _authProvider.removeListener(_onAuthChanged);
     }
@@ -103,6 +108,8 @@ class _HomeBodyState extends State<HomeBody> {
       if (!context.mounted) return;
 
       if (quota.isExhausted) {
+        // ── Analytics: 게스트 할당량 초과 ──
+        AnalyticsService.instance.logQuotaExhausted(isGuest: true);
         _showGuestQuotaDialog(context);
         return;
       }
@@ -117,6 +124,8 @@ class _HomeBodyState extends State<HomeBody> {
     if (!context.mounted) return;
 
     if (quota.isExhausted) {
+      // ── Analytics: 로그인 유저 할당량 초과 ──
+      AnalyticsService.instance.logQuotaExhausted(isGuest: false);
       _showQuotaDialog(context, quota.usedCount, quota.maxCount);
       return;
     }
@@ -213,7 +222,10 @@ class _HomeBodyState extends State<HomeBody> {
             children: [
               SingleChildScrollView(
                 controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(12, 16, 12, 40),
+                padding: EdgeInsets.fromLTRB(
+                  12, 16, 12,
+                  MediaQuery.of(context).padding.bottom + 20,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

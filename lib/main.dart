@@ -11,6 +11,9 @@ import 'features/home/conversation_provider.dart';
 import 'features/home/analysis_quota_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
+import 'package:miritalk_app/features/analysis/mixpanel_service.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'dart:ui';
 import 'firebase_options.dart';
 
 // 앱 전역에서 Navigator 접근을 위한 키
@@ -23,6 +26,18 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Crashlytics 설정
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+
+  // Mixpanel 초기화
+  await MixpanelService.instance.initialize();
 
   KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
 

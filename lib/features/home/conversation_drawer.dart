@@ -29,15 +29,13 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
     });
   }
 
-  /// 새 분석 요청 버튼 탭 핸들러
+  // 새 분석 요청 버튼 탭 핸들러
   Future<void> _onNewAnalysisTap() async {
     final auth = context.read<AuthProvider>();
     final quotaProvider = context.read<AnalysisQuotaProvider>();
 
-    Navigator.pop(context); // 드로어 닫기
-
-    // ── 1. 로그인 체크 ──
     if (!auth.isLoggedIn) {
+      Navigator.pop(context);
       await Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -45,11 +43,12 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
       return;
     }
 
-    // ── 2. 쿼터 최신화 후 소진 여부 확인 ──
-    await quotaProvider.loadQuota();
+    await quotaProvider.loadQuota(isLoggedIn: true);
     if (!mounted) return;
 
     if (quotaProvider.isExhausted) {
+      Navigator.pop(context);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('오늘 분석 횟수를 모두 사용했습니다. 내일 다시 이용해주세요.'),
@@ -59,19 +58,11 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
       return;
     }
 
+    Navigator.pop(context);
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
     widget.onGoToUpload();
-
-    // // ── 3. 업로드 화면으로 이동, 완료 후 quota 재조회 ──
-    // await Navigator.push(
-    //   context,
-    //   MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
-    // );
-    //
-    // // 화면에서 돌아왔을 때 quota 갱신 (분석이 실제로 이뤄졌을 수도 있으므로)
-    // if (mounted) {
-    //   await quotaProvider.loadQuota();
-    //   await context.read<ConversationProvider>().loadConversations();
-    // }
   }
 
   @override

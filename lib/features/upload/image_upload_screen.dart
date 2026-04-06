@@ -13,6 +13,8 @@ import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/features/consent/consent_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
+import 'package:miritalk_app/features/analysis/analytics_service.dart';
+import 'package:miritalk_app/features/analysis/screen_time_tracker.dart';
 
 class ImageUploadScreen extends StatefulWidget {
   const ImageUploadScreen({super.key});
@@ -25,6 +27,20 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
   final List<AssetEntity> _selectedImages = [];
   static const int _maxImages = 5;
   bool _isUploading = false;
+  late final ScreenTimeTracker _tracker;
+
+  @override
+  void initState() {
+    super.initState();
+    _tracker = ScreenTimeTracker('image_upload'); //체류시간 측정
+    AnalyticsService.instance.logScreen('image_upload'); //화면 진입 횟수
+  }
+
+  @override
+  void dispose() {
+    _tracker.dispose();
+    super.dispose();
+  }
 
   Future<void> _openGallery() async {
     final result = await Navigator.push<List<AssetEntity>>(
@@ -351,35 +367,37 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
           const Spacer(),
 
           // ── 분석 요청 버튼 ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-            child: ElevatedButton(
-              onPressed: _isUploading ? null : _uploadImages,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                disabledBackgroundColor:
-                AppTheme.primary.withValues(alpha: 0.3),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              child: _isUploading
-                  ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              )
-                  : const Text(
-                '분석 요청하기',
-                style: TextStyle(
-                    fontSize: 16,
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.bold),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: ElevatedButton(
+                onPressed: _isUploading ? null : _uploadImages,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  disabledBackgroundColor:
+                  AppTheme.primary.withValues(alpha: 0.3),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                child: _isUploading
+                    ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
+                )
+                    : const Text(
+                  '분석 요청하기',
+                  style: TextStyle(
+                      fontSize: 16,
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.bold),
+                ),
               ),
             ),
-          ),
+          )
         ],
       ),
     );

@@ -7,6 +7,8 @@ import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'dart:typed_data';
 import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
+import 'package:miritalk_app/features/analysis/analytics_service.dart';
+import 'package:miritalk_app/features/analysis/screen_time_tracker.dart';
 
 class ChatMessage {
   final String type;
@@ -52,10 +54,13 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   bool _isLoading = false;
   bool _feedbackSubmitted = false;
   bool? _feedbackHelpful;
+  late final ScreenTimeTracker _tracker;
 
   @override
   void initState() {
     super.initState();
+    _tracker = ScreenTimeTracker('analysis_result'); //체류시간 측정
+    AnalyticsService.instance.logScreen('analysis_result'); //화면 진입 횟수
     _messages = widget.messages;
     _imageUrls = widget.imageUrls;
     if (widget.feedbackHelpful != null) {
@@ -65,6 +70,12 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     if (widget.sessionId != null && widget.messages.isEmpty) {
       _loadFromApi(widget.sessionId!);
     }
+  }
+
+  @override
+  void dispose() {
+    _tracker.dispose();
+    super.dispose();
   }
 
   Future<void> _loadFromApi(int sessionId) async {
@@ -203,6 +214,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Future<void> _submitFeedback(bool helpful, String? reason) async {
+    AnalyticsService.instance.logFeedbackSubmitted(helpful: helpful, reason: reason);
     final sessionId = widget.sessionId;
     if (sessionId == null) return;
     try {
@@ -217,6 +229,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       _feedbackHelpful = helpful;
     });
   }
+
 }
 
 // ── 공통 섹션 컨테이너 ───────────────────────────────

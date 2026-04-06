@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'auth_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
+import 'package:miritalk_app/features/analysis/analytics_service.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool popAll;
@@ -40,14 +41,16 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  Future<void> _handleLogin(
-      BuildContext context,
-      Future<void> Function() loginFn,
-      ) async {
+  Future<void> _handleLogin(BuildContext context, Future<void> Function() loginFn, String method) async {
+
+    // ── Analytics: 로그인 시도 ──
+    AnalyticsService.instance.logLoginAttempt(method);
+
     await loginFn();
     final auth = context.read<AuthProvider>();
     if (auth.isLoggedIn && context.mounted) {
-      // 로그인 성공 시 이전 화면(HomeScreen)으로 복귀
+      // ── Analytics: 로그인 성공 ──
+      AnalyticsService.instance.logLoginSuccess(method);
       Navigator.pop(context);
     }
   }
@@ -142,13 +145,13 @@ class _LoginScreenState extends State<LoginScreen>
                   _GoogleSignInButton(
                     isLoading: auth.isGoogleLoading,
                     onPressed: () =>
-                        _handleLogin(context, () => auth.signInWithGoogle()),
+                        _handleLogin(context, () => auth.signInWithGoogle(), 'google'),
                   ),
                   const SizedBox(height: 12),
                   _KakaoSignInButton(
                     isLoading: auth.isKakaoLoading,
                     onPressed: () =>
-                        _handleLogin(context, () => auth.signInWithKakao()),
+                        _handleLogin(context, () => auth.signInWithKakao(), 'kakao'),
                   ),
 
                   const SizedBox(height: 16),
