@@ -16,12 +16,14 @@ class AnalyzingScreen extends StatefulWidget {
   final List<http.MultipartFile> images;
   final bool isGuest;
   final List<Uint8List>? guestImageBytes;
+  final String? guestFcmToken;
 
   const AnalyzingScreen({
     super.key,
     required this.images,
-    this.isGuest = false,
+    required this.isGuest,
     this.guestImageBytes,
+    this.guestFcmToken,
   });
 
   @override
@@ -48,6 +50,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   int _currentStep = 0;
   final List<ChatMessage> _messages = [];
   StreamSubscription? _sseSubscription;
+  String? _guestImageToken;
 
   @override
   void initState() {
@@ -103,6 +106,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
         endpoint,
         files: widget.images,
         includeDeviceId: widget.isGuest, // 게스트만 X-Device-Id 헤더 추가
+        fcmToken: widget.guestFcmToken,
       );
 
       _sseSubscription = streamed.stream
@@ -193,14 +197,30 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
 
     if (widget.isGuest) {
       if (mounted) {
+        // 서버에서 이미지 목록 조회 후 토큰 붙여서 URL 구성
+        List<String> guestImageUrls = [];
+        if (sessionId != null && _guestImageToken != null) {
+          try {
+            final response = await ApiClient().get(
+              '/api/fraud/guest/images/$sessionId?token=$_guestImageToken',
+            );
+            final json = jsonDecode(response.body);
+            guestImageUrls = (json['imageUrls'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ?? [];
+          } catch (e) {
+            debugPrint('게스트 이미지 목록 조회 실패: $e');
+          }
+        }
+
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (_) => AnalysisResultScreen(
               messages: _messages,
-              imageUrls: const [],
+              imageUrls: guestImageUrls,
               sessionId: null,
-              guestImageBytes: widget.guestImageBytes, // 추가
+              guestImageToken: _guestImageToken,
             ),
           ),
               (route) => route.isFirst,
@@ -214,7 +234,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     //   onClosed: () => _navigateToResult(sessionId),
     // );
 
-    // ── 로그인 유저: 기존 서버 결과 조회
+
     if (sessionId != null) _navigateToResult(sessionId);
   }
 
@@ -251,8 +271,9 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       }
 
       if (type == 'done') {
-        // 게스트는 sessionId가 null일 수 있음
         final sessionId = json['sessionId'] as int?;
+        // 게스트 이미지 토큰 파싱
+        _guestImageToken = json['imageToken'] as String?;
         _onDone(sessionId);
         return;
       }

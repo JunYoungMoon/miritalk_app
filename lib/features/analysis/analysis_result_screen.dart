@@ -9,6 +9,7 @@ import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/features/analysis/analytics_service.dart';
 import 'package:miritalk_app/features/analysis/screen_time_tracker.dart';
+import 'package:http/http.dart' as http;
 
 class ChatMessage {
   final String type;
@@ -33,7 +34,7 @@ class AnalysisResultScreen extends StatefulWidget {
   final List<String> imageUrls;
   final int? sessionId;
   final bool? feedbackHelpful;
-  final List<Uint8List>? guestImageBytes;
+  final String? guestImageToken;
 
   const AnalysisResultScreen({
     super.key,
@@ -41,7 +42,7 @@ class AnalysisResultScreen extends StatefulWidget {
     this.imageUrls = const [],
     this.sessionId,
     this.feedbackHelpful,
-    this.guestImageBytes,
+    this.guestImageToken,
   });
 
   @override
@@ -165,9 +166,10 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
         children: [
           if (_imageUrls.isNotEmpty)
-            _ThumbnailStrip(imageUrls: _imageUrls)
-          else if (widget.guestImageBytes != null && widget.guestImageBytes!.isNotEmpty)
-            _GuestThumbnailStrip(imageBytes: widget.guestImageBytes!),
+            _ThumbnailStrip(
+              imageUrls: _imageUrls,
+              isGuest: widget.guestImageToken != null,
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
@@ -767,7 +769,12 @@ class _RiskHeaderCard extends StatelessWidget {
 // ── 상단 가로 썸네일 스트립 ──────────────────────────
 class _ThumbnailStrip extends StatelessWidget {
   final List<String> imageUrls;
-  const _ThumbnailStrip({required this.imageUrls});
+  final bool isGuest;
+
+  const _ThumbnailStrip({
+    required this.imageUrls,
+    this.isGuest = false,
+  });
 
   void _openFullscreen(BuildContext context, int initialIndex) {
     Navigator.push(
@@ -829,7 +836,10 @@ class _ThumbnailStrip extends StatelessWidget {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: _AuthImage(
-                              url: imageUrls[index], fit: BoxFit.cover),
+                            url: imageUrls[index],
+                            fit: BoxFit.cover,
+                            isGuest: isGuest,
+                          ),
                         ),
                         if (isFirst)
                           Positioned(
@@ -886,8 +896,13 @@ class _ThumbnailStrip extends StatelessWidget {
 class _FullscreenImageViewer extends StatefulWidget {
   final List<String> imageUrls;
   final int initialIndex;
-  const _FullscreenImageViewer(
-      {required this.imageUrls, required this.initialIndex});
+  final bool isGuest;
+
+  const _FullscreenImageViewer({
+    required this.imageUrls,
+    required this.initialIndex,
+    this.isGuest = false,
+  });
 
   @override
   State<_FullscreenImageViewer> createState() =>
@@ -941,6 +956,7 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
                   url: widget.imageUrls[index],
                   fit: BoxFit.contain,
                   fullscreen: true,
+                  isGuest: widget.isGuest,
                 ),
               ),
             ),
@@ -977,11 +993,13 @@ class _AuthImage extends StatefulWidget {
   final String url;
   final BoxFit fit;
   final bool fullscreen;
+  final bool isGuest;
 
   const _AuthImage({
     required this.url,
     this.fit = BoxFit.cover,
     this.fullscreen = false,
+    this.isGuest = false,
   });
 
   @override
@@ -999,9 +1017,16 @@ class _AuthImageState extends State<_AuthImage> {
 
   Future<Uint8List?> _load() async {
     try {
-      final path = widget.url.replaceFirst(AppConfig.baseUrl, '');
-      final response = await ApiClient().get(path);
-      if (response.statusCode == 200) return response.bodyBytes;
+      if (widget.isGuest) {
+        // 게스트: 토큰이 URL에 포함되어 있으므로 인증 없이 요청
+        final response = await http.get(Uri.parse(widget.url));
+        if (response.statusCode == 200) return response.bodyBytes;
+      } else {
+        // 로그인 유저: JWT 인증 필요
+        final path = widget.url.replaceFirst(AppConfig.baseUrl, '');
+        final response = await ApiClient().get(path);
+        if (response.statusCode == 200) return response.bodyBytes;
+      }
     } catch (_) {}
     return null;
   }
@@ -1212,121 +1237,6 @@ class _FeedbackButton extends StatelessWidget {
                     fontWeight: FontWeight.w600)),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _GuestThumbnailStrip extends StatelessWidget {
-  final List<Uint8List> imageBytes;
-  const _GuestThumbnailStrip({required this.imageBytes});
-
-  void _openFullscreen(BuildContext context, int initialIndex) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => _GuestFullscreenViewer(
-          imageBytes: imageBytes,
-          initialIndex: initialIndex,
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppTheme.surface,
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16, bottom: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.photo_library_outlined,
-                    color: AppTheme.primary, size: 13),
-                const SizedBox(width: 5),
-                const Text('분석한 이미지',
-                    style: TextStyle(
-                        color: AppTheme.primary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600)),
-                const SizedBox(width: 6),
-                Text('${imageBytes.length}장 · 탭하면 확대됩니다',
-                    style: const TextStyle(
-                        color: AppTheme.textHint, fontSize: 11)),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: 72,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: imageBytes.length,
-              itemBuilder: (context, index) {
-                return GestureDetector(
-                  onTap: () => _openFullscreen(context, index),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    width: 72,
-                    height: 72,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.memory(imageBytes[index],
-                              fit: BoxFit.cover),
-                        ),
-                        if (index == 0)
-                          Positioned(
-                            bottom: 0, left: 0, right: 0,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.55),
-                                borderRadius: const BorderRadius.only(
-                                  bottomLeft: Radius.circular(8),
-                                  bottomRight: Radius.circular(8),
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              child: const Text('대표',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        Positioned(
-                          top: 3, right: 3,
-                          child: Container(
-                            width: 18, height: 18,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: Text('${index + 1}',
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }

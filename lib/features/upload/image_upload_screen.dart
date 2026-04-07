@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/analysis/analytics_service.dart';
 import 'package:miritalk_app/features/analysis/screen_time_tracker.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class ImageUploadScreen extends StatefulWidget {
   const ImageUploadScreen({super.key});
@@ -94,13 +95,21 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
 
       // 게스트일 때 미리 바이트 수집
       List<Uint8List>? guestImageBytes;
+      String? guestFcmToken;
       if (!auth.isLoggedIn) {
         guestImageBytes = [];
         for (final asset in _selectedImages) {
           final bytes = await asset.thumbnailDataWithSize(
-            const ThumbnailSize(800, 800), // 적당한 해상도
+            const ThumbnailSize(800, 800),
           );
           if (bytes != null) guestImageBytes.add(bytes);
+        }
+
+        // 게스트 FCM 토큰 가져오기
+        try {
+          guestFcmToken = await FirebaseMessaging.instance.getToken();
+        } catch (e) {
+          debugPrint('게스트 FCM 토큰 가져오기 실패: $e');
         }
       }
 
@@ -111,6 +120,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
             images: files,
             isGuest: !auth.isLoggedIn,
             guestImageBytes: guestImageBytes,
+            guestFcmToken: guestFcmToken,
           ),
         ),
       );

@@ -94,6 +94,7 @@ class ApiClient {
         required List<http.MultipartFile> files,
         Map<String, String>? fields,
         bool includeDeviceId = false,
+        String? fcmToken,
       }) async {
     final token = await _storage.read(key: AppConfig.tokenKey);
     final request = http.MultipartRequest(
@@ -104,9 +105,13 @@ class ApiClient {
     if (token != null) {
       request.headers['Authorization'] = 'Bearer $token';
     } else if (includeDeviceId) {
-      // 비로그인 분석 요청 시 Android ID 헤더 추가
       final deviceId = await GuestQuotaService.getAndroidId();
       if (deviceId != null) request.headers['X-Device-Id'] = deviceId;
+    }
+
+    // 게스트 분석 요청 시 FCM 토큰 헤더 추가
+    if (fcmToken != null && fcmToken.isNotEmpty) {
+      request.headers['X-FCM-Token'] = fcmToken;
     }
 
     request.headers['Accept'] = 'text/event-stream';
@@ -121,7 +126,7 @@ class ApiClient {
       final refreshed = await _reissue();
       if (refreshed) {
         return postMultipartStream(path,
-            files: files, fields: fields, includeDeviceId: includeDeviceId);
+            files: files, fields: fields, includeDeviceId: includeDeviceId, fcmToken: fcmToken);
       }
       throw UnauthorizedException();
     }

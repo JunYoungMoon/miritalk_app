@@ -571,87 +571,6 @@ class _HomeBodyState extends State<HomeBody> {
   }
 }
 
-// ── 통계 뱃지 ─────────────────────────────────────────
-class _StatsBadges extends StatelessWidget {
-  const _StatsBadges();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _StatItem(
-          icon: Icons.analytics_outlined,
-          value: '1,200+',
-          label: '누적 분석',
-          color: AppTheme.primary,
-        ),
-        const SizedBox(width: 8),
-        _StatItem(
-          icon: Icons.gpp_bad_outlined,
-          value: '94%',
-          label: '탐지 정확도',
-          color: AppTheme.danger,
-        ),
-        const SizedBox(width: 8),
-        _StatItem(
-          icon: Icons.people_outline,
-          value: '100건+',
-          label: '피해 경험 기반',
-          color: AppTheme.success,
-        ),
-      ],
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String label;
-  final Color color;
-
-  const _StatItem({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.textHint, fontSize: 10),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── 사기 유형 카드 ────────────────────────────────────
 class _FraudTypeCards extends StatelessWidget {
   const _FraudTypeCards();
@@ -754,171 +673,6 @@ class _FraudTypeCards extends StatelessWidget {
   }
 }
 
-// ── 분석 결과 예시 ────────────────────────────────────
-class _SampleResultCard extends StatelessWidget {
-  const _SampleResultCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '이런 결과를 받아보세요',
-          style: TextStyle(
-            color: AppTheme.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    '사기 확률',
-                    style: TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 12),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.danger.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      '위험 87%',
-                      style: TextStyle(
-                        color: AppTheme.danger,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: 0.87,
-                  backgroundColor: AppTheme.surfaceDeep,
-                  color: AppTheme.danger,
-                  minHeight: 6,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Divider(color: Colors.white10),
-              const SizedBox(height: 12),
-              const Text(
-                '탐지된 의심 패턴',
-                style: TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 12),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  _PatternChip(
-                      label: '긴급함 유도', color: AppTheme.danger),
-                  _PatternChip(
-                      label: '감정 조작',
-                      color: const Color(0xFFFFB74D)),
-                  _PatternChip(
-                      label: '신원 불명확',
-                      color: const Color(0xFFFFB74D)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(color: Colors.white10),
-              const SizedBox(height: 12),
-              const Text(
-                '권장 행동',
-                style: TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 12),
-              ),
-              const SizedBox(height: 8),
-              const _ActionRow(
-                icon: Icons.block,
-                color: AppTheme.danger,
-                text: '즉시 대화를 중단하세요',
-              ),
-              const SizedBox(height: 6),
-              const _ActionRow(
-                icon: Icons.local_police_outlined,
-                color: AppTheme.primary,
-                text: '경찰청 182에 신고하세요',
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PatternChip extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _PatternChip({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontSize: 11),
-      ),
-    );
-  }
-}
-
-class _ActionRow extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String text;
-
-  const _ActionRow({
-    required this.icon,
-    required this.color,
-    required this.text,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 8),
-        Text(
-          text,
-          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-        ),
-      ],
-    );
-  }
-}
-
 // ── 잔여 횟수 뱃지 ────────────────────────────────────
 class _QuotaBadge extends StatelessWidget {
   final int used;
@@ -977,8 +731,6 @@ class _QuotaBadge extends StatelessWidget {
 }
 
 // ── 단계 안내 카드 ─────────────────────────────────────
-// _StepCard 위젯 전체 교체
-
 class _StepCard extends StatelessWidget {
   final String step;
   final IconData icon;
@@ -1223,8 +975,6 @@ class _AssetFullscreenViewerState extends State<_AssetFullscreenViewer> {
     );
   }
 }
-
-// lib/features/home/home_body.dart 하단에 추가
 
 class _WatermarkOverlay extends StatelessWidget {
   const _WatermarkOverlay();
