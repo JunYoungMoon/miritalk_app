@@ -10,6 +10,7 @@ import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/features/analysis/analysis_error.dart';
 import 'package:miritalk_app/core/ads/ad_manager.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
+import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'dart:typed_data';
 
 class AnalyzingScreen extends StatefulWidget {
@@ -39,6 +40,9 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   // shimmer 애니메이션
   late AnimationController _shimmerController;
   late Animation<double> _shimmerAnimation;
+
+  int? _riskScore;
+  String? _riskLevel;
 
   final List<String> _steps = [
     '이미지에서 텍스트를 추출하고 있습니다...',
@@ -97,6 +101,11 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   }
 
   Future<void> _startAnalysis() async {
+    await TrackingService.instance.logAnalysisRequested(
+      imageCount: widget.images.length,
+      isGuest: widget.isGuest,
+    );
+
     try {
       final endpoint = widget.isGuest
           ? '/api/fraud/analyze/guest'
@@ -193,6 +202,12 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeOut,
     );
+
+    await TrackingService.instance.logAnalysisCompleted(
+      riskScore: _riskScore ?? 0,
+      riskLevel: _riskLevel ?? 'UNKNOWN',
+    );
+
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (widget.isGuest) {
@@ -262,6 +277,15 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     try {
       final json = jsonDecode(data);
       final type = json['type'] as String;
+
+      if (type == 'riskScore') {
+        _riskScore = int.tryParse(json['content'] as String? ?? '');
+        return;
+      }
+      if (type == 'riskLevel') {
+        _riskLevel = json['content'] as String?;
+        return;
+      }
 
       if (type == 'error') {
         final errorCode = json['errorCode'] as String? ?? 'UNKNOWN_ERROR';

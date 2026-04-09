@@ -4,6 +4,7 @@ import 'auth_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/features/home/conversation_provider.dart';
+import 'package:miritalk_app/features/home/guest_quota_service.dart';
 
 enum LoginType { none, google, kakao }
 
@@ -78,6 +79,21 @@ class AuthProvider extends ChangeNotifier {
         _userEmail       = result['userEmail'];
         _accessToken     = result['accessToken'];
         _refreshToken    = result['refreshToken'];
+
+        // 로그인 직후 게스트 세션 이전
+        final deviceId = await GuestQuotaService.getAndroidId();
+        if (deviceId != null && _accessToken != null) {
+          final transferred = await _authService.transferGuestSessions(
+            _accessToken!,
+            deviceId,
+          );
+          if (transferred > 0) {
+            debugPrint('게스트 세션 $transferred건 이전 완료');
+          }
+        }
+
+        // 대화 목록 갱신 (이전된 세션 포함)
+        _conversationProvider?.loadConversations();
       } else {
         _isLoggedIn   = false;
         _errorMessage = errorMsg;

@@ -171,4 +171,24 @@ class AuthService {
       // FCM 등록 실패가 로그인 자체를 막으면 안 되므로 예외 삼킴
     }
   }
+
+  Future<int> transferGuestSessions(String accessToken, String deviceId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/api/fraud/transfer'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode({'deviceId': deviceId}),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return data['transferred'] as int? ?? 0;
+      }
+    } catch (e) {
+      debugPrint('세션 이전 실패: $e');
+    }
+    return 0;
+  }
 }

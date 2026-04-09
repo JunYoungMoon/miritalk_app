@@ -25,7 +25,13 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ConversationProvider>().loadConversations();
+      final auth = context.read<AuthProvider>();
+      final conv = context.read<ConversationProvider>();
+      if (auth.isLoggedIn) {
+        conv.loadConversations();
+      } else {
+        conv.loadGuestConversations();
+      }
     });
   }
 
@@ -200,11 +206,29 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
             ),
 
             const SizedBox(height: 8),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Text(
-                '최근 분석 내역',
-                style: TextStyle(color: AppTheme.textHint, fontSize: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Row(
+                children: [
+                  const Text(
+                    '최근 분석 내역',
+                    style: TextStyle(color: AppTheme.textHint, fontSize: 12),
+                  ),
+                  if (!auth.isLoggedIn) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        '기기 저장',
+                        style: TextStyle(color: AppTheme.primary, fontSize: 10),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
 
@@ -227,9 +251,10 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                 const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: convProvider.conversations.length,
                 itemBuilder: (context, index) {
-                  final conv =
-                  convProvider.conversations[index];
-                  return _ConversationTile(conversation: conv);
+                  final conv = convProvider.conversations[index];
+                  return conv.isGuest
+                      ? _GuestConversationTile(conversation: conv)
+                      : _ConversationTile(conversation: conv);
                 },
               ),
             ),
@@ -432,4 +457,135 @@ class _ThumbnailState extends State<_Thumbnail> {
           color: AppTheme.textHint, size: 20),
     ),
   );
+}
+
+// conversation_drawer.dart 하단에 추가
+
+class _GuestConversationTile extends StatelessWidget {
+  final ConversationItem conversation;
+  const _GuestConversationTile({required this.conversation});
+
+  Color get _riskColor =>
+      AppTheme.riskLevelColor(conversation.effectiveRiskLevel);
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+      dense: true,
+      // 게스트는 썸네일 없음 — 아이콘 플레이스홀더
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 48,
+          height: 48,
+          color: AppTheme.surfaceDeep,
+          child: const Icon(Icons.image_outlined,
+              color: AppTheme.textHint, size: 20),
+        ),
+      ),
+      title: Text(
+        conversation.title,
+        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 12),
+        overflow: TextOverflow.ellipsis,
+        maxLines: 2,
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Text(
+          conversation.createdAt,
+          style: const TextStyle(color: AppTheme.textHint, fontSize: 10),
+        ),
+      ),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: _riskColor.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          '${conversation.riskLevel}%',
+          style: TextStyle(
+            color: _riskColor,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      onTap: () => _openGuestResult(context),
+    );
+  }
+
+  Future<void> _openGuestResult(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      // 1단계: 토큰 없이 sessionId로 먼저 임시 토큰 발급 요청
+      //        서버 getGuestResult가 내부에서 issue()하므로
+      //        토큰을 query param 없이 먼저 호출할 수 없음.
+      //        → 별도 토큰 발급 엔드포인트 또는 저장된 토큰 활용
+      //
+      // 현재 구조상 게스트 결과 조회는 token이 필요하므로
+      // ApiClient에 게스트 토큰 발급 전용 요청을 추가합니다.
+      final tokenResp = await ApiClient().get(
+        '/api/fraud/guest/token/${conversation.sessionId}',
+        includeDeviceId: true,
+      );
+
+      if (tokenResp.statusCode != 200) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('결과 조회 실패: ${tokenResp.statusCode}')),
+        );
+        return;
+      }
+
+      final tokenData =
+      jsonDecode(utf8.decode(tokenResp.bodyBytes)) as Map<String, dynamic>;
+      final token = tokenData['imageToken'] as String;
+
+      // 2단계: 토큰으로 결과 상세 조회
+      final response = await ApiClient().get(
+        '/api/fraud/result/guest/${conversation.sessionId}?token=$token',
+      );
+
+      if (response.statusCode != 200) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('결과 조회 실패: ${response.statusCode}')),
+        );
+        return;
+      }
+
+      final json =
+      jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+
+      final messages = <ChatMessage>[
+        ChatMessage(type: 'summary', text: json['summary'] ?? '', isDone: true),
+        ChatMessage(type: 'riskScore', text: '${json['riskScore'] ?? 0}', isDone: true),
+        ChatMessage(type: 'riskLevel', text: json['riskLevel'] ?? '', isDone: true),
+        ChatMessage(type: 'suspicious', text: json['suspiciousPoints'] ?? '', isDone: true),
+        ChatMessage(type: 'action', text: json['recommendedActions'] ?? '', isDone: true),
+        ChatMessage(type: 'questions', text: json['additionalQuestions'] ?? '', isDone: true),
+      ];
+
+      final rawUrls = json['imageUrls'];
+      final imageUrls = rawUrls is List
+          ? rawUrls.map((e) => e.toString()).toList()
+          : <String>[];
+
+      navigator.pop();
+      navigator.push(MaterialPageRoute(
+        builder: (_) => AnalysisResultScreen(
+          messages: messages,
+          imageUrls: imageUrls,
+          sessionId: conversation.sessionId,
+          feedbackHelpful: null,
+          guestImageToken: token, // 피드백 버튼 숨김 처리용
+        ),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('오류: $e')));
+    }
+  }
 }

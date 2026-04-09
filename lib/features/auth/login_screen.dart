@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'auth_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
-import 'package:miritalk_app/features/analysis/analytics_service.dart';
+import 'package:miritalk_app/core/tracking/tracking_service.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool popAll;
@@ -44,13 +44,13 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _handleLogin(BuildContext context, Future<void> Function() loginFn, String method) async {
 
     // ── Analytics: 로그인 시도 ──
-    AnalyticsService.instance.logLoginAttempt(method);
+    TrackingService.instance.logLoginAttempt(method);
 
     await loginFn();
     final auth = context.read<AuthProvider>();
     if (auth.isLoggedIn && context.mounted) {
       // ── Analytics: 로그인 성공 ──
-      AnalyticsService.instance.logLoginSuccess(method);
+      TrackingService.instance.logLoginSuccess(method);
       Navigator.pop(context);
     }
   }

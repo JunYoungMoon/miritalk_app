@@ -8,8 +8,8 @@ import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
 import 'package:miritalk_app/features/home/widgets/scroll_hint_arrow.dart';
 import 'package:miritalk_app/core/utils/screen_secure_util.dart';
-import 'package:miritalk_app/features/analysis/analytics_service.dart';
-import 'package:miritalk_app/features/analysis/screen_time_tracker.dart';
+import 'package:miritalk_app/core/tracking/tracking_service.dart';
+import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
 
 class HomeBody extends StatefulWidget {
   final Future<void> Function() onGoToUpload;
@@ -109,7 +109,7 @@ class _HomeBodyState extends State<HomeBody> {
 
       if (quota.isExhausted) {
         // ── Analytics: 게스트 할당량 초과 ──
-        AnalyticsService.instance.logQuotaExhausted(isGuest: true);
+        TrackingService.instance.logQuotaExhausted(isGuest: true);
         _showGuestQuotaDialog(context);
         return;
       }
@@ -125,7 +125,7 @@ class _HomeBodyState extends State<HomeBody> {
 
     if (quota.isExhausted) {
       // ── Analytics: 로그인 유저 할당량 초과 ──
-      AnalyticsService.instance.logQuotaExhausted(isGuest: false);
+      TrackingService.instance.logQuotaExhausted(isGuest: false);
       _showQuotaDialog(context, quota.usedCount, quota.maxCount);
       return;
     }

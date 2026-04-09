@@ -1,4 +1,4 @@
-// lib/features/analysis/mixpanel_service.dart
+// lib/core/tracking/mixpanel_service.dart
 import 'package:mixpanel_flutter/mixpanel_flutter.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
 

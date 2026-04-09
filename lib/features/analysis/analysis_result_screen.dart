@@ -7,8 +7,8 @@ import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'dart:typed_data';
 import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
-import 'package:miritalk_app/features/analysis/analytics_service.dart';
-import 'package:miritalk_app/features/analysis/screen_time_tracker.dart';
+import 'package:miritalk_app/core/tracking/tracking_service.dart';
+import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
 import 'package:http/http.dart' as http;
 
 class ChatMessage {
@@ -61,7 +61,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   void initState() {
     super.initState();
     _tracker = ScreenTimeTracker('analysis_result'); //체류시간 측정
-    AnalyticsService.instance.logScreen('analysis_result'); //화면 진입 횟수
+    TrackingService.instance.logScreen('analysis_result'); //화면 진입 횟수
     _messages = widget.messages;
     _imageUrls = widget.imageUrls;
     if (widget.feedbackHelpful != null) {
@@ -183,12 +183,13 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                 const SizedBox(height: 8),
                 ...displayMessages.map((m) => _buildCard(m)),
                 const SizedBox(height: 8),
-                _FeedbackCard(
-                  sessionId: widget.sessionId,
-                  submitted: _feedbackSubmitted,
-                  helpful: _feedbackHelpful,
-                  onFeedback: _submitFeedback,
-                ),
+                if (widget.guestImageToken == null)
+                  _FeedbackCard(
+                    sessionId: widget.sessionId,
+                    submitted: _feedbackSubmitted,
+                    helpful: _feedbackHelpful,
+                    onFeedback: _submitFeedback,
+                  ),
               ],
             ),
           ),
@@ -216,7 +217,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Future<void> _submitFeedback(bool helpful, String? reason) async {
-    AnalyticsService.instance.logFeedbackSubmitted(helpful: helpful, reason: reason);
+    TrackingService.instance.logFeedbackSubmitted(helpful: helpful, reason: reason);
     final sessionId = widget.sessionId;
     if (sessionId == null) return;
     try {

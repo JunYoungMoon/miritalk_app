@@ -11,7 +11,8 @@ import 'features/home/conversation_provider.dart';
 import 'features/home/analysis_quota_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
-import 'package:miritalk_app/features/analysis/mixpanel_service.dart';
+import 'package:miritalk_app/core/tracking/mixpanel_service.dart';
+import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'dart:ui';
 import 'firebase_options.dart';
@@ -23,10 +24,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Firebase 초기화
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Crashlytics 설정
@@ -65,13 +62,30 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // 로그인 상태일 때만 FCM 초기화 (토큰 서버 등록 포함)
     // 위젯 트리 빌드 후 실행
     WidgetsBinding.instance.addPostFrameCallback((_) => _initFcm());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      TrackingService.instance.logAppBackgrounded();
+    } else if (state == AppLifecycleState.resumed) {
+      TrackingService.instance.logAppResumed();
+    }
   }
 
   Future<void> _initFcm() async {

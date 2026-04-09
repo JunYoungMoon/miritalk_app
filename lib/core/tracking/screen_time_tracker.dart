@@ -1,5 +1,5 @@
-// lib/core/analytics/screen_time_tracker.dart
-import 'package:miritalk_app/features/analysis/mixpanel_service.dart';
+// lib/core/tracking/screen_time_tracker.dart
+import 'package:miritalk_app/core/tracking/mixpanel_service.dart';
 
 class ScreenTimeTracker {
   final String screenName;

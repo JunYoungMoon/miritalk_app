@@ -1,9 +1,9 @@
-// lib/core/analytics/analytics_service.dart
+// lib/core/tracking/tracking_service.dart
 import 'package:firebase_analytics/firebase_analytics.dart';
 
-class AnalyticsService {
-  AnalyticsService._();
-  static final AnalyticsService instance = AnalyticsService._();
+class TrackingService {
+  TrackingService._();
+  static final TrackingService instance = TrackingService._();
 
   final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 

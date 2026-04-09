@@ -13,8 +13,8 @@ import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/features/consent/consent_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
-import 'package:miritalk_app/features/analysis/analytics_service.dart';
-import 'package:miritalk_app/features/analysis/screen_time_tracker.dart';
+import 'package:miritalk_app/core/tracking/tracking_service.dart';
+import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 class ImageUploadScreen extends StatefulWidget {
@@ -34,7 +34,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
   void initState() {
     super.initState();
     _tracker = ScreenTimeTracker('image_upload'); //체류시간 측정
-    AnalyticsService.instance.logScreen('image_upload'); //화면 진입 횟수
+    TrackingService.instance.logScreen('image_upload'); //화면 진입 횟수
   }
 
   @override
@@ -258,157 +258,164 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: const CommonAppBar(title: '사진 업로드'),
-      // bottomNavigationBar: const BannerAdWidget(),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ── 설명 텍스트 ──
-          const Padding(
-            padding: EdgeInsets.fromLTRB(12, 24, 12, 20),
-            child: Text(
-              '의심되는 대화 내역을 캡처해서 업로드하면,\n실제 사기 사례로 학습된 AI가 분석합니다.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.6),
+    return PopScope(
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop && _selectedImages.isNotEmpty) {
+            TrackingService.instance.logUploadAbandoned(_selectedImages.length);
+          }
+        },
+        child: Scaffold(
+        backgroundColor: AppTheme.background,
+        appBar: const CommonAppBar(title: '사진 업로드'),
+        // bottomNavigationBar: const BannerAdWidget(),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── 설명 텍스트 ──
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 24, 12, 20),
+              child: Text(
+                '의심되는 대화 내역을 캡처해서 업로드하면,\n실제 사기 사례로 학습된 AI가 분석합니다.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.6),
+              ),
             ),
-          ),
 
-          // ── 이미지 선택 영역 ──
-          Container(
-            color: AppTheme.surface,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: SizedBox(
-              height: 90,
-              child: Row(
-                children: [
-                  _CameraButton(
-                    count: _selectedImages.length,
-                    maxCount: _maxImages,
-                    onTap: _openGallery,
-                  ),
-                  if (_selectedImages.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: SizedBox(
-                        height: 90,
-                        child: ReorderableListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          buildDefaultDragHandles: false,
-                          proxyDecorator: (child, index, animation) {
-                            return AnimatedBuilder(
-                              animation: animation,
-                              builder: (_, __) {
-                                final scale =
-                                Tween<double>(begin: 1.0, end: 1.15).evaluate(
-                                  CurvedAnimation(
-                                      parent: animation,
-                                      curve: Curves.easeOut),
-                                );
-                                return Transform.scale(
-                                  scale: scale,
-                                  child: Material(
-                                      color: Colors.transparent, child: child),
-                                );
-                              },
-                            );
-                          },
-                          onReorder: (oldIndex, newIndex) {
-                            setState(() {
-                              if (newIndex > oldIndex) newIndex--;
-                              final item = _selectedImages.removeAt(oldIndex);
-                              _selectedImages.insert(newIndex, item);
-                            });
-                          },
-                          itemCount: _selectedImages.length,
-                          itemBuilder: (context, index) {
-                            return ReorderableDelayedDragStartListener(
-                              key: ValueKey(_selectedImages[index].id),
-                              index: index,
-                              child: Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: _ImageThumbnail(
-                                  asset: _selectedImages[index],
-                                  isFirst: index == 0,
-                                  onRemove: () => _removeImage(index),
+            // ── 이미지 선택 영역 ──
+            Container(
+              color: AppTheme.surface,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: SizedBox(
+                height: 90,
+                child: Row(
+                  children: [
+                    _CameraButton(
+                      count: _selectedImages.length,
+                      maxCount: _maxImages,
+                      onTap: _openGallery,
+                    ),
+                    if (_selectedImages.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SizedBox(
+                          height: 90,
+                          child: ReorderableListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            buildDefaultDragHandles: false,
+                            proxyDecorator: (child, index, animation) {
+                              return AnimatedBuilder(
+                                animation: animation,
+                                builder: (_, __) {
+                                  final scale =
+                                  Tween<double>(begin: 1.0, end: 1.15).evaluate(
+                                    CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeOut),
+                                  );
+                                  return Transform.scale(
+                                    scale: scale,
+                                    child: Material(
+                                        color: Colors.transparent, child: child),
+                                  );
+                                },
+                              );
+                            },
+                            onReorder: (oldIndex, newIndex) {
+                              setState(() {
+                                if (newIndex > oldIndex) newIndex--;
+                                final item = _selectedImages.removeAt(oldIndex);
+                                _selectedImages.insert(newIndex, item);
+                              });
+                            },
+                            itemCount: _selectedImages.length,
+                            itemBuilder: (context, index) {
+                              return ReorderableDelayedDragStartListener(
+                                key: ValueKey(_selectedImages[index].id),
+                                index: index,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: _ImageThumbnail(
+                                    asset: _selectedImages[index],
+                                    isFirst: index == 0,
+                                    onRemove: () => _removeImage(index),
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
+                ),
+              ),
+            ),
+
+            // ── 안내 문구 ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  _InfoRow(
+                    icon: Icons.chat_outlined,
+                    text: '카카오톡, 문자, 거래 앱 등 모든 대화 캡처를 분석할 수 있습니다.',
+                  ),
+                  SizedBox(height: 6),
+                  _InfoRow(
+                    icon: Icons.star_outline,
+                    text: '첫 번째 사진을 가장 중요하거나 강조하고 싶은 장면으로 선택하세요.',
+                  ),
+                  SizedBox(height: 6),
+                  _InfoRow(
+                    icon: Icons.swap_vert,
+                    text: '사진을 길게 눌러 드래그하면 순서를 변경할 수 있습니다.',
+                  ),
+                  SizedBox(height: 6),
+                  _InfoRow(
+                    icon: Icons.lock_outline,
+                    text: '업로드된 사진은 분석에만 사용되며 AI 학습에 활용되지 않습니다.',
+                  ),
                 ],
               ),
             ),
-          ),
 
-          // ── 안내 문구 ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                _InfoRow(
-                  icon: Icons.chat_outlined,
-                  text: '카카오톡, 문자, 거래 앱 등 모든 대화 캡처를 분석할 수 있습니다.',
-                ),
-                SizedBox(height: 6),
-                _InfoRow(
-                  icon: Icons.star_outline,
-                  text: '첫 번째 사진을 가장 중요하거나 강조하고 싶은 장면으로 선택하세요.',
-                ),
-                SizedBox(height: 6),
-                _InfoRow(
-                  icon: Icons.swap_vert,
-                  text: '사진을 길게 눌러 드래그하면 순서를 변경할 수 있습니다.',
-                ),
-                SizedBox(height: 6),
-                _InfoRow(
-                  icon: Icons.lock_outline,
-                  text: '업로드된 사진은 분석에만 사용되며 AI 학습에 활용되지 않습니다.',
-                ),
-              ],
-            ),
-          ),
+            const Spacer(),
 
-          const Spacer(),
-
-          // ── 분석 요청 버튼 ──
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: ElevatedButton(
-                onPressed: _isUploading ? null : _uploadImages,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  disabledBackgroundColor:
-                  AppTheme.primary.withValues(alpha: 0.3),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                ),
-                child: _isUploading
-                    ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
-                )
-                    : const Text(
-                  '분석 요청하기',
-                  style: TextStyle(
-                      fontSize: 16,
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.bold),
+            // ── 분석 요청 버튼 ──
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: ElevatedButton(
+                  onPressed: _isUploading ? null : _uploadImages,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    disabledBackgroundColor:
+                    AppTheme.primary.withValues(alpha: 0.3),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  child: _isUploading
+                      ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                      : const Text(
+                    '분석 요청하기',
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
-            ),
-          )
-        ],
+            )
+          ],
+        ),
       ),
     );
   }
