@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
+import 'package:miritalk_app/core/storage/guest_token_storage.dart';
 import 'package:miritalk_app/features/home/guest_quota_service.dart';
 
 class ConversationItem {
@@ -72,13 +73,6 @@ class ConversationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final deviceId = await GuestQuotaService.getAndroidId();
-      if (deviceId == null) {
-        _isLoading = false;
-        notifyListeners();
-        return;
-      }
-
       final response = await ApiClient().get(
         '/api/fraud/history/guest?limit=20',
         includeDeviceId: true,
@@ -87,18 +81,40 @@ class ConversationProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final List<dynamic> data =
         jsonDecode(utf8.decode(response.bodyBytes)) as List;
-        _conversations = data.map((e) => ConversationItem(
-          sessionId: e['sessionId'] as int,
-          title: e['summary'] as String? ?? '분석 결과',
-          riskLevel: e['riskScore'] as int? ?? 0,
-          riskLevelLabel: e['riskLevel'] as String?,
-          createdAt: _formatDate(e['createdAt'] as String? ?? ''),
-          thumbnailUrl: null, // 게스트는 토큰 없이 썸네일 불가
-          isGuest: true,
-          imageToken: null, // 결과 진입 시 별도 발급
-        )).toList();
+
+        // 유효한 sessionId 목록으로 오래된 토큰 정리
+        final sessionIds = data.map((e) => e['sessionId'] as int).toList();
+        await GuestTokenStorage.cleanup(sessionIds);
+
+        _conversations = await Future.wait(data.map((e) async {
+          final sessionId = e['sessionId'] as int;
+          final token = await GuestTokenStorage.get(sessionId);
+          debugPrint('[Guest] sessionId=$sessionId token=$token');
+          debugPrint('[Guest] thumbnailFileName=${e['thumbnailFileName']}');
+
+          String? thumbnailPath;
+          if (token != null && e['thumbnailFileName'] != null) {
+            thumbnailPath =
+            '/api/fraud/guest/image/$sessionId/${e['thumbnailFileName']}?token=$token';
+          }
+          debugPrint('[Guest] thumbnailPath=$thumbnailPath');
+
+          return ConversationItem(
+            sessionId: sessionId,
+            title: e['summary'] as String? ?? '분석 결과',
+            riskLevel: e['riskScore'] as int? ?? 0,
+            riskLevelLabel: e['riskLevel'] as String?,
+            createdAt: _formatDate(e['createdAt'] as String? ?? ''),
+            thumbnailUrl: thumbnailPath,
+            isGuest: true,
+            imageToken: token,
+          );
+        }));
       }
-    } catch (_) {}
+    } catch (e, stack) {
+      debugPrint('[GuestHistory] error: $e');
+      debugPrint('[GuestHistory] stack: $stack');
+    }
 
     _isLoading = false;
     notifyListeners();

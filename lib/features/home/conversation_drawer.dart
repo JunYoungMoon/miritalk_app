@@ -9,6 +9,7 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:miritalk_app/core/storage/guest_token_storage.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'dart:typed_data';
 
@@ -24,15 +25,6 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = context.read<AuthProvider>();
-      final conv = context.read<ConversationProvider>();
-      if (auth.isLoggedIn) {
-        conv.loadConversations();
-      } else {
-        conv.loadGuestConversations();
-      }
-    });
   }
 
   // 새 분석 요청 버튼 탭 핸들러
@@ -411,12 +403,16 @@ class _ThumbnailState extends State<_Thumbnail> {
 
   Future<Uint8List?> _load() async {
     if (widget.url == null) return null;
+    debugPrint('[Thumbnail] url=${widget.url}');
     try {
-      final path =
-      widget.url!.replaceFirst(AppConfig.baseUrl, '');
+      final path = widget.url!.replaceFirst(AppConfig.baseUrl, '');
+      debugPrint('[Thumbnail] path=$path');
       final response = await ApiClient().get(path);
+      debugPrint('[Thumbnail] status=${response.statusCode}');
       if (response.statusCode == 200) return response.bodyBytes;
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Thumbnail] error=$e');
+    }
     return null;
   }
 
@@ -459,8 +455,6 @@ class _ThumbnailState extends State<_Thumbnail> {
   );
 }
 
-// conversation_drawer.dart 하단에 추가
-
 class _GuestConversationTile extends StatelessWidget {
   final ConversationItem conversation;
   const _GuestConversationTile({required this.conversation});
@@ -474,8 +468,9 @@ class _GuestConversationTile extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
       dense: true,
-      // 게스트는 썸네일 없음 — 아이콘 플레이스홀더
-      leading: ClipRRect(
+      leading: conversation.thumbnailUrl != null
+          ? _Thumbnail(url: conversation.thumbnailUrl)
+          : ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Container(
           width: 48,
@@ -522,30 +517,33 @@ class _GuestConversationTile extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      // 1단계: 토큰 없이 sessionId로 먼저 임시 토큰 발급 요청
-      //        서버 getGuestResult가 내부에서 issue()하므로
-      //        토큰을 query param 없이 먼저 호출할 수 없음.
-      //        → 별도 토큰 발급 엔드포인트 또는 저장된 토큰 활용
-      //
-      // 현재 구조상 게스트 결과 조회는 token이 필요하므로
-      // ApiClient에 게스트 토큰 발급 전용 요청을 추가합니다.
-      final tokenResp = await ApiClient().get(
-        '/api/fraud/guest/token/${conversation.sessionId}',
-        includeDeviceId: true,
-      );
+      // 로컬 저장소에서 토큰 먼저 조회
+      String? token = conversation.imageToken
+          ?? await GuestTokenStorage.get(conversation.sessionId);
 
-      if (tokenResp.statusCode != 200) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('결과 조회 실패: ${tokenResp.statusCode}')),
+      // 로컬에 없으면 서버에서 발급
+      if (token == null) {
+        final tokenResp = await ApiClient().get(
+          '/api/fraud/guest/token/${conversation.sessionId}',
+          includeDeviceId: true,
         );
-        return;
+
+        if (tokenResp.statusCode != 200) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('결과 조회 실패: ${tokenResp.statusCode}')),
+          );
+          return;
+        }
+
+        final tokenData =
+        jsonDecode(utf8.decode(tokenResp.bodyBytes)) as Map<String, dynamic>;
+        token = tokenData['imageToken'] as String;
+
+        // 발급받은 토큰 로컬에 저장
+        await GuestTokenStorage.save(conversation.sessionId, token);
       }
 
-      final tokenData =
-      jsonDecode(utf8.decode(tokenResp.bodyBytes)) as Map<String, dynamic>;
-      final token = tokenData['imageToken'] as String;
-
-      // 2단계: 토큰으로 결과 상세 조회
+      // 토큰으로 결과 상세 조회
       final response = await ApiClient().get(
         '/api/fraud/result/guest/${conversation.sessionId}?token=$token',
       );
@@ -581,7 +579,7 @@ class _GuestConversationTile extends StatelessWidget {
           imageUrls: imageUrls,
           sessionId: conversation.sessionId,
           feedbackHelpful: null,
-          guestImageToken: token, // 피드백 버튼 숨김 처리용
+          guestImageToken: token,
         ),
       ));
     } catch (e) {

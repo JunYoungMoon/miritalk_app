@@ -10,6 +10,7 @@ import 'home_body.dart';
 import 'package:provider/provider.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
+import 'package:miritalk_app/features/home/conversation_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -60,6 +61,16 @@ class _HomeScreenState extends State<HomeScreen> {
         showBack: false,
       ),
       drawer: ConversationDrawer(onGoToUpload: _onGoToUpload),
+      onDrawerChanged: (isOpened) {
+        if (!isOpened) return;
+        final auth = context.read<AuthProvider>();
+        final conv = context.read<ConversationProvider>();
+        if (auth.isLoggedIn) {
+          conv.loadConversations();
+        } else {
+          conv.loadGuestConversations();
+        }
+      },
       body: SafeArea(
         child: HomeBody(onGoToUpload: _onGoToUpload),
       ),
