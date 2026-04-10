@@ -25,6 +25,7 @@ class _HomeBodyState extends State<HomeBody> {
   late AuthProvider _authProvider;
   bool _listenerAttached = false;
   late final ScreenTimeTracker _tracker;
+  bool _wasLoggedIn = false;
 
   final CarouselSliderController _carouselController =
   CarouselSliderController();
@@ -37,6 +38,7 @@ class _HomeBodyState extends State<HomeBody> {
     super.didChangeDependencies();
     if (!_listenerAttached) {
       _authProvider = context.read<AuthProvider>();
+      _wasLoggedIn = _authProvider.isLoggedIn;
       _authProvider.addListener(_onAuthChanged);
       _listenerAttached = true;
     }
@@ -73,7 +75,12 @@ class _HomeBodyState extends State<HomeBody> {
 
   void _onAuthChanged() {
     if (!mounted) return;
-    _refreshQuotaIfLoggedIn();
+    final auth = context.read<AuthProvider>();
+    // 로그인 상태가 실제로 바뀌었을 때만 갱신
+    if (auth.isLoggedIn != _wasLoggedIn) {
+      _wasLoggedIn = auth.isLoggedIn;
+      _refreshQuotaIfLoggedIn();
+    }
   }
 
   void _checkButtonVisibility() {
@@ -116,7 +123,6 @@ class _HomeBodyState extends State<HomeBody> {
 
       await widget.onGoToUpload(); // 결과 화면까지 갔다가 돌아올 때까지 대기
       if (!context.mounted) return;
-      await quota.loadQuota(isLoggedIn: false); // ← 돌아온 뒤 갱신
       return;
     }
 
@@ -132,7 +138,6 @@ class _HomeBodyState extends State<HomeBody> {
 
     await widget.onGoToUpload();
     if (!context.mounted) return;
-    await quota.loadQuota(isLoggedIn: true); // 로그인 유저도 동일하게 갱신
   }
 
   void _showGuestQuotaDialog(BuildContext context) {
