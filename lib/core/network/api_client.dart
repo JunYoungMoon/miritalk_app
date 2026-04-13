@@ -142,6 +142,11 @@ class ApiClient {
       throw QuotaExceededException(message);
     }
 
+    if (streamed.statusCode == 413) {
+      client.close();
+      throw const FileTooLargeException();
+    }
+
     return streamed;
   }
 
@@ -163,4 +168,8 @@ class UnauthorizedException implements Exception {}
 class QuotaExceededException implements Exception {
   final String message;
   const QuotaExceededException(this.message);
+}
+
+class FileTooLargeException implements Exception {
+  const FileTooLargeException();
 }

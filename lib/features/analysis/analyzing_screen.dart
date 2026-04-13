@@ -146,6 +146,8 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
           );
         },
       );
+    } on FileTooLargeException {
+      if (mounted) Navigator.pop(context, const AnalysisError('FILE_TOO_LARGE', '파일 크기가 너무 큽니다. 최대 10MB까지 업로드 가능합니다.'));
     } on QuotaExceededException catch (e) {
       if (mounted) Navigator.pop(context, AnalysisError('QUOTA_ERROR', e.message));
     } on UnauthorizedException {
