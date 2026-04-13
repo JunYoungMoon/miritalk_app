@@ -44,6 +44,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
 
   int? _riskScore;
   String? _riskLevel;
+  bool _isDone = false;
 
   final List<String> _steps = [
     '이미지에서 텍스트를 추출하고 있습니다...',
@@ -135,6 +136,14 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
               const AnalysisError('NETWORK_ERROR', '네트워크 연결이 끊겼습니다. 다시 시도해주세요.'),
             );
           }
+        },
+        // ── 추가: done 이벤트 없이 스트림이 닫힌 경우 ──
+        onDone: () {
+          if (!mounted || _isDone) return;
+          Navigator.pop(
+            context,
+            const AnalysisError('SERVER_ERROR', '분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'),
+          );
         },
       );
     } on QuotaExceededException catch (e) {
@@ -289,6 +298,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
         if (mounted) Navigator.pop(context, AnalysisError(errorCode, message));
         return;
       } else if (type == 'done') {
+        _isDone = true;
         final sessionId = json['sessionId'] as int?;
         _guestImageToken = json['imageToken'] as String?;
 

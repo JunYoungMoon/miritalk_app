@@ -99,10 +99,11 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
       if (!auth.isLoggedIn) {
         guestImageBytes = [];
         for (final asset in _selectedImages) {
-          final bytes = await asset.thumbnailDataWithSize(
-            const ThumbnailSize(800, 800),
-          );
-          if (bytes != null) guestImageBytes.add(bytes);
+          final file = await asset.file;
+          if (file != null) {
+            final bytes = await file.readAsBytes();
+            guestImageBytes.add(bytes);
+          }
         }
 
         // 게스트 FCM 토큰 가져오기
@@ -230,8 +231,8 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
       if (file != null) {
         final bytes = await file.length();
         final mb = bytes / (1024 * 1024);
-        if (mb > 5) {
-          _showSnackBar('${i + 1}번째 사진이 5MB를 초과합니다. (${mb.toStringAsFixed(1)}MB)');
+        if (mb > 10) {
+          _showSnackBar('${i + 1}번째 사진이 10MB를 초과합니다. (${mb.toStringAsFixed(1)}MB)');
           return false;
         }
       }
