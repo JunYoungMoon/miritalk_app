@@ -66,7 +66,7 @@ class _LoginScreenState extends State<LoginScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white54),
+          icon: const Icon(Icons.close, color: AppTheme.textSecondary),
           tooltip: '홈으로 돌아가기',
           onPressed: () => Navigator.pop(context),
         ),
@@ -97,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen>
                   const Text(
                     '안전한 거래를 위한 서비스',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: Colors.white54),
+                    style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
                   ),
                   const SizedBox(height: 20),
 
@@ -168,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen>
                     },
                     child: const Text(
                       '로그인 없이 둘러보기',
-                      style: TextStyle(color: Colors.white38, fontSize: 13),
+                      style: TextStyle(color: AppTheme.textHint, fontSize: 13),
                     ),
                   ),
                 ],
@@ -276,7 +276,7 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
               margin: const EdgeInsets.symmetric(horizontal: 3),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(3),
-                color: _currentIndex == i ? AppTheme.primary : Colors.white24,
+                color: _currentIndex == i ? AppTheme.primary : AppTheme.dividerLight,
               ),
             );
           }),
@@ -309,9 +309,9 @@ class _SlideCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 2),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.07),
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: AppTheme.divider),
       ),
       child: Row(
         children: [
@@ -343,7 +343,7 @@ class _SlideCard extends StatelessWidget {
                           begin: Alignment.bottomCenter,
                           end: Alignment.topCenter,
                           colors: [
-                            Colors.black.withValues(alpha: 0.6),
+                            AppTheme.overlayLight,
                             Colors.transparent,
                           ],
                         ),
@@ -355,7 +355,7 @@ class _SlideCard extends StatelessWidget {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.4),
+                        color: AppTheme.overlayMedium,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: iconColor.withValues(alpha: 0.6),
@@ -419,7 +419,7 @@ class _SlideCard extends StatelessWidget {
                 Text(
                   desc,
                   style: const TextStyle(
-                    color: Colors.white54,
+                    color: AppTheme.textSecondary,
                     fontSize: 11,
                     height: 1.5,
                   ),

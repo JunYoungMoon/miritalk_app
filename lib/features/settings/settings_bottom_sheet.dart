@@ -75,21 +75,21 @@ class SettingsBottomSheet extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('탈퇴가 완료되었습니다.'),
-            backgroundColor: Colors.blueGrey,
+            backgroundColor: AppTheme.surface,
           ),
         );
       case WithdrawResult.notFound:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('계정 정보를 찾을 수 없습니다. 다시 로그인 해주세요.'),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: AppTheme.danger,
           ),
         );
       case WithdrawResult.error:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('탈퇴 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: AppTheme.danger,
           ),
         );
     }
@@ -112,7 +112,7 @@ class SettingsBottomSheet extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: AppTheme.dividerLight,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

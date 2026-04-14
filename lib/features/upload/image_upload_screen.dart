@@ -278,7 +278,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
               child: Text(
                 '의심되는 대화 내역을 캡처해서 업로드하면,\n실제 사기 사례로 학습된 AI가 분석합니다.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.6),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, height: 1.6),
               ),
             ),
 
@@ -518,7 +518,7 @@ class _ImageThumbnail extends StatelessWidget {
               right: 0,
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.55),
+                  color: AppTheme.overlayDark,
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(10),
                     bottomRight: Radius.circular(10),

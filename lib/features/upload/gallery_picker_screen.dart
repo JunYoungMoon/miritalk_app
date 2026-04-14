@@ -231,7 +231,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
                 color: AppTheme.textHint, size: 52),
             const SizedBox(height: 16),
             const Text('사진 접근 권한이 필요합니다',
-                style: TextStyle(color: Colors.white70, fontSize: 15)),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
             const SizedBox(height: 20),
             OutlinedButton(
               onPressed: () => PhotoManager.openSetting(),
@@ -249,7 +249,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
     if (_assets.isEmpty) {
       return const Center(
         child:
-        Text('사진이 없습니다', style: TextStyle(color: Colors.white54)),
+        Text('사진이 없습니다', style: TextStyle(color: AppTheme.textSecondary)),
       );
     }
 

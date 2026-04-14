@@ -50,7 +50,7 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('오늘 분석 횟수를 모두 사용했습니다. 내일 다시 이용해주세요.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
         ),
       );
       return;
@@ -108,7 +108,7 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                         Text(
                           auth.userEmail ?? '',
                           style: const TextStyle(
-                              color: Colors.white54, fontSize: 12),
+                              color: AppTheme.textSecondary, fontSize: 12),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
@@ -137,7 +137,7 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                   const Text(
                     '로그인하고 분석 내역을 확인하세요',
                     style:
-                    TextStyle(color: Colors.white38, fontSize: 11),
+                    TextStyle(color: AppTheme.textHint, fontSize: 11),
                   ),
                   const SizedBox(height: 12),
                   SizedBox(

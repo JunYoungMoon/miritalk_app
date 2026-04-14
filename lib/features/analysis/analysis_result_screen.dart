@@ -258,7 +258,7 @@ class _SectionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppTheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -847,7 +847,7 @@ class _ThumbnailStrip extends StatelessWidget {
                             bottom: 0, left: 0, right: 0,
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.55),
+                                color: AppTheme.overlayDark,
                                 borderRadius: const BorderRadius.only(
                                   bottomLeft: Radius.circular(8),
                                   bottomRight: Radius.circular(8),
@@ -858,7 +858,7 @@ class _ThumbnailStrip extends StatelessWidget {
                               child: const Text('대표',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                      color: Colors.white,
+                                      color: AppTheme.textPrimary,
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold)),
                             ),
@@ -868,13 +868,13 @@ class _ThumbnailStrip extends StatelessWidget {
                           child: Container(
                             width: 18, height: 18,
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.6),
+                              color: AppTheme.overlayLight,
                               shape: BoxShape.circle,
                             ),
                             child: Center(
                               child: Text('${index + 1}',
                                   style: const TextStyle(
-                                      color: Colors.white,
+                                      color: AppTheme.textPrimary,
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold)),
                             ),
@@ -934,12 +934,12 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
+          icon: const Icon(Icons.close, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           '${_currentIndex + 1} / ${widget.imageUrls.length}',
-          style: const TextStyle(color: Colors.white, fontSize: 15),
+          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
         ),
         centerTitle: true,
       ),
@@ -1277,11 +1277,11 @@ class _GuestFullscreenViewerState extends State<_GuestFullscreenViewer> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
+          icon: const Icon(Icons.close, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('${_currentIndex + 1} / ${widget.imageBytes.length}',
-            style: const TextStyle(color: Colors.white, fontSize: 15)),
+            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
         centerTitle: true,
       ),
       body: PageView.builder(

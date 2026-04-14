@@ -498,7 +498,7 @@ class _ShimmerText extends StatelessWidget {
             ],
             colors: const [
               AppTheme.textSecondary,
-              Colors.white,
+              AppTheme.textPrimary,
               AppTheme.textSecondary,
             ],
           ).createShader(bounds),
@@ -506,7 +506,7 @@ class _ShimmerText extends StatelessWidget {
             text,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppTheme.textPrimary,
               fontSize: 13,
               height: 1.5,
             ),
@@ -601,7 +601,7 @@ class _StreamingTextArea extends StatelessWidget {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.white,
+                    AppTheme.textPrimary,
                   ],
                   stops: const [0.0, 0.4],
                 ).createShader(bounds),

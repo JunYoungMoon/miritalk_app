@@ -48,14 +48,14 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       leading: showMenu
           ? Builder(
         builder: (ctx) => IconButton(
-          icon: const Icon(Icons.menu, color: Colors.white),
+          icon: const Icon(Icons.menu, color: AppTheme.textPrimary),
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         ),
       )
           : showBack
           ? IconButton(
         icon: const Icon(Icons.chevron_left,
-            color: Colors.white, size: 28),
+            color: AppTheme.textPrimary, size: 28),
         onPressed: () => Navigator.pop(context),
       )
           : null,

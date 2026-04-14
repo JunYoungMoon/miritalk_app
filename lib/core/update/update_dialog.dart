@@ -82,7 +82,7 @@ class UpdateDialog extends StatelessWidget {
                 backgroundColor: forceUpdate ? AppTheme.danger : AppTheme.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('업데이트', style: TextStyle(color: Colors.white)),
+              child: const Text('업데이트', style: TextStyle(color: AppTheme.textPrimary)),
             ),
         ],
       ),

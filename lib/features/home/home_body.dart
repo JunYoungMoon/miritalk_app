@@ -1,6 +1,6 @@
 // lib/features/home/home_body.dart
 import 'package:flutter/material.dart';
-import 'package:carousel_slider/carousel_slider.dart';
+// import 'package:carousel_slider/carousel_slider.dart';
 import 'package:provider/provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
@@ -20,15 +20,24 @@ class HomeBody extends StatefulWidget {
 }
 
 class _HomeBodyState extends State<HomeBody> {
-  int _currentSlide = 0;
-  bool _isBannerLoaded = false;
+  // int _currentSlide = 0;
+  // bool _isBannerLoaded = false;
   late AuthProvider _authProvider;
   bool _listenerAttached = false;
   late final ScreenTimeTracker _tracker;
   bool _wasLoggedIn = false;
 
-  final CarouselSliderController _carouselController =
-  CarouselSliderController();
+  // final CarouselSliderController _carouselController =
+  // CarouselSliderController();
+
+  final List<Map<String, dynamic>> _tickerItems = [
+    {'riskPct': 92, 'isHigh': true,  'text': '입금 먼저 해주시면 바로 보내드려요', 'likes': 128},
+    {'riskPct': 88, 'isHigh': true,  'text': '검찰청입니다. 계좌가 범죄에 연루됐습니다', 'likes': 94},
+    {'riskPct': 67, 'isHigh': false, 'text': '하루 수익률 3% 보장 해드립니다', 'likes': 76},
+    {'riskPct': 95, 'isHigh': true,  'text': '지금 바로 송금하지 않으면 고소합니다', 'likes': 61},
+    {'riskPct': 71, 'isHigh': false, 'text': '해외 직구 대리구매 선불로 부탁드려요', 'likes': 53},
+  ];
+
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _analyzeButtonKey = GlobalKey();
   bool _showScrollHint = false;
@@ -100,10 +109,10 @@ class _HomeBodyState extends State<HomeBody> {
   }
 
   final List<Map<String, String>> _evidenceImages = [
-    {'path': 'assets/images/evidence_1.jpg', 'label': '진정서 작성'},
-    {'path': 'assets/images/evidence_2.jpg', 'label': '경찰 조사'},
-    {'path': 'assets/images/evidence_3.jpg', 'label': '사기 피해 대화'},
-    {'path': 'assets/images/evidence_4.jpg', 'label': '사기접수 및 검거'},
+    {'path': 'assets/images/evidence_4.jpg', 'label': '사기접수 및 검거'},// 큰 사진
+    {'path': 'assets/images/evidence_3.jpg', 'label': '사기 피해 대화'},// 우측 1번
+    {'path': 'assets/images/evidence_1.jpg', 'label': '진정서 작성'},// 우측 2번
+    {'path': 'assets/images/evidence_2.jpg', 'label': '경찰 조사'},// 우측 3번
   ];
 
   Future<void> _onAnalysisTap(BuildContext context) async {
@@ -236,228 +245,125 @@ class _HomeBodyState extends State<HomeBody> {
                   children: [
                     // ── 1. 헤더 스토리 카드 ──
                     Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppTheme.surfaceDeep, AppTheme.surface],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                        color: AppTheme.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
                       ),
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          IntrinsicHeight(
-                            child: Row(
+                          // ── 상단 텍스트 영역 ──
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Center(
-                                    child: Container(
-                                      height: double.infinity,
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: AppTheme.primaryBadgeDecoration(),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.verified, color: AppTheme.primary, size: 13),
-                                          SizedBox(width: 4),
-                                          Flexible(
-                                            child: Text('실제 피해 경험 기반 AI',
-                                                style: TextStyle(color: AppTheme.primary, fontSize: 11)),
-                                          ),
-                                        ],
-                                      ),
+                                Row(
+                                  children: [
+                                    _TagBadge(
+                                      label: '실제 피해 경험 기반',
+                                      color: AppTheme.primary,
                                     ),
+                                    const SizedBox(width: 6),
+                                    _TagBadge(
+                                      label: '완전 무료',
+                                      color: AppTheme.success,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+                                const Text(
+                                  '사기를 당하다 보니\n전문가가 됐습니다.',
+                                  style: TextStyle(
+                                    color: AppTheme.textPrimary,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.4,
                                   ),
                                 ),
-                                Expanded(
-                                  child: Center(
-                                    child: Container(
-                                      height: double.infinity,
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: AppTheme.successBadgeDecoration(),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.favorite, color: Colors.red, size: 13),
-                                          SizedBox(width: 4),
-                                          Flexible(
-                                            child: Text('완전 무료',
-                                                style: TextStyle(color: AppTheme.success, fontSize: 11)),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  '직접 겪은 수십 건의 사기 경험을 AI에 담았어요.\n대화 캡처 한 장으로 사기 여부를 판단해드립니다.',
+                                  style: TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 12,
+                                    height: 1.7,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              const Expanded(
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '사기를 당하다 보니\n전문가가 됐습니다.',
-                                        style: TextStyle(
-                                          color: AppTheme.textPrimary,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                      SizedBox(height: 10),
-                                      Text(
-                                        '이 경험, AI에게\n전부 학습시켰습니다.',
-                                        style: TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 11,
-                                          height: 1.6,
-                                        ),
-                                      ),
-                                    ],
+
+                          // ── 사진 영역 ──
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+                            child: SizedBox(
+                              height: 130,
+                              child: Row(
+                                children: [
+                                  // 왼쪽 큰 사진
+                                  Expanded(
+                                    flex: 2,
+                                    child: _EvidencePhoto(
+                                      imagePath: _evidenceImages[0]['path']!,
+                                      label: _evidenceImages[0]['label']!,
+                                      allImages: _evidenceImages,
+                                      initialIndex: 0,
+                                      showZoom: true,
+                                    ),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    // ── 탭 안내 문구 ──
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: const [
-                                        Icon(Icons.touch_app_outlined, color: AppTheme.textHint, size: 11),
-                                        SizedBox(width: 3),
-                                        Text(
-                                          '탭하면 크게 볼 수 있어요',
-                                          style: TextStyle(color: AppTheme.textHint, fontSize: 10),
+                                  const SizedBox(width: 6),
+                                  // 오른쪽 작은 사진 3장
+                                  Expanded(
+                                    flex: 1,
+                                    child: Column(
+                                      children: [
+                                        Expanded(
+                                          child: _EvidencePhoto(
+                                            imagePath: _evidenceImages[1]['path']!,
+                                            label: _evidenceImages[1]['label']!,
+                                            allImages: _evidenceImages,
+                                            initialIndex: 1,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Expanded(
+                                          child: _EvidencePhoto(
+                                            imagePath: _evidenceImages[2]['path']!,
+                                            label: _evidenceImages[2]['label']!,
+                                            allImages: _evidenceImages,
+                                            initialIndex: 2,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Expanded(
+                                          child: _EvidencePhoto(
+                                            imagePath: _evidenceImages[3]['path']!,
+                                            label: _evidenceImages[3]['label']!,
+                                            allImages: _evidenceImages,
+                                            initialIndex: 3,
+                                          ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 6),
-                                    // ── 캐러셀 (가로 확장) ──
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: CarouselSlider(
-                                        carouselController: _carouselController,
-                                        options: CarouselOptions(
-                                          height: 120,           // 110 → 120
-                                          viewportFraction: 1.0,
-                                          autoPlay: true,
-                                          autoPlayInterval: const Duration(seconds: 3),
-                                          autoPlayCurve: Curves.easeInOut,
-                                          onPageChanged: (index, _) =>
-                                              setState(() => _currentSlide = index),
-                                        ),
-                                        items: _evidenceImages.asMap().entries.map((entry) {
-                                          final index = entry.key;
-                                          final item = entry.value;
-                                          return GestureDetector(
-                                            onTap: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  fullscreenDialog: true,
-                                                  builder: (_) => _AssetFullscreenViewer(
-                                                    images: _evidenceImages,
-                                                    initialIndex: index,
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                            child: Stack(
-                                              fit: StackFit.expand,
-                                              children: [
-                                                Image.asset(
-                                                  item['path']!,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (_, __, ___) => Container(
-                                                    color: AppTheme.surface,
-                                                    child: const Icon(Icons.image_outlined,
-                                                        color: AppTheme.primary, size: 32),
-                                                  ),
-                                                ),
-                                                Positioned(
-                                                  bottom: 0,
-                                                  left: 0,
-                                                  right: 0,
-                                                  child: Container(
-                                                    padding: const EdgeInsets.symmetric(vertical: 4),
-                                                    decoration: BoxDecoration(
-                                                      gradient: LinearGradient(
-                                                        begin: Alignment.bottomCenter,
-                                                        end: Alignment.topCenter,
-                                                        colors: [
-                                                          Colors.black.withValues(alpha: 0.7),
-                                                          Colors.transparent,
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    child: Text(
-                                                      item['label']!,
-                                                      textAlign: TextAlign.center,
-                                                      style: const TextStyle(
-                                                        color: AppTheme.textPrimary,
-                                                        fontSize: 10,
-                                                        fontWeight: FontWeight.w600,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                                const Positioned(
-                                                  top: 4,
-                                                  right: 4,
-                                                  child: Icon(
-                                                    Icons.zoom_in,
-                                                    color: Colors.white70,
-                                                    size: 14,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    // ── 인디케이터 ──
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: _evidenceImages.asMap().entries.map((e) {
-                                        return GestureDetector(
-                                          onTap: () => _carouselController.animateToPage(e.key),
-                                          child: AnimatedContainer(
-                                            duration: const Duration(milliseconds: 200),
-                                            width: _currentSlide == e.key ? 16 : 6,
-                                            height: 6,
-                                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                                            decoration: BoxDecoration(
-                                              borderRadius: BorderRadius.circular(3),
-                                              color: _currentSlide == e.key
-                                                  ? AppTheme.primary
-                                                  : Colors.white24,
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
+
+                          // ── 구분선 ──
+                          Divider(
+                            height: 1,
+                            thickness: 0.5,
+                            color: AppTheme.divider,
+                            indent: 18,
+                            endIndent: 18,
+                          ),
+
+                          // ── 인기 분석 티커 ──
+                          _FeedTicker(items: _tickerItems),
                         ],
                       ),
                     ),
@@ -596,7 +502,7 @@ class _FraudTypeCards extends StatelessWidget {
     (
     icon: Icons.sports_esports_outlined,
     color: Color(0xFFEF9A9A),
-    title: '게임 아이템 사기',
+    title: '게임 사기',
     desc: '아이템 거래 후\n잠적·미지급',
     ),
     (
@@ -758,7 +664,7 @@ class _StepCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        border: Border.all(color: AppTheme.divider),
       ),
       child: Row(
         children: [
@@ -798,7 +704,7 @@ class _StepCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(description,
                     style: const TextStyle(
-                        color: Colors.white54, fontSize: 12, height: 1.4)),
+                        color: AppTheme.textSecondary, fontSize: 12, height: 1.4)),
               ],
             ),
           ),
@@ -1100,4 +1006,347 @@ class _WatermarkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── 태그 뱃지 ────────────────────────────────────────
+class _TagBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _TagBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            margin: const EdgeInsets.only(top: 1),
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(color: color, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 증거 사진 썸네일 ──────────────────────────────────
+class _EvidencePhoto extends StatelessWidget {
+  final String imagePath;
+  final String label;
+  final List<Map<String, String>> allImages;
+  final int initialIndex;
+  final bool showZoom;
+
+  const _EvidencePhoto({
+    required this.imagePath,
+    required this.label,
+    required this.allImages,
+    required this.initialIndex,
+    this.showZoom = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => _AssetFullscreenViewer(
+            images: allImages,
+            initialIndex: initialIndex,
+          ),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              imagePath,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                color: AppTheme.surfaceDeep,
+                child: const Icon(
+                  Icons.image_outlined,
+                  color: AppTheme.primary,
+                  size: 24,
+                ),
+              ),
+            ),
+            // 하단 라벨
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                color: AppTheme.photoLabelBg,
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                  ),
+                ),
+              ),
+            ),
+            // 줌 힌트 (큰 사진만)
+            if (showZoom)
+              Positioned(
+                top: 5, right: 5,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.overlayMedium,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(
+                    Icons.zoom_in,
+                    color: Colors.white70,
+                    size: 12,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 인기 분석 티커 ─────────────────────────────────
+class _FeedTicker extends StatefulWidget {
+  final List<Map<String, dynamic>> items;
+  const _FeedTicker({required this.items});
+
+  @override
+  State<_FeedTicker> createState() => _FeedTickerState();
+}
+
+class _FeedTickerState extends State<_FeedTicker>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Offset> _slideOut;
+  late Animation<Offset> _slideIn;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _slideOut = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(0, -1),
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+    _slideIn = Tween<Offset>(
+      begin: const Offset(0, 1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
+    _startTicker();
+  }
+
+  void _startTicker() {
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 3));
+      if (!mounted) return false;
+      await _controller.forward();
+      if (!mounted) return false;
+      setState(() {
+        _currentIndex = (_currentIndex + 1) % widget.items.length;
+      });
+      _controller.reset();
+      return true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.items[_currentIndex];
+    final isHigh = item['isHigh'] as bool;
+    final riskPct = item['riskPct'] as int;
+    final text = item['text'] as String;
+    final likes = item['likes'] as int;
+
+    final riskColor = isHigh ? AppTheme.riskHigh : AppTheme.riskMedium;
+    final riskBg    = isHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg;
+
+    // SlideTransition 들어오는 텍스트 바로 위에 변수 선언
+    final nextItem = _currentIndex + 1 < widget.items.length
+        ? widget.items[_currentIndex + 1]
+        : widget.items[0];
+    final nextIsHigh = nextItem['isHigh'] as bool;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // 라벨
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Center(
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+              const Text(
+                '인기 분석',
+                style: TextStyle(color: AppTheme.textHint, fontSize: 10),
+              ),
+            ],
+          ),
+          const SizedBox(width: 10),
+          Container(width: 0.5, height: 18, color: AppTheme.divider),
+          const SizedBox(width: 10),
+
+          // 슬라이드 영역
+          Expanded(
+            child: SizedBox(
+              height: 20,
+              child: ClipRect(
+                child: Stack(
+                  children: [
+                    // 나가는 텍스트
+                    SlideTransition(
+                      position: _slideOut,
+                      child: _TickerRow(
+                        riskPct: riskPct,
+                        riskColor: riskColor,
+                        riskBg: riskBg,
+                        isHigh: isHigh,
+                        text: text,
+                        likes: likes,
+                      ),
+                    ),
+                    // 들어오는 텍스트
+                    SlideTransition(
+                      position: _slideIn,
+                      child: _TickerRow(
+                        riskPct: nextItem['riskPct'] as int,
+                        riskColor: nextIsHigh ? AppTheme.riskHigh : AppTheme.riskMedium,
+                        riskBg: nextIsHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg,
+                        isHigh: nextIsHigh,
+                        text: nextItem['text'] as String,
+                        likes: nextItem['likes'] as int,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TickerRow extends StatelessWidget {
+  final int riskPct;
+  final Color riskColor;
+  final Color riskBg;
+  final bool isHigh;
+  final String text;
+  final int likes;
+
+  const _TickerRow({
+    required this.riskPct,
+    required this.riskColor,
+    required this.riskBg,
+    required this.isHigh,
+    required this.text,
+    required this.likes,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 20,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: riskBg,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '${isHigh ? "위험" : "의심"} $riskPct%',
+              style: TextStyle(
+                color: riskColor,
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 11,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '♥ $likes',
+            style: const TextStyle(
+              color: AppTheme.textHint,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

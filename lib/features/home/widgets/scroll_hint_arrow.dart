@@ -1,5 +1,6 @@
 // lib/features/home/widgets/scroll_hint_arrow.dart
 import 'package:flutter/material.dart';
+import 'package:miritalk_app/core/theme/app_theme.dart';
 
 class ScrollHintArrow extends StatefulWidget {
   final VoidCallback onTap;
@@ -46,9 +47,9 @@ class _ScrollHintArrowState extends State<ScrollHintArrow>
             height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF7B8FF7).withValues(alpha: 0.15),
+              color: AppTheme.primary.withValues(alpha: 0.15),
               border: Border.all(
-                color: const Color(0xFF7B8FF7).withValues(alpha: 0.4),
+                color: AppTheme.primary.withValues(alpha: 0.4),
                 width: 1,
               ),
             ),
@@ -59,14 +60,14 @@ class _ScrollHintArrowState extends State<ScrollHintArrow>
                 Text(
                   '분석하기',
                   style: TextStyle(
-                    color: Color(0xFF7B8FF7),
+                    color: AppTheme.primary,
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 Icon(
                   Icons.keyboard_arrow_down_rounded,
-                  color: Color(0xFF7B8FF7),
+                  color: AppTheme.primary,
                   size: 18,
                 ),
               ],
