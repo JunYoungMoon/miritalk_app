@@ -261,7 +261,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     //   onClosed: () => _navigateToResult(sessionId),
     // );
 
-
     if (sessionId != null) _navigateToResult(sessionId);
   }
 
@@ -278,6 +277,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     addIfMissing('summary',   json['summary']);
     addIfMissing('riskScore', json['riskScore']?.toString());
     addIfMissing('riskLevel', json['riskLevel']);
+    addIfMissing('psychologicalTactics', json['psychologicalTactics']);
     addIfMissing('suspicious', json['suspiciousPoints']);
     addIfMissing('action',    json['recommendedActions']);
     addIfMissing('questions', json['additionalQuestions']);

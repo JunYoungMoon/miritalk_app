@@ -8,7 +8,6 @@ import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:miritalk_app/firebase_options.dart';
 
-// ── 백그라운드 메시지 핸들러 (top-level 함수여야 함) ──
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
@@ -24,45 +23,30 @@ class FcmService {
   final FlutterLocalNotificationsPlugin _localNotifications =
   FlutterLocalNotificationsPlugin();
 
-  // 분석 완료 알림 채널 ID
   static const String _channelId = 'miritalk_analysis';
   static const String _channelName = '분석 완료 알림';
   static const String _channelDesc = '사기 분석이 완료되면 알림을 보냅니다.';
 
-  /// 앱 시작 시 한 번만 호출
   Future<void> initialize({
-    /// 알림 탭 시 실행할 콜백 (sessionId 전달)
-    required void Function(int sessionId) onAnalysisComplete,
+    // ← 시그니처 변경: imageToken 추가
+    required void Function(int sessionId, String? imageToken) onAnalysisComplete,
   }) async {
-    // 1. 백그라운드 핸들러 등록
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    // 2. 로컬 알림 초기화
     await _initLocalNotifications(onAnalysisComplete: onAnalysisComplete);
-
-    // 3. 권한 요청
     await _requestPermission();
-
-    // 4. FCM 토큰 서버 등록
     await _registerToken();
-
-    // 5. 토큰 갱신 감지
     _messaging.onTokenRefresh.listen(_sendTokenToServer);
 
-    // 6. 포그라운드 메시지 수신
     FirebaseMessaging.onMessage.listen((message) {
       _showLocalNotification(message);
     });
 
-    // 7. 백그라운드에서 알림 탭 → 앱 열릴 때
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       _handleNotificationTap(message, onAnalysisComplete);
     });
 
-    // 8. 앱이 종료된 상태에서 알림 탭으로 앱 실행
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
-      // 약간 지연 후 처리 (라우터 준비 대기)
       await Future.delayed(const Duration(milliseconds: 500));
       _handleNotificationTap(initialMessage, onAnalysisComplete);
     }
@@ -82,10 +66,7 @@ class FcmService {
       final token = Platform.isIOS
           ? await _messaging.getAPNSToken().then((_) => _messaging.getToken())
           : await _messaging.getToken();
-
-      if (token != null) {
-        await _sendTokenToServer(token);
-      }
+      if (token != null) await _sendTokenToServer(token);
     } catch (e) {
       debugPrint('FCM 토큰 등록 실패: $e');
     }
@@ -101,9 +82,8 @@ class FcmService {
   }
 
   Future<void> _initLocalNotifications({
-    required void Function(int sessionId) onAnalysisComplete,
+    required void Function(int sessionId, String? imageToken) onAnalysisComplete,
   }) async {
-    // Android 채널 생성
     const androidChannel = AndroidNotificationChannel(
       _channelId,
       _channelName,
@@ -112,11 +92,9 @@ class FcmService {
     );
 
     await _localNotifications
-        .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(androidChannel);
 
-    // 초기화 설정
     const initSettings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       iOS: DarwinInitializationSettings(
@@ -129,12 +107,12 @@ class FcmService {
     await _localNotifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (response) {
-        // 로컬 알림 탭 처리
         if (response.payload != null) {
           try {
             final data = jsonDecode(response.payload!);
             final sessionId = int.tryParse(data['sessionId']?.toString() ?? '');
-            if (sessionId != null) onAnalysisComplete(sessionId);
+            final imageToken = data['imageToken']?.toString();  // ← 추가
+            if (sessionId != null) onAnalysisComplete(sessionId, imageToken);
           } catch (_) {}
         }
       },
@@ -161,28 +139,23 @@ class FcmService {
       presentSound: true,
     );
 
-    final details = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
-
     await _localNotifications.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       notification.title ?? '미리톡',
       notification.body ?? '분석이 완료됐습니다.',
-      details,
-      payload: jsonEncode(message.data),
+      NotificationDetails(android: androidDetails, iOS: iosDetails),
+      payload: jsonEncode(message.data),  // imageToken이 data에 있으면 자동 포함
     );
   }
 
   void _handleNotificationTap(
       RemoteMessage message,
-      void Function(int sessionId) onAnalysisComplete,
+      void Function(int sessionId, String? imageToken) onAnalysisComplete,
       ) {
-    final sessionIdStr = message.data['sessionId']?.toString();
-    final sessionId = int.tryParse(sessionIdStr ?? '');
+    final sessionId = int.tryParse(message.data['sessionId']?.toString() ?? '');
+    final imageToken = message.data['imageToken']?.toString();  // ← 추가
     if (sessionId != null) {
-      onAnalysisComplete(sessionId);
+      onAnalysisComplete(sessionId, imageToken);
     }
   }
 }

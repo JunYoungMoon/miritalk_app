@@ -342,6 +342,10 @@ class _ConversationTile extends StatelessWidget {
             text: json['riskLevel'] as String? ?? '',
             isDone: true),
         ChatMessage(
+            type: 'psychologicalTactics',
+            text: json['psychologicalTactics'] as String? ?? '',
+            isDone: true),
+        ChatMessage(
             type: 'suspicious',
             text: json['suspiciousPoints'] as String? ?? '',
             isDone: true),
@@ -562,6 +566,7 @@ class _GuestConversationTile extends StatelessWidget {
         ChatMessage(type: 'summary', text: json['summary'] ?? '', isDone: true),
         ChatMessage(type: 'riskScore', text: '${json['riskScore'] ?? 0}', isDone: true),
         ChatMessage(type: 'riskLevel', text: json['riskLevel'] ?? '', isDone: true),
+        ChatMessage(type: 'psychologicalTactics', text: json['psychologicalTactics'] ?? '', isDone: true),
         ChatMessage(type: 'suspicious', text: json['suspiciousPoints'] ?? '', isDone: true),
         ChatMessage(type: 'action', text: json['recommendedActions'] ?? '', isDone: true),
         ChatMessage(type: 'questions', text: json['additionalQuestions'] ?? '', isDone: true),

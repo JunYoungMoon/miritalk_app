@@ -97,11 +97,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _initFcm() async {
     await FcmService.instance.initialize(
-      onAnalysisComplete: (sessionId) {
+      onAnalysisComplete: (sessionId, imageToken) {
         navigatorKey.currentState?.pushNamedAndRemoveUntil(
           '/result',
               (route) => route.settings.name == '/home' || route.isFirst,
-          arguments: sessionId,
+          arguments: {'sessionId': sessionId, 'imageToken': imageToken},
         );
       },
     );
@@ -120,9 +120,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       routes: {
         '/home': (_) => const HomeScreen(),
         '/result': (context) {
-          final sessionId =
-          ModalRoute.of(context)!.settings.arguments as int;
-          return AnalysisResultScreen(sessionId: sessionId);
+          final args = ModalRoute.of(context)!.settings.arguments;
+          if (args is Map) {
+            return AnalysisResultScreen(
+              sessionId: args['sessionId'] as int,
+              guestImageToken: args['imageToken'] as String?,  // imageToken → guestImageToken
+            );
+          }
+          return AnalysisResultScreen(
+            sessionId: args as int,
+            guestImageToken: null,
+          );
         },
       },
       builder: (context, child) {

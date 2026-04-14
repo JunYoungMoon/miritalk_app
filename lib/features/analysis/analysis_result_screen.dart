@@ -82,12 +82,21 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   Future<void> _loadFromApi(int sessionId) async {
     setState(() => _isLoading = true);
     try {
-      final response = await ApiClient().get('/api/fraud/result/$sessionId');
+      final isGuest = widget.guestImageToken != null;
+
+      final response = isGuest
+          ? await ApiClient().get(
+        '/api/fraud/result/guest/$sessionId?token=${widget.guestImageToken}',
+      )
+          : await ApiClient().get('/api/fraud/result/$sessionId');
+
       final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+
       setState(() {
         _imageUrls = (json['imageUrls'] as List<dynamic>?)
             ?.map((e) => e.toString())
-            .toList() ?? [];
+            .toList() ??
+            [];
         _messages = [
           if (json['summary'] != null)
             ChatMessage(type: 'summary', text: json['summary'] as String, isDone: true),
