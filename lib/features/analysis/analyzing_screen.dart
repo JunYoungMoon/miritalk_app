@@ -12,7 +12,9 @@ import 'package:miritalk_app/core/ads/ad_manager.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:miritalk_app/core/storage/guest_token_storage.dart';
+import 'package:miritalk_app/features/home/conversation_provider.dart';
 import 'dart:typed_data';
+import 'package:provider/provider.dart';
 
 class AnalyzingScreen extends StatefulWidget {
   final List<http.MultipartFile> images;
@@ -252,7 +254,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
               imageUrls: guestImageUrls,
               sessionId: null,
               guestImageToken: _guestImageToken,
-              categoryName: categoryName,  // ← 추가
+              categoryName: categoryName,
             ),
           ),
               (route) => route.isFirst,
@@ -266,7 +268,13 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     //   onClosed: () => _navigateToResult(sessionId),
     // );
 
-    if (sessionId != null) _navigateToResult(sessionId);
+    if (sessionId != null) {
+      // 분석 내역 갱신
+      if (context.mounted) {
+        context.read<ConversationProvider>().loadConversations(refresh: true);
+      }
+      _navigateToResult(sessionId);
+    }
   }
 
   List<ChatMessage> _buildMessages(Map<String, dynamic> json) {

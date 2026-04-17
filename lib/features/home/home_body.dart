@@ -1207,7 +1207,7 @@ class _FeedTickerState extends State<_FeedTicker>
         : widget.items[0];
     final nextIsHigh = nextItem['isHigh'] as bool;
 
-    return GestureDetector(                          // ← 추가
+    return GestureDetector(
         onTap: () {
           // 커뮤니티 탭으로 이동 — main_screen의 탭 인덱스에 맞게 조정 필요
           Navigator.push(

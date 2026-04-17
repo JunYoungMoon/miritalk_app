@@ -111,7 +111,7 @@ class FcmService {
           try {
             final data = jsonDecode(response.payload!);
             final sessionId = int.tryParse(data['sessionId']?.toString() ?? '');
-            final imageToken = data['imageToken']?.toString();  // ← 추가
+            final imageToken = data['imageToken']?.toString();
             if (sessionId != null) onAnalysisComplete(sessionId, imageToken);
           } catch (_) {}
         }
@@ -153,7 +153,7 @@ class FcmService {
       void Function(int sessionId, String? imageToken) onAnalysisComplete,
       ) {
     final sessionId = int.tryParse(message.data['sessionId']?.toString() ?? '');
-    final imageToken = message.data['imageToken']?.toString();  // ← 추가
+    final imageToken = message.data['imageToken']?.toString();
     if (sessionId != null) {
       onAnalysisComplete(sessionId, imageToken);
     }

@@ -62,9 +62,8 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   late final ScreenTimeTracker _tracker;
   final ScrollController _scrollController = ScrollController();
 
-  // ── 프리패치 Future ─────────────────────────────────
-  Future<List<Uint8List>>? _imagesFuture;
   Future<List<Map<String, dynamic>>>? _categoriesFuture;
+  Future<List<Uint8List>>? _imagesForShareFuture;
 
   @override
   void initState() {
@@ -80,12 +79,10 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       _feedbackHelpful = widget.feedbackHelpful;
     }
 
-    // 카테고리는 항상 미리 로드
     _categoriesFuture = _fetchCategories();
 
-    // 이미지 URL이 이미 있으면 바로 미리 로드
     if (_imageUrls.isNotEmpty) {
-      _imagesFuture = _fetchImageBytes();
+      _imagesForShareFuture = _fetchImagesForShare();
     }
 
     if (widget.sessionId != null && widget.messages.isEmpty) {
@@ -142,37 +139,12 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         }
         _categoryName = json['categoryName'] as String?;
         _isLoading = false;
-      });
 
-      // API 로드 완료 후 이미지 미리 로드 시작
-      if (_imageUrls.isNotEmpty && _imagesFuture == null) {
-        _imagesFuture = _fetchImageBytes();
-      }
+      });
+      _imagesForShareFuture ??= _fetchImagesForShare();
     } catch (e) {
       setState(() => _isLoading = false);
     }
-  }
-
-  // ── 프리패치 헬퍼 ──────────────────────────────────
-
-  Future<List<Uint8List>> _fetchImageBytes() async {
-    if (_imageUrls.isEmpty) return [];
-    final results = await Future.wait(
-      _imageUrls.map((url) async {
-        try {
-          if (widget.guestImageToken != null) {
-            final r = await http.get(Uri.parse(url));
-            if (r.statusCode == 200) return r.bodyBytes;
-          } else {
-            final path = url.replaceFirst(AppConfig.baseUrl, '');
-            final r = await ApiClient().get(path);
-            if (r.statusCode == 200) return r.bodyBytes;
-          }
-        } catch (_) {}
-        return null;
-      }),
-    );
-    return results.whereType<Uint8List>().toList();
   }
 
   Future<List<Map<String, dynamic>>> _fetchCategories() async {
@@ -185,7 +157,33 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     }
   }
 
-  // ──────────────────────────────────────────────────
+  // _AuthImage 캐시 우선, 없으면 API 호출
+  Future<List<Uint8List>> _fetchImagesForShare() async {
+    final results = await Future.wait(
+      _imageUrls.map((url) async {
+        // 이미 _AuthImage 캐시에 있으면 즉시 반환
+        if (_AuthImage._cache.containsKey(url)) {
+          return _AuthImage._cache[url]!;
+        }
+        // 없으면 API 호출 후 캐시 저장
+        try {
+          Uint8List? bytes;
+          if (widget.guestImageToken != null) {
+            final r = await http.get(Uri.parse(url));
+            if (r.statusCode == 200) bytes = r.bodyBytes;
+          } else {
+            final path = url.replaceFirst(AppConfig.baseUrl, '');
+            final r = await ApiClient().get(path);
+            if (r.statusCode == 200) bytes = r.bodyBytes;
+          }
+          if (bytes != null) _AuthImage._cache[url] = bytes;
+          return bytes;
+        } catch (_) {}
+        return null;
+      }),
+    );
+    return results.whereType<Uint8List>().toList();
+  }
 
   String _findText(String type) {
     try {
@@ -316,8 +314,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   Future<void> _shareToCommmunity() async {
     if (!mounted) return;
 
-    // 프리패치된 Future 사용 (이미 완료됐으면 즉시 반환)
-    final imagesFuture = _imagesFuture ?? _fetchImageBytes();
     final categoriesFuture = _categoriesFuture ?? _fetchCategories();
 
     final result = await ShareBottomSheet.show(
@@ -326,7 +322,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       riskLevel: _findText('riskLevel'),
       riskScore: int.tryParse(_findText('riskScore')) ?? 0,
       summary: _findText('summary'),
-      imagesFuture: imagesFuture,
+      imagesFuture: _imagesForShareFuture!,  // ← 변경
       categoriesFuture: categoriesFuture,
       categoryName: _categoryName,
     );
@@ -737,10 +733,10 @@ class _RiskHeaderCard extends StatelessWidget {
   });
 
   static const _verdictStyle = {
-    '거래진행가능': {'color': AppTheme.success,     'icon': Icons.check_circle_outline},
-    '추가검증필요': {'color': Colors.orange,         'icon': Icons.help_outline},
-    '거래중단권고': {'color': Colors.deepOrange,     'icon': Icons.warning_amber_rounded},
-    '즉시중단':    {'color': AppTheme.danger,        'icon': Icons.cancel_outlined},
+    '거래진행가능': {'color': AppTheme.success,  'icon': Icons.check_circle_outline},
+    '추가검증필요': {'color': Colors.orange,      'icon': Icons.help_outline},
+    '거래중단권고': {'color': Colors.deepOrange,  'icon': Icons.warning_amber_rounded},
+    '즉시중단':    {'color': AppTheme.danger,     'icon': Icons.cancel_outlined},
   };
 
   @override
@@ -863,6 +859,7 @@ class _ThumbnailStrip extends StatelessWidget {
         builder: (_) => _FullscreenImageViewer(
           imageUrls: imageUrls,
           initialIndex: initialIndex,
+          isGuest: isGuest,
         ),
       ),
     );
@@ -1067,12 +1064,15 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
   }
 }
 
-// ── 인증 이미지 로더 ────────────────────────────────
+// ── 인증 이미지 로더 ──────────────────────────────────
 class _AuthImage extends StatefulWidget {
   final String url;
   final BoxFit fit;
   final bool fullscreen;
   final bool isGuest;
+
+  // ── static 캐시 추가 ──────────────────────────────
+  static final Map<String, Uint8List> _cache = {};
 
   const _AuthImage({
     required this.url,
@@ -1095,15 +1095,27 @@ class _AuthImageState extends State<_AuthImage> {
   }
 
   Future<Uint8List?> _load() async {
+    // ── 캐시 히트 시 즉시 반환 ────────────────────────
+    if (_AuthImage._cache.containsKey(widget.url)) {
+      return _AuthImage._cache[widget.url];
+    }
+
     try {
+      Uint8List? bytes;
       if (widget.isGuest) {
         final response = await http.get(Uri.parse(widget.url));
-        if (response.statusCode == 200) return response.bodyBytes;
+        if (response.statusCode == 200) bytes = response.bodyBytes;
       } else {
         final path = widget.url.replaceFirst(AppConfig.baseUrl, '');
         final response = await ApiClient().get(path);
-        if (response.statusCode == 200) return response.bodyBytes;
+        if (response.statusCode == 200) bytes = response.bodyBytes;
       }
+
+      // ── 로드 성공 시 캐시 저장 ────────────────────────
+      if (bytes != null) {
+        _AuthImage._cache[widget.url] = bytes;
+      }
+      return bytes;
     } catch (_) {}
     return null;
   }
@@ -1389,12 +1401,12 @@ class _CategoryChip extends StatelessWidget {
   const _CategoryChip({required this.categoryName});
 
   static const _style = {
-    '중고거래 사기': {'icon': Icons.storefront_outlined,    'color': Color(0xFF4FC3F7)},
-    '투자 사기':    {'icon': Icons.trending_up,             'color': Color(0xFF81C784)},
-    '게임 사기':    {'icon': Icons.sports_esports_outlined,  'color': Color(0xFFEF9A9A)},
-    '보이스피싱':   {'icon': Icons.phone_outlined,           'color': Color(0xFFCE93D8)},
-    '취업 사기':    {'icon': Icons.work_outline,             'color': Color(0xFFFFB74D)},
-    '기타':         {'icon': Icons.help_outline_rounded,     'color': Color(0xFF90A4AE)},
+    '중고거래 사기': {'icon': Icons.storefront_outlined,   'color': Color(0xFF4FC3F7)},
+    '투자 사기':    {'icon': Icons.trending_up,            'color': Color(0xFF81C784)},
+    '게임 사기':    {'icon': Icons.sports_esports_outlined, 'color': Color(0xFFEF9A9A)},
+    '보이스피싱':   {'icon': Icons.phone_outlined,          'color': Color(0xFFCE93D8)},
+    '취업 사기':    {'icon': Icons.work_outline,            'color': Color(0xFFFFB74D)},
+    '기타':         {'icon': Icons.help_outline_rounded,    'color': Color(0xFF90A4AE)},
   };
 
   static const _default = {

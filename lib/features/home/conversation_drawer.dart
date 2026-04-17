@@ -399,6 +399,7 @@ class _Thumbnail extends StatefulWidget {
 
 class _ThumbnailState extends State<_Thumbnail> {
   late Future<Uint8List?> _future;
+  static final Map<String, Uint8List> _cache = {};
 
   @override
   void initState() {
@@ -408,16 +409,15 @@ class _ThumbnailState extends State<_Thumbnail> {
 
   Future<Uint8List?> _load() async {
     if (widget.url == null) return null;
-    debugPrint('[Thumbnail] url=${widget.url}');
+    if (_cache.containsKey(widget.url)) return _cache[widget.url];
     try {
       final path = widget.url!.replaceFirst(AppConfig.baseUrl, '');
-      debugPrint('[Thumbnail] path=$path');
       final response = await ApiClient().get(path);
-      debugPrint('[Thumbnail] status=${response.statusCode}');
-      if (response.statusCode == 200) return response.bodyBytes;
-    } catch (e) {
-      debugPrint('[Thumbnail] error=$e');
-    }
+      if (response.statusCode == 200) {
+        _cache[widget.url!] = response.bodyBytes;
+        return response.bodyBytes;
+      }
+    } catch (e) {}
     return null;
   }
 

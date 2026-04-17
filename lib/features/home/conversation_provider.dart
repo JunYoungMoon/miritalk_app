@@ -42,7 +42,8 @@ class ConversationProvider extends ChangeNotifier {
   }
 
   // 로그인 유저 히스토리
-  Future<void> loadConversations() async {
+  Future<void> loadConversations({bool refresh = false}) async {
+    if (!refresh && _conversations.isNotEmpty) return;
     _isLoading = true;
     notifyListeners();
 
@@ -68,7 +69,8 @@ class ConversationProvider extends ChangeNotifier {
   }
 
   // 게스트 히스토리 — deviceId 기반
-  Future<void> loadGuestConversations() async {
+  Future<void> loadGuestConversations({bool refresh = false}) async {
+    if (!refresh && _conversations.isNotEmpty) return;
     _isLoading = true;
     notifyListeners();
 
