@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 
-/// 마스킹 영역 하나를 표현하는 모델
 class MaskRect {
   final Rect rect;
   final MaskType type;
@@ -16,12 +15,10 @@ class MaskRect {
       MaskRect(rect: rect ?? this.rect, type: type ?? this.type);
 }
 
-enum MaskType { black, blur, emoji }
+enum MaskType { black, blur }
 
-/// 결과: 편집 완료된 이미지 바이트 목록 반환
 class ImageMaskEditorScreen extends StatefulWidget {
   final List<Uint8List> imageBytesList;
-
   const ImageMaskEditorScreen({super.key, required this.imageBytesList});
 
   @override
@@ -30,16 +27,13 @@ class ImageMaskEditorScreen extends StatefulWidget {
 
 class _ImageMaskEditorScreenState extends State<ImageMaskEditorScreen> {
   int _currentIndex = 0;
+  int _slideDirection = 1; // 1 = 오른쪽→왼쪽, -1 = 왼쪽→오른쪽
   MaskType _selectedType = MaskType.black;
 
   late List<List<MaskRect>> _masksPerImage;
-
   Offset? _dragStart;
   Offset? _dragCurrent;
-
   late List<GlobalKey> _repaintKeys;
-  late List<Uint8List?> _renderedBytes;
-
   bool _isCapturing = false;
 
   @override
@@ -47,25 +41,30 @@ class _ImageMaskEditorScreenState extends State<ImageMaskEditorScreen> {
     super.initState();
     _masksPerImage = List.generate(widget.imageBytesList.length, (_) => []);
     _repaintKeys = List.generate(widget.imageBytesList.length, (_) => GlobalKey());
-    _renderedBytes = List.generate(widget.imageBytesList.length, (_) => null);
   }
 
-  void _onPanStart(DragStartDetails d) {
-    setState(() => _dragStart = d.localPosition);
+  void _goToIndex(int newIndex) {
+    if (newIndex < 0 || newIndex >= widget.imageBytesList.length) return;
+    setState(() {
+      _slideDirection = newIndex > _currentIndex ? 1 : -1;
+      _currentIndex = newIndex;
+      _dragStart = null;
+      _dragCurrent = null;
+    });
   }
 
-  void _onPanUpdate(DragUpdateDetails d) {
-    setState(() => _dragCurrent = d.localPosition);
-  }
+  void _onPanStart(DragStartDetails d) =>
+      setState(() => _dragStart = d.localPosition);
+
+  void _onPanUpdate(DragUpdateDetails d) =>
+      setState(() => _dragCurrent = d.localPosition);
 
   void _onPanEnd(DragEndDetails d) {
     if (_dragStart == null || _dragCurrent == null) return;
     final rect = Rect.fromPoints(_dragStart!, _dragCurrent!);
     if (rect.width > 8 && rect.height > 8) {
-      setState(() {
-        _masksPerImage[_currentIndex]
-            .add(MaskRect(rect: rect, type: _selectedType));
-      });
+      setState(() => _masksPerImage[_currentIndex]
+          .add(MaskRect(rect: rect, type: _selectedType)));
     }
     setState(() {
       _dragStart = null;
@@ -79,9 +78,7 @@ class _ImageMaskEditorScreenState extends State<ImageMaskEditorScreen> {
     setState(() => masks.removeLast());
   }
 
-  void _clearAll() {
-    setState(() => _masksPerImage[_currentIndex] = []);
-  }
+  void _clearAll() => setState(() => _masksPerImage[_currentIndex] = []);
 
   Future<Uint8List?> _captureImage(int index) async {
     try {
@@ -110,6 +107,8 @@ class _ImageMaskEditorScreenState extends State<ImageMaskEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasMultiple = widget.imageBytesList.length > 1;
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -123,8 +122,7 @@ class _ImageMaskEditorScreenState extends State<ImageMaskEditorScreen> {
             onPressed: _isCapturing ? null : _done,
             child: _isCapturing
                 ? const SizedBox(
-                width: 18,
-                height: 18,
+                width: 18, height: 18,
                 child: CircularProgressIndicator(
                     strokeWidth: 2, color: AppTheme.primary))
                 : const Text('완료',
@@ -150,155 +148,169 @@ class _ImageMaskEditorScreenState extends State<ImageMaskEditorScreen> {
           ),
 
           // ── 이미지 편집 영역 ────────────────────
-          // GestureDetector를 Stack과 같은 좌표계로 맞추기 위해
-          // RepaintBoundary 안쪽으로 이동
           Expanded(
-            child: Center(
-              child: RepaintBoundary(
-                key: _repaintKeys[_currentIndex],
-                child: GestureDetector(
-                  onPanStart: _onPanStart,
-                  onPanUpdate: _onPanUpdate,
-                  onPanEnd: _onPanEnd,
-                  child: Stack(
-                    children: [
-                      Image.memory(
-                        widget.imageBytesList[_currentIndex],
-                        fit: BoxFit.contain,
-                      ),
-                      // 저장된 마스크들
-                      ..._masksPerImage[_currentIndex]
-                          .map((m) => _MaskOverlay(mask: m)),
-                      // 드래그 중인 미리보기
-                      if (_dragStart != null && _dragCurrent != null)
-                        Positioned.fromRect(
-                          rect: Rect.fromPoints(_dragStart!, _dragCurrent!),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: _selectedType == MaskType.black
-                                  ? Colors.black.withValues(alpha: 0.85)
-                                  : Colors.blue.withValues(alpha: 0.4),
-                              border: Border.all(
-                                  color: AppTheme.primary, width: 1.5),
-                            ),
+            child: Stack(
+              children: [
+                // ── Push 전환: 나가는 것도 슬라이드, 들어오는 것도 슬라이드 ──
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, animation) {
+                    final isIncoming = child.key == ValueKey(_currentIndex);
+                    return SlideTransition(
+                      position: isIncoming
+                      // 새 사진: 오른쪽(or 왼쪽)에서 들어옴
+                          ? Tween<Offset>(
+                        begin: Offset(_slideDirection.toDouble(), 0.0),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                          parent: animation, curve: Curves.easeInOut))
+                      // 기존 사진: 왼쪽(or 오른쪽)으로 밀려남
+                      // animation이 1→0이므로 begin/end 반전
+                          : Tween<Offset>(
+                        begin: Offset(-_slideDirection.toDouble(), 0.0),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                          parent: animation, curve: Curves.easeInOut)),
+                      child: child,
+                    );
+                  },
+                  // Stack에 clipBehavior 추가해 슬라이드 오버플로 차단
+                  layoutBuilder: (currentChild, previousChildren) {
+                    return Stack(
+                      clipBehavior: Clip.hardEdge,
+                      children: [
+                        ...previousChildren,
+                        if (currentChild != null) currentChild,
+                      ],
+                    );
+                  },
+                  child: KeyedSubtree(
+                    key: ValueKey(_currentIndex),
+                    child: Center(
+                      child: RepaintBoundary(
+                        key: _repaintKeys[_currentIndex],
+                        child: GestureDetector(
+                          onPanStart: _onPanStart,
+                          onPanUpdate: _onPanUpdate,
+                          onPanEnd: _onPanEnd,
+                          child: Stack(
+                            children: [
+                              Image.memory(
+                                widget.imageBytesList[_currentIndex],
+                                fit: BoxFit.contain,
+                              ),
+                              ..._masksPerImage[_currentIndex]
+                                  .map((m) => _MaskOverlay(mask: m)),
+                              if (_dragStart != null && _dragCurrent != null)
+                                Positioned.fromRect(
+                                  rect: Rect.fromPoints(
+                                      _dragStart!, _dragCurrent!),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: _selectedType == MaskType.black
+                                          ? Colors.black.withValues(alpha: 0.85)
+                                          : Colors.blue.withValues(alpha: 0.4),
+                                      border: Border.all(
+                                          color: AppTheme.primary, width: 1.5),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                    ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
+
+                // ← 이전 화살표
+                if (hasMultiple && _currentIndex > 0)
+                  Positioned(
+                    left: 8, top: 0, bottom: 0,
+                    child: Center(
+                      child: _NavArrow(
+                        icon: Icons.chevron_left,
+                        onTap: () => _goToIndex(_currentIndex - 1),
+                      ),
+                    ),
+                  ),
+
+                // → 다음 화살표
+                if (hasMultiple &&
+                    _currentIndex < widget.imageBytesList.length - 1)
+                  Positioned(
+                    right: 8, top: 0, bottom: 0,
+                    child: Center(
+                      child: _NavArrow(
+                        icon: Icons.chevron_right,
+                        onTap: () => _goToIndex(_currentIndex + 1),
+                      ),
+                    ),
+                  ),
+
+                // 상단 페이지 인디케이터
+                if (hasMultiple)
+                  Positioned(
+                    top: 8, left: 0, right: 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: widget.imageBytesList.asMap().entries.map((e) {
+                        final active = e.key == _currentIndex;
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: active ? 16 : 6,
+                          height: 6,
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: BoxDecoration(
+                            color: active ? AppTheme.primary : Colors.white24,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+              ],
             ),
           ),
 
           // ── 하단 툴바 ───────────────────────────
           Container(
             color: const Color(0xFF111111),
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            child: Column(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+            child: Row(
               children: [
-                // 마스크 타입 선택
-                Row(
-                  children: MaskType.values.map((t) {
-                    final selected = _selectedType == t;
-                    return Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _selectedType = t),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? AppTheme.primary.withValues(alpha: 0.2)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: selected
-                                  ? AppTheme.primary
-                                  : Colors.white24,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                t == MaskType.black
-                                    ? Icons.rectangle
-                                    : t == MaskType.blur
-                                    ? Icons.blur_on
-                                    : Icons.tag_faces,
-                                color: selected
-                                    ? AppTheme.primary
-                                    : Colors.white54,
-                                size: 18,
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                t == MaskType.black
-                                    ? '검정 가리기'
-                                    : t == MaskType.blur
-                                    ? '모자이크'
-                                    : '이모지',
-                                style: TextStyle(
-                                  color: selected
-                                      ? AppTheme.primary
-                                      : Colors.white38,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                Expanded(
+                  child: _ToolbarButton(
+                    icon: Icons.rectangle,
+                    label: '검정 가리기',
+                    selected: _selectedType == MaskType.black,
+                    onTap: () => setState(() => _selectedType = MaskType.black),
+                  ),
                 ),
-                const SizedBox(height: 12),
-                // ── 실행취소 / 전체삭제 / 이미지 넘기기 ──
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Row(
-                    children: [
-                      _ToolBtn(
-                        icon: Icons.undo,
-                        label: '되돌리기',
-                        onTap: _undoLast,
-                      ),
-                      const SizedBox(width: 8),
-                      _ToolBtn(
-                        icon: Icons.delete_outline,
-                        label: '전체삭제',
-                        onTap: _clearAll,
-                        danger: true,
-                      ),
-                      if (widget.imageBytesList.length > 1) ...[
-                        const Spacer(),
-                        Row(
-                          children: widget.imageBytesList
-                              .asMap()
-                              .entries
-                              .map((e) {
-                            final active = e.key == _currentIndex;
-                            return GestureDetector(
-                              onTap: () => setState(() {
-                                _currentIndex = e.key;
-                                _dragStart = null;
-                                _dragCurrent = null;
-                              }),
-                              child: Container(
-                                width: active ? 20 : 8,
-                                height: 8,
-                                margin: const EdgeInsets.only(left: 4),
-                                decoration: BoxDecoration(
-                                  color: active
-                                      ? AppTheme.primary
-                                      : Colors.white24,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ToolbarButton(
+                    icon: Icons.blur_on,
+                    label: '모자이크',
+                    selected: _selectedType == MaskType.blur,
+                    onTap: () => setState(() => _selectedType = MaskType.blur),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ToolbarButton(
+                    icon: Icons.undo,
+                    label: '되돌리기',
+                    onTap: _undoLast,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ToolbarButton(
+                    icon: Icons.delete_outline,
+                    label: '전체삭제',
+                    onTap: _clearAll,
+                    danger: true,
                   ),
                 ),
               ],
@@ -310,78 +322,104 @@ class _ImageMaskEditorScreenState extends State<ImageMaskEditorScreen> {
   }
 }
 
-// ── 마스크 오버레이 위젯 ─────────────────────────────
+// ── 통합 툴바 버튼 ───────────────────────────────────
+class _ToolbarButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool selected;
+  final bool danger;
+
+  const _ToolbarButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color;
+    if (danger)        color = AppTheme.danger;
+    else if (selected) color = AppTheme.primary;
+    else               color = Colors.white54;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppTheme.primary.withValues(alpha: 0.2)
+              : danger
+              ? AppTheme.danger.withValues(alpha: 0.08)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected
+                ? AppTheme.primary
+                : danger
+                ? AppTheme.danger.withValues(alpha: 0.35)
+                : Colors.white24,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(height: 4),
+            Text(label,
+                style: TextStyle(
+                    color: color,
+                    fontSize: 10,
+                    fontWeight:
+                    selected ? FontWeight.w600 : FontWeight.normal)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 마스크 오버레이 ──────────────────────────────────
 class _MaskOverlay extends StatelessWidget {
   final MaskRect mask;
   const _MaskOverlay({required this.mask});
 
   @override
   Widget build(BuildContext context) {
-    Widget child;
-    switch (mask.type) {
-      case MaskType.black:
-        child = Container(color: Colors.black);
-        break;
-      case MaskType.blur:
-        child = ClipRect(
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              color: Colors.white.withValues(alpha: 0.05),
-            ),
-          ),
-        );
-        break;
-      case MaskType.emoji:
-        child = Container(
-          color: Colors.yellow.withValues(alpha: 0.9),
-          child: const Center(
-            child: Text('😶', style: TextStyle(fontSize: 28)),
-          ),
-        );
-        break;
-    }
-
-    return Positioned.fromRect(
-      rect: mask.rect,
-      child: child,
-    );
+    final Widget child = switch (mask.type) {
+      MaskType.black => Container(color: Colors.black),
+      MaskType.blur  => ClipRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+      ),
+    };
+    return Positioned.fromRect(rect: mask.rect, child: child);
   }
 }
 
-// ── 하단 툴 버튼 ─────────────────────────────────────
-class _ToolBtn extends StatelessWidget {
+// ── 좌우 화살표 버튼 ─────────────────────────────────
+class _NavArrow extends StatelessWidget {
   final IconData icon;
-  final String label;
   final VoidCallback onTap;
-  final bool danger;
-
-  const _ToolBtn({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.danger = false,
-  });
+  const _NavArrow({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final color = danger ? AppTheme.danger : Colors.white70;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        width: 36, height: 36,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          color: Colors.black.withValues(alpha: 0.5),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white24),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: color, fontSize: 12)),
-          ],
-        ),
+        child: Icon(icon, color: Colors.white70, size: 22),
       ),
     );
   }

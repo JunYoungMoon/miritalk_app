@@ -6,7 +6,6 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'dart:typed_data';
 import 'package:miritalk_app/core/config/app_config.dart';
-import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
 import 'package:http/http.dart' as http;
@@ -63,11 +62,15 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   late final ScreenTimeTracker _tracker;
   final ScrollController _scrollController = ScrollController();
 
+  // ── 프리패치 Future ─────────────────────────────────
+  Future<List<Uint8List>>? _imagesFuture;
+  Future<List<Map<String, dynamic>>>? _categoriesFuture;
+
   @override
   void initState() {
     super.initState();
-    _tracker = ScreenTimeTracker('analysis_result'); //체류시간 측정
-    TrackingService.instance.logScreen('analysis_result'); //화면 진입 횟수
+    _tracker = ScreenTimeTracker('analysis_result');
+    TrackingService.instance.logScreen('analysis_result');
     _messages = widget.messages;
     _imageUrls = widget.imageUrls;
     _categoryName = widget.categoryName;
@@ -76,10 +79,18 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       _feedbackSubmitted = true;
       _feedbackHelpful = widget.feedbackHelpful;
     }
+
+    // 카테고리는 항상 미리 로드
+    _categoriesFuture = _fetchCategories();
+
+    // 이미지 URL이 이미 있으면 바로 미리 로드
+    if (_imageUrls.isNotEmpty) {
+      _imagesFuture = _fetchImageBytes();
+    }
+
     if (widget.sessionId != null && widget.messages.isEmpty) {
       _loadFromApi(widget.sessionId!);
     }
-
   }
 
   @override
@@ -132,10 +143,49 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         _categoryName = json['categoryName'] as String?;
         _isLoading = false;
       });
+
+      // API 로드 완료 후 이미지 미리 로드 시작
+      if (_imageUrls.isNotEmpty && _imagesFuture == null) {
+        _imagesFuture = _fetchImageBytes();
+      }
     } catch (e) {
       setState(() => _isLoading = false);
     }
   }
+
+  // ── 프리패치 헬퍼 ──────────────────────────────────
+
+  Future<List<Uint8List>> _fetchImageBytes() async {
+    if (_imageUrls.isEmpty) return [];
+    final results = await Future.wait(
+      _imageUrls.map((url) async {
+        try {
+          if (widget.guestImageToken != null) {
+            final r = await http.get(Uri.parse(url));
+            if (r.statusCode == 200) return r.bodyBytes;
+          } else {
+            final path = url.replaceFirst(AppConfig.baseUrl, '');
+            final r = await ApiClient().get(path);
+            if (r.statusCode == 200) return r.bodyBytes;
+          }
+        } catch (_) {}
+        return null;
+      }),
+    );
+    return results.whereType<Uint8List>().toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchCategories() async {
+    try {
+      final response = await ApiClient().get('/api/fraud/categories');
+      final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ──────────────────────────────────────────────────
 
   String _findText(String type) {
     try {
@@ -174,12 +224,11 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: const CommonAppBar(title: '분석 결과'),
-      // bottomNavigationBar: const BannerAdWidget(),
       body: Stack(
         children: [
           ListView(
             controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(0, 0, 0, 48), // ← 버튼 높이만큼 패딩 추가
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 48),
             children: [
               if (_imageUrls.isNotEmpty)
                 _ThumbnailStrip(
@@ -208,14 +257,12 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                         onFeedback: _submitFeedback,
                       ),
                     const SizedBox(height: 8),
-                    // ← Positioned 블록 여기서 완전히 제거
                   ],
                 ),
               ),
             ],
           ),
 
-          // ── 항상 하단에 고정 ──
           if (widget.guestImageToken == null && widget.sessionId != null)
             Positioned(
               bottom: 24,
@@ -232,7 +279,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     );
   }
 
-  // 타입별 카드 라우팅
   Widget _buildCard(ChatMessage m) {
     switch (m.type) {
       case 'summary':
@@ -268,26 +314,11 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Future<void> _shareToCommmunity() async {
-    // 이미지 URL → 바이트 로드 (편집 에디터에 넘겨주기 위해)
-    final futures = _imageUrls.map((url) async {
-      try {
-        final isGuest = widget.guestImageToken != null;
-        if (isGuest) {
-          final r = await http.get(Uri.parse(url));
-          if (r.statusCode == 200) return r.bodyBytes;
-        } else {
-          final path = url.replaceFirst(AppConfig.baseUrl, '');
-          final r = await ApiClient().get(path);
-          if (r.statusCode == 200) return r.bodyBytes;
-        }
-      } catch (_) {}
-      return null;
-    });
-
-    final results = await Future.wait(futures);
-    final imageBytes = results.whereType<Uint8List>().toList();
-
     if (!mounted) return;
+
+    // 프리패치된 Future 사용 (이미 완료됐으면 즉시 반환)
+    final imagesFuture = _imagesFuture ?? _fetchImageBytes();
+    final categoriesFuture = _categoriesFuture ?? _fetchCategories();
 
     final result = await ShareBottomSheet.show(
       context,
@@ -295,16 +326,15 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       riskLevel: _findText('riskLevel'),
       riskScore: int.tryParse(_findText('riskScore')) ?? 0,
       summary: _findText('summary'),
-      imageBytesList: imageBytes,
+      imagesFuture: imagesFuture,
+      categoriesFuture: categoriesFuture,
       categoryName: _categoryName,
     );
 
     if (result == null || !mounted) return;
 
-    // 서버에 공유 요청
     try {
       if (result.editedImages.isNotEmpty) {
-        // 이미지가 있으면 multipart로 전송
         final files = <http.MultipartFile>[];
         for (int i = 0; i < result.editedImages.length; i++) {
           files.add(http.MultipartFile.fromBytes(
@@ -348,11 +378,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       );
     }
   }
-
 }
-
-// ── 공통 섹션 컨테이너 → lib/core/widgets/section_card.dart 의 SectionCard 사용
-// (이 파일에서 _SectionCard 클래스 제거됨)
 
 // ── 종합 분석 ────────────────────────────────────────
 class _SummaryCard extends StatelessWidget {
@@ -389,13 +415,9 @@ class _PsychologicalTacticsCard extends StatelessWidget {
       color: Colors.purple,
       child: Column(
         children: items.map((item) {
-          final tactic  = item['tactic']  as String? ?? '';
+          final tactic   = item['tactic']   as String? ?? '';
           final evidence = item['evidence'] as String? ?? '';
-          return _AccordionItem(
-            title: tactic,
-            content: evidence,
-            color: Colors.purple,
-          );
+          return _AccordionItem(title: tactic, content: evidence, color: Colors.purple);
         }).toList(),
       ),
     );
@@ -458,13 +480,11 @@ class _AccordionItemState extends State<_AccordionItem> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: Text(
-                  widget.content,
-                  style: const TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 13,
-                      height: 1.5),
-                ),
+                child: Text(widget.content,
+                    style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                        height: 1.5)),
               ),
           ],
         ),
@@ -514,8 +534,7 @@ class _SuspiciousCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
@@ -549,9 +568,9 @@ class _ActionCard extends StatelessWidget {
   const _ActionCard({required this.json});
 
   static const _priorityStyle = {
-    '즉시':  {'color': Colors.red,    'icon': Icons.warning_rounded},
-    '단기':  {'color': Colors.orange, 'icon': Icons.schedule_rounded},
-    '참고':  {'color': Colors.blue,   'icon': Icons.info_outline},
+    '즉시': {'color': Colors.red,    'icon': Icons.warning_rounded},
+    '단기': {'color': Colors.orange, 'icon': Icons.schedule_rounded},
+    '참고': {'color': Colors.blue,   'icon': Icons.info_outline},
   };
 
   @override
@@ -579,14 +598,12 @@ class _ActionCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 타임라인 라인 + 아이콘
                 SizedBox(
                   width: 32,
                   child: Column(
                     children: [
                       Container(
-                        width: 26,
-                        height: 26,
+                        width: 26, height: 26,
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
@@ -605,7 +622,6 @@ class _ActionCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                // 내용
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
@@ -613,8 +629,7 @@ class _ActionCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(5),
@@ -669,23 +684,18 @@ class _QuestionsCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // purpose 힌트
                 Row(
                   children: [
-                    const Icon(Icons.lightbulb_outline,
-                        color: Colors.blue, size: 12),
+                    const Icon(Icons.lightbulb_outline, color: Colors.blue, size: 12),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(purpose,
                           style: const TextStyle(
-                              color: Colors.blue,
-                              fontSize: 11,
-                              height: 1.4)),
+                              color: Colors.blue, fontSize: 11, height: 1.4)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
-                // 말풍선 스타일 질문
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
@@ -697,14 +707,11 @@ class _QuestionsCard extends StatelessWidget {
                       bottomLeft: Radius.circular(12),
                       bottomRight: Radius.circular(12),
                     ),
-                    border: Border.all(
-                        color: Colors.blue.withValues(alpha: 0.2)),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
                   ),
                   child: Text(question,
                       style: const TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 13,
-                          height: 1.5)),
+                          color: AppTheme.textPrimary, fontSize: 13, height: 1.5)),
                 ),
               ],
             ),
@@ -715,7 +722,7 @@ class _QuestionsCard extends StatelessWidget {
   }
 }
 
-// ── 위험도 헤더 카드 (verdict 포함) ─────────────────
+// ── 위험도 헤더 카드 ─────────────────────────────────
 class _RiskHeaderCard extends StatelessWidget {
   final String riskLevel;
   final String riskScore;
@@ -730,17 +737,17 @@ class _RiskHeaderCard extends StatelessWidget {
   });
 
   static const _verdictStyle = {
-    '거래진행가능':   {'color': AppTheme.success, 'icon': Icons.check_circle_outline},
-    '추가검증필요':   {'color': Colors.orange,    'icon': Icons.help_outline},
-    '거래중단권고':   {'color': Colors.deepOrange,'icon': Icons.warning_amber_rounded},
-    '즉시중단':      {'color': AppTheme.danger,   'icon': Icons.cancel_outlined},
+    '거래진행가능': {'color': AppTheme.success,     'icon': Icons.check_circle_outline},
+    '추가검증필요': {'color': Colors.orange,         'icon': Icons.help_outline},
+    '거래중단권고': {'color': Colors.deepOrange,     'icon': Icons.warning_amber_rounded},
+    '즉시중단':    {'color': AppTheme.danger,        'icon': Icons.cancel_outlined},
   };
 
   @override
   Widget build(BuildContext context) {
     final score = int.tryParse(riskScore) ?? 0;
     final vs    = _verdictStyle[verdict];
-    final verdictColor = vs?['color'] as Color? ?? AppTheme.textHint;
+    final verdictColor = vs?['color'] as Color?   ?? AppTheme.textHint;
     final verdictIcon  = vs?['icon']  as IconData? ?? Icons.info_outline;
 
     return Container(
@@ -764,8 +771,7 @@ class _RiskHeaderCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('사기 위험도',
-                      style: TextStyle(
-                          color: AppTheme.textSecondary, fontSize: 12)),
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                   const SizedBox(height: 4),
                   Text(
                     riskLevel.isEmpty ? '분석 중' : riskLevel,
@@ -780,8 +786,7 @@ class _RiskHeaderCard extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   SizedBox(
-                    width: 64,
-                    height: 64,
+                    width: 64, height: 64,
                     child: CircularProgressIndicator(
                       value: score / 100,
                       strokeWidth: 6,
@@ -808,7 +813,6 @@ class _RiskHeaderCard extends StatelessWidget {
               valueColor: AlwaysStoppedAnimation<Color>(riskColor),
             ),
           ),
-          // verdict 뱃지
           if (verdict.isNotEmpty) ...[
             const SizedBox(height: 14),
             Container(
@@ -817,8 +821,7 @@ class _RiskHeaderCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: verdictColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
-                border:
-                Border.all(color: verdictColor.withValues(alpha: 0.4)),
+                border: Border.all(color: verdictColor.withValues(alpha: 0.4)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -840,7 +843,7 @@ class _RiskHeaderCard extends StatelessWidget {
   }
 }
 
-// ── 상단 가로 썸네일 스트립 ──────────────────────────
+// ── 상단 썸네일 스트립 ───────────────────────────────
 class _ThumbnailStrip extends StatelessWidget {
   final List<String> imageUrls;
   final bool isGuest;
@@ -907,8 +910,7 @@ class _ThumbnailStrip extends StatelessWidget {
                   onTap: () => _openFullscreen(context, index),
                   child: Container(
                     margin: const EdgeInsets.only(right: 8),
-                    width: 72,
-                    height: 72,
+                    width: 72, height: 72,
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
@@ -931,8 +933,7 @@ class _ThumbnailStrip extends StatelessWidget {
                                   bottomRight: Radius.circular(8),
                                 ),
                               ),
-                              padding:
-                              const EdgeInsets.symmetric(vertical: 2),
+                              padding: const EdgeInsets.symmetric(vertical: 2),
                               child: const Text('대표',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
@@ -984,8 +985,7 @@ class _FullscreenImageViewer extends StatefulWidget {
   });
 
   @override
-  State<_FullscreenImageViewer> createState() =>
-      _FullscreenImageViewerState();
+  State<_FullscreenImageViewer> createState() => _FullscreenImageViewerState();
 }
 
 class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
@@ -1097,11 +1097,9 @@ class _AuthImageState extends State<_AuthImage> {
   Future<Uint8List?> _load() async {
     try {
       if (widget.isGuest) {
-        // 게스트: 토큰이 URL에 포함되어 있으므로 인증 없이 요청
         final response = await http.get(Uri.parse(widget.url));
         if (response.statusCode == 200) return response.bodyBytes;
       } else {
-        // 로그인 유저: JWT 인증 필요
         final path = widget.url.replaceFirst(AppConfig.baseUrl, '');
         final response = await ApiClient().get(path);
         if (response.statusCode == 200) return response.bodyBytes;
@@ -1132,8 +1130,7 @@ class _AuthImageState extends State<_AuthImage> {
           return Container(
             color: widget.fullscreen ? Colors.black : AppTheme.surfaceDeep,
             child: Icon(Icons.broken_image_outlined,
-                color:
-                widget.fullscreen ? Colors.white38 : AppTheme.textHint,
+                color: widget.fullscreen ? Colors.white38 : AppTheme.textHint,
                 size: widget.fullscreen ? 60 : 24),
           );
         }
@@ -1192,8 +1189,7 @@ class _FeedbackCardState extends State<_FeedbackCard> {
         widget.helpful == true
             ? Icons.thumb_up_rounded
             : Icons.thumb_down_rounded,
-        color:
-        widget.helpful == true ? AppTheme.success : Colors.orange,
+        color: widget.helpful == true ? AppTheme.success : Colors.orange,
         size: 18,
       ),
       const SizedBox(width: 8),
@@ -1201,8 +1197,7 @@ class _FeedbackCardState extends State<_FeedbackCard> {
         widget.helpful == true
             ? '도움됐다고 평가하셨습니다'
             : '아쉽다고 평가하셨습니다',
-        style: const TextStyle(
-            color: AppTheme.textSecondary, fontSize: 13),
+        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
       ),
     ],
   );
@@ -1244,12 +1239,10 @@ class _FeedbackCardState extends State<_FeedbackCard> {
         ]),
       if (_showReasons) ...[
         const Text('어떤 점이 아쉬웠나요?',
-            style:
-            TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
         const SizedBox(height: 8),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 8, runSpacing: 8,
           children: _reasons.map((reason) {
             return GestureDetector(
               onTap: () async {
@@ -1258,17 +1251,14 @@ class _FeedbackCardState extends State<_FeedbackCard> {
                 setState(() => _isLoading = false);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: Colors.orange.withValues(alpha: 0.4)),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
                 ),
                 child: Text(reason,
-                    style: const TextStyle(
-                        color: Colors.orange, fontSize: 12)),
+                    style: const TextStyle(color: Colors.orange, fontSize: 12)),
               ),
             );
           }).toList(),
@@ -1321,64 +1311,7 @@ class _FeedbackButton extends StatelessWidget {
   }
 }
 
-class _GuestFullscreenViewer extends StatefulWidget {
-  final List<Uint8List> imageBytes;
-  final int initialIndex;
-  const _GuestFullscreenViewer(
-      {required this.imageBytes, required this.initialIndex});
-
-  @override
-  State<_GuestFullscreenViewer> createState() => _GuestFullscreenViewerState();
-}
-
-class _GuestFullscreenViewerState extends State<_GuestFullscreenViewer> {
-  late PageController _pageController;
-  late int _currentIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: AppTheme.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('${_currentIndex + 1} / ${widget.imageBytes.length}',
-            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
-        centerTitle: true,
-      ),
-      body: PageView.builder(
-        controller: _pageController,
-        itemCount: widget.imageBytes.length,
-        onPageChanged: (i) => setState(() => _currentIndex = i),
-        itemBuilder: (context, index) => InteractiveViewer(
-          minScale: 1.0,
-          maxScale: 4.0,
-          child: Center(
-            child: Image.memory(widget.imageBytes[index], fit: BoxFit.contain),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── 제보하기 스크롤 힌트 동동이 버튼 ─────────────────
+// ── 제보하기 바운스 버튼 ─────────────────────────────
 class _ShareHintBounce extends StatefulWidget {
   final VoidCallback onTap;
   const _ShareHintBounce({required this.onTap});
@@ -1450,18 +1383,18 @@ class _ShareHintBounceState extends State<_ShareHintBounce>
   }
 }
 
+// ── 카테고리 칩 ──────────────────────────────────────
 class _CategoryChip extends StatelessWidget {
   final String categoryName;
   const _CategoryChip({required this.categoryName});
 
-  // 홈화면 _FraudTypeCards와 동일한 아이콘·색상
   static const _style = {
-    '중고거래 사기': {'icon': Icons.storefront_outlined,   'color': Color(0xFF4FC3F7)},
-    '투자 사기':    {'icon': Icons.trending_up,            'color': Color(0xFF81C784)},
-    '게임 사기':    {'icon': Icons.sports_esports_outlined, 'color': Color(0xFFEF9A9A)},
-    '보이스피싱':   {'icon': Icons.phone_outlined,          'color': Color(0xFFCE93D8)},
-    '취업 사기':    {'icon': Icons.work_outline,            'color': Color(0xFFFFB74D)},
-    '로맨스 스캠':  {'icon': Icons.favorite_border,         'color': Color(0xFFF48FB1)},
+    '중고거래 사기': {'icon': Icons.storefront_outlined,    'color': Color(0xFF4FC3F7)},
+    '투자 사기':    {'icon': Icons.trending_up,             'color': Color(0xFF81C784)},
+    '게임 사기':    {'icon': Icons.sports_esports_outlined,  'color': Color(0xFFEF9A9A)},
+    '보이스피싱':   {'icon': Icons.phone_outlined,           'color': Color(0xFFCE93D8)},
+    '취업 사기':    {'icon': Icons.work_outline,             'color': Color(0xFFFFB74D)},
+    '기타':         {'icon': Icons.help_outline_rounded,     'color': Color(0xFF90A4AE)},
   };
 
   static const _default = {

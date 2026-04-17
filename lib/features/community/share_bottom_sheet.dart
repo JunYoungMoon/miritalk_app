@@ -1,18 +1,18 @@
 // lib/features/community/share_bottom_sheet.dart
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/community/image_mask_editor_screen.dart';
 
-/// 결과 화면에서 호출:
-///   final result = await ShareBottomSheet.show(context, ...);
-///   if (result != null) { 공유 API 호출 }
 class ShareBottomSheet extends StatefulWidget {
   final int sessionId;
   final String riskLevel;
   final int riskScore;
   final String summary;
-  final List<Uint8List> imageBytesList;
+  final Future<List<Uint8List>> imagesFuture;
+  final Future<List<Map<String, dynamic>>>? categoriesFuture;
   final String? categoryName;
 
   const ShareBottomSheet({
@@ -21,7 +21,8 @@ class ShareBottomSheet extends StatefulWidget {
     required this.riskLevel,
     required this.riskScore,
     required this.summary,
-    required this.imageBytesList,
+    required this.imagesFuture,
+    this.categoriesFuture,
     this.categoryName,
   });
 
@@ -31,7 +32,8 @@ class ShareBottomSheet extends StatefulWidget {
         required String riskLevel,
         required int riskScore,
         required String summary,
-        required List<Uint8List> imageBytesList,
+        required Future<List<Uint8List>> imagesFuture,
+        Future<List<Map<String, dynamic>>>? categoriesFuture,
         String? categoryName,
       }) {
     return showModalBottomSheet<ShareResult>(
@@ -46,7 +48,8 @@ class ShareBottomSheet extends StatefulWidget {
         riskLevel: riskLevel,
         riskScore: riskScore,
         summary: summary,
-        imageBytesList: imageBytesList,
+        imagesFuture: imagesFuture,
+        categoriesFuture: categoriesFuture,
         categoryName: categoryName,
       ),
     );
@@ -57,32 +60,80 @@ class ShareBottomSheet extends StatefulWidget {
 }
 
 class _ShareBottomSheetState extends State<ShareBottomSheet> {
+  // 이미지
+  List<Uint8List> _imageBytes = [];
+  bool _imagesLoading = true;
   List<Uint8List>? _editedImages;
+
+  // 설정
   bool _includeImages = true;
   bool _anonymous = true;
-  String _selectedCategory = '직거래';
   bool _isSubmitting = false;
 
-  static const _categories = ['직거래', '로맨스', '투자', '취업', '피싱', '기타'];
-
-  // AI 분류 displayName → 커뮤니티 카테고리 매핑
-  static const _categoryNameMap = {
-    '중고거래 사기': '직거래',
-    '투자 사기':    '투자',
-    '취업 사기':    '취업',
-    '보이스피싱':   '피싱',
-    '로맨스 스캠':  '로맨스',
-  };
+  // 카테고리
+  List<Map<String, dynamic>> _categories = [];
+  bool _categoriesLoading = true;
+  String? _selectedDisplayName;
+  bool _autoSelected = false;
 
   @override
   void initState() {
     super.initState();
-    // 분석 결과 카테고리로 자동 선택
-    if (widget.categoryName != null) {
-      final mapped = _categoryNameMap[widget.categoryName!];
-      if (mapped != null && _categories.contains(mapped)) {
-        _selectedCategory = mapped;
+    _resolveImages();
+    _resolveCategories();
+  }
+
+  Future<void> _resolveImages() async {
+    try {
+      // 프리패치가 완료됐으면 즉시 반환, 아니면 기다림
+      final bytes = await widget.imagesFuture;
+      if (mounted) setState(() { _imageBytes = bytes; _imagesLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _imagesLoading = false);
+    }
+  }
+
+  Future<void> _resolveCategories() async {
+    try {
+      List<Map<String, dynamic>> categories;
+
+      if (widget.categoriesFuture != null) {
+        // 프리패치된 Future 사용 (완료됐으면 즉시)
+        categories = await widget.categoriesFuture!;
+      } else {
+        // fallback: 직접 호출
+        final response = await ApiClient().get('/api/fraud/categories');
+        final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+        categories = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
+
+      String? selected;
+      bool autoSelected = false;
+
+      if (widget.categoryName != null) {
+        final match = categories.firstWhere(
+              (c) => c['displayName'] == widget.categoryName,
+          orElse: () => {},
+        );
+        if (match.isNotEmpty) {
+          selected = match['displayName'] as String;
+          autoSelected = true;
+        }
+      }
+      selected ??= categories.isNotEmpty
+          ? categories.first['displayName'] as String
+          : null;
+
+      if (mounted) {
+        setState(() {
+          _categories = categories;
+          _selectedDisplayName = selected;
+          _autoSelected = autoSelected;
+          _categoriesLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _categoriesLoading = false);
     }
   }
 
@@ -100,7 +151,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
       context,
       MaterialPageRoute(
         builder: (_) => ImageMaskEditorScreen(
-          imageBytesList: _editedImages ?? widget.imageBytesList,
+          imageBytesList: _editedImages ?? _imageBytes,
         ),
       ),
     );
@@ -108,15 +159,16 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   void _submit() {
+    if (_selectedDisplayName == null) return;
     Navigator.pop(
       context,
       ShareResult(
         sessionId: widget.sessionId,
-        category: _selectedCategory,
+        category: _selectedDisplayName!,
         anonymous: _anonymous,
         includeImages: _includeImages,
         editedImages: _includeImages
-            ? (_editedImages ?? widget.imageBytesList)
+            ? (_editedImages ?? _imageBytes)
             : [],
       ),
     );
@@ -133,7 +185,6 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 핸들
               Center(
                 child: Container(
                   width: 40, height: 4,
@@ -145,10 +196,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               ),
               const SizedBox(height: 20),
 
-              // 제목
               Row(children: [
-                const Icon(Icons.share_outlined,
-                    color: AppTheme.primary, size: 18),
+                const Icon(Icons.share_outlined, color: AppTheme.primary, size: 18),
                 const SizedBox(width: 8),
                 const Text('커뮤니티에 공유',
                     style: TextStyle(
@@ -159,25 +208,22 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               const SizedBox(height: 4),
               const Text(
                 '다른 사용자들이 비슷한 사기 패턴을 조심할 수 있도록 도와주세요',
-                style: TextStyle(
-                    color: AppTheme.textHint, fontSize: 12, height: 1.4),
+                style: TextStyle(color: AppTheme.textHint, fontSize: 12, height: 1.4),
               ),
               const SizedBox(height: 20),
 
-              // 분석 요약 미리보기
+              // 분석 요약
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppTheme.surfaceDeep,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: _riskColor.withValues(alpha: 0.3)),
+                  border: Border.all(color: _riskColor.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: _riskColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
@@ -207,7 +253,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               ),
               const SizedBox(height: 20),
 
-              // 사기 유형 선택
+              // 사기 유형
               Row(
                 children: [
                   const Text('사기 유형',
@@ -215,12 +261,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                           color: AppTheme.textSecondary,
                           fontSize: 12,
                           fontWeight: FontWeight.w600)),
-                  if (widget.categoryName != null &&
-                      _categoryNameMap.containsKey(widget.categoryName)) ...[
+                  if (_autoSelected) ...[
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                       decoration: BoxDecoration(
                         color: AppTheme.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
@@ -235,44 +279,56 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 ],
               ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8, runSpacing: 8,
-                children: _categories.map((c) {
-                  final sel = _selectedCategory == c;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedCategory = c),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: sel
-                            ? AppTheme.primary.withValues(alpha: 0.2)
-                            : AppTheme.surfaceDeep,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
+              if (_categoriesLoading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppTheme.primary),
+                    ),
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: 8, runSpacing: 8,
+                  children: _categories.map((c) {
+                    final displayName = c['displayName'] as String;
+                    final sel = _selectedDisplayName == displayName;
+                    return GestureDetector(
+                      onTap: () => setState(() {
+                        _selectedDisplayName = displayName;
+                        _autoSelected = false;
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
                           color: sel
-                              ? AppTheme.primary
-                              : AppTheme.divider,
+                              ? AppTheme.primary.withValues(alpha: 0.2)
+                              : AppTheme.surfaceDeep,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: sel ? AppTheme.primary : AppTheme.divider,
+                          ),
+                        ),
+                        child: Text(
+                          displayName,
+                          style: TextStyle(
+                            color: sel ? AppTheme.primary : AppTheme.textSecondary,
+                            fontSize: 12,
+                            fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
+                          ),
                         ),
                       ),
-                      child: Text(c,
-                          style: TextStyle(
-                            color: sel
-                                ? AppTheme.primary
-                                : AppTheme.textSecondary,
-                            fontSize: 12,
-                            fontWeight: sel
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          )),
-                    ),
-                  );
-                }).toList(),
-              ),
+                    );
+                  }).toList(),
+                ),
               const SizedBox(height: 20),
 
-              // 이미지 포함 여부 + 편집 버튼
-              if (widget.imageBytesList.isNotEmpty) ...[
+              // 이미지 포함
+              if (_imagesLoading || _imageBytes.isNotEmpty) ...[
                 Row(
                   children: [
                     Expanded(
@@ -287,20 +343,24 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                           const SizedBox(height: 2),
                           const Text(
                             '공유 전 개인정보를 반드시 가려주세요',
-                            style: TextStyle(
-                                color: AppTheme.danger, fontSize: 11),
+                            style: TextStyle(color: AppTheme.danger, fontSize: 11),
                           ),
                         ],
                       ),
                     ),
-                    Switch(
+                    _imagesLoading
+                        ? const SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppTheme.primary))
+                        : Switch(
                       value: _includeImages,
                       onChanged: (v) => setState(() => _includeImages = v),
                       activeColor: AppTheme.primary,
                     ),
                   ],
                 ),
-                if (_includeImages) ...[
+                if (!_imagesLoading && _includeImages) ...[
                   const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
@@ -371,11 +431,14 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               ),
               const SizedBox(height: 24),
 
-              // 공유 버튼
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submit,
+                  onPressed: (_isSubmitting ||
+                      _selectedDisplayName == null ||
+                      (_includeImages && _imagesLoading))
+                      ? null
+                      : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -384,10 +447,23 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   ),
                   child: _isSubmitting
                       ? const SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 18, height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
+                      : (_includeImages && _imagesLoading)
+                      ? const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                          width: 14, height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white70)),
+                      SizedBox(width: 8),
+                      Text('이미지 준비 중...',
+                          style: TextStyle(
+                              color: Colors.white70, fontSize: 15)),
+                    ],
+                  )
                       : const Text('커뮤니티에 공유하기',
                       style: TextStyle(
                           color: Colors.white,
@@ -403,7 +479,6 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 }
 
-/// 공유 요청 결과 모델
 class ShareResult {
   final int sessionId;
   final String category;
