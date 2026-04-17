@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:miritalk_app/core/cache/app_image_cache.dart';
 import 'package:miritalk_app/features/home/conversation_provider.dart';
 import 'package:miritalk_app/features/home/guest_quota_service.dart';
 
@@ -73,6 +74,9 @@ class AuthProvider extends ChangeNotifier {
       _isLoading   = false;
       _loadingType = LoginType.none;
       if (result != null) {
+        // 로그인 성공 시 이전 캐시 초기화 (다른 계정 이미지 오염 방지)
+        AppImageCache.instance.clear();
+
         _isLoggedIn      = true;
         _profileImageUrl = result['profileImageUrl'];
         _userName        = result['userName'];
@@ -80,8 +84,8 @@ class AuthProvider extends ChangeNotifier {
         _accessToken     = result['accessToken'];
         _refreshToken    = result['refreshToken'];
 
-        // 대화 목록 갱신 (이전된 세션 포함)
-        _conversationProvider?.loadConversations();
+        // refresh: true 로 강제 갱신
+        _conversationProvider?.loadConversations(refresh: true);
       } else {
         _isLoggedIn   = false;
         _errorMessage = errorMsg;
@@ -120,6 +124,7 @@ class AuthProvider extends ChangeNotifier {
     _accessToken     = null;
     _refreshToken    = null;
     _conversationProvider?.clear();
+    AppImageCache.instance.clear();
     notifyListeners();
   }
 
@@ -139,6 +144,7 @@ class AuthProvider extends ChangeNotifier {
       _accessToken     = null;
       _refreshToken    = null;
       _conversationProvider?.clear();
+      AppImageCache.instance.clear();
     }
 
     notifyListeners();

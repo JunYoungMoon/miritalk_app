@@ -6,6 +6,7 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'dart:typed_data';
 import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:miritalk_app/core/cache/app_image_cache.dart';
 import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
 import 'package:http/http.dart' as http;
@@ -162,8 +163,8 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     final results = await Future.wait(
       _imageUrls.map((url) async {
         // 이미 _AuthImage 캐시에 있으면 즉시 반환
-        if (_AuthImage._cache.containsKey(url)) {
-          return _AuthImage._cache[url]!;
+        if (AppImageCache.instance.has(url)) {
+          return AppImageCache.instance.get(url)!;
         }
         // 없으면 API 호출 후 캐시 저장
         try {
@@ -176,7 +177,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
             final r = await ApiClient().get(path);
             if (r.statusCode == 200) bytes = r.bodyBytes;
           }
-          if (bytes != null) _AuthImage._cache[url] = bytes;
+          if (bytes != null) AppImageCache.instance.set(url, bytes);
           return bytes;
         } catch (_) {}
         return null;
@@ -1071,9 +1072,6 @@ class _AuthImage extends StatefulWidget {
   final bool fullscreen;
   final bool isGuest;
 
-  // ── static 캐시 추가 ──────────────────────────────
-  static final Map<String, Uint8List> _cache = {};
-
   const _AuthImage({
     required this.url,
     this.fit = BoxFit.cover,
@@ -1096,8 +1094,8 @@ class _AuthImageState extends State<_AuthImage> {
 
   Future<Uint8List?> _load() async {
     // ── 캐시 히트 시 즉시 반환 ────────────────────────
-    if (_AuthImage._cache.containsKey(widget.url)) {
-      return _AuthImage._cache[widget.url];
+    if (AppImageCache.instance.has(widget.url)) {
+      return AppImageCache.instance.get(widget.url);
     }
 
     try {
@@ -1113,7 +1111,7 @@ class _AuthImageState extends State<_AuthImage> {
 
       // ── 로드 성공 시 캐시 저장 ────────────────────────
       if (bytes != null) {
-        _AuthImage._cache[widget.url] = bytes;
+        AppImageCache.instance.set(widget.url, bytes);
       }
       return bytes;
     } catch (_) {}

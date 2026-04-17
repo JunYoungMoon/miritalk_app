@@ -12,6 +12,7 @@ import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/core/storage/guest_token_storage.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'dart:typed_data';
+import 'package:miritalk_app/core/cache/app_image_cache.dart';
 
 class ConversationDrawer extends StatefulWidget {
   final VoidCallback onGoToUpload;
@@ -399,7 +400,6 @@ class _Thumbnail extends StatefulWidget {
 
 class _ThumbnailState extends State<_Thumbnail> {
   late Future<Uint8List?> _future;
-  static final Map<String, Uint8List> _cache = {};
 
   @override
   void initState() {
@@ -409,12 +409,14 @@ class _ThumbnailState extends State<_Thumbnail> {
 
   Future<Uint8List?> _load() async {
     if (widget.url == null) return null;
-    if (_cache.containsKey(widget.url)) return _cache[widget.url];
+    if (AppImageCache.instance.has(widget.url!)) {
+      return AppImageCache.instance.get(widget.url!);
+    }
     try {
       final path = widget.url!.replaceFirst(AppConfig.baseUrl, '');
       final response = await ApiClient().get(path);
       if (response.statusCode == 200) {
-        _cache[widget.url!] = response.bodyBytes;
+        AppImageCache.instance.set(widget.url!, response.bodyBytes);
         return response.bodyBytes;
       }
     } catch (e) {}
