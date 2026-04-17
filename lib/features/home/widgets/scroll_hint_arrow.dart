@@ -43,33 +43,26 @@ class _ScrollHintArrowState extends State<ScrollHintArrow>
         builder: (_, __) => Transform.translate(
           offset: Offset(0, _bounce.value),
           child: Container(
-            width: 48,
-            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppTheme.primary.withValues(alpha: 0.15),
-              border: Border.all(
-                color: AppTheme.primary.withValues(alpha: 0.4),
-                width: 1,
-              ),
+              color: AppTheme.primary,
+              borderRadius: BorderRadius.circular(30),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                SizedBox(height: 12),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.shield_outlined, color: Colors.white, size: 16),
+                SizedBox(width: 7),
                 Text(
                   '분석하기',
                   style: TextStyle(
-                    color: AppTheme.primary,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: AppTheme.primary,
-                  size: 18,
-                ),
+                SizedBox(width: 6),
+                Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 16),
               ],
             ),
           ),

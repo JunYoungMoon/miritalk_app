@@ -182,6 +182,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
               messages: mergedMessages,
               imageUrls: imageUrls,
               sessionId: sessionId,
+              categoryName: json['categoryName'] as String?,
             ),
           ),
           // modalRoute.isFirst가 true가 될 때까지 이전의 모든 화면을 제거합니다.
@@ -226,17 +227,20 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       if (mounted) {
         // 서버에서 이미지 목록 조회 후 토큰 붙여서 URL 구성
         List<String> guestImageUrls = [];
+        String? categoryName;
         if (sessionId != null && _guestImageToken != null) {
           try {
+            // 이미지 URL + categoryName 동시에 결과 API에서 가져오기
             final response = await ApiClient().get(
-              '/api/fraud/guest/images/$sessionId?token=$_guestImageToken',
+              '/api/fraud/result/guest/$sessionId?token=$_guestImageToken',
             );
-            final json = jsonDecode(response.body);
+            final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
             guestImageUrls = (json['imageUrls'] as List<dynamic>?)
                 ?.map((e) => e.toString())
                 .toList() ?? [];
+            categoryName = json['categoryName'] as String?;
           } catch (e) {
-            debugPrint('게스트 이미지 목록 조회 실패: $e');
+            debugPrint('게스트 결과 조회 실패: $e');
           }
         }
 
@@ -248,6 +252,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
               imageUrls: guestImageUrls,
               sessionId: null,
               guestImageToken: _guestImageToken,
+              categoryName: categoryName,  // ← 추가
             ),
           ),
               (route) => route.isFirst,

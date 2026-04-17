@@ -10,6 +10,8 @@ import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
 import 'package:http/http.dart' as http;
+import 'package:miritalk_app/features/community/share_bottom_sheet.dart';
+import 'package:miritalk_app/core/widgets/section_card.dart';
 
 class ChatMessage {
   final String type;
@@ -35,6 +37,7 @@ class AnalysisResultScreen extends StatefulWidget {
   final int? sessionId;
   final bool? feedbackHelpful;
   final String? guestImageToken;
+  final String? categoryName;
 
   const AnalysisResultScreen({
     super.key,
@@ -43,6 +46,7 @@ class AnalysisResultScreen extends StatefulWidget {
     this.sessionId,
     this.feedbackHelpful,
     this.guestImageToken,
+    this.categoryName,
   });
 
   @override
@@ -55,7 +59,9 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   bool _isLoading = false;
   bool _feedbackSubmitted = false;
   bool? _feedbackHelpful;
+  String? _categoryName;
   late final ScreenTimeTracker _tracker;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -64,6 +70,8 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     TrackingService.instance.logScreen('analysis_result'); //화면 진입 횟수
     _messages = widget.messages;
     _imageUrls = widget.imageUrls;
+    _categoryName = widget.categoryName;
+
     if (widget.feedbackHelpful != null) {
       _feedbackSubmitted = true;
       _feedbackHelpful = widget.feedbackHelpful;
@@ -71,11 +79,13 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     if (widget.sessionId != null && widget.messages.isEmpty) {
       _loadFromApi(widget.sessionId!);
     }
+
   }
 
   @override
   void dispose() {
     _tracker.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -119,6 +129,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           _feedbackSubmitted = true;
           _feedbackHelpful = json['feedbackHelpful'] as bool;
         }
+        _categoryName = json['categoryName'] as String?;
         _isLoading = false;
       });
     } catch (e) {
@@ -134,14 +145,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     }
   }
 
-  Color _riskColor(String level) {
-    switch (level) {
-      case '매우높음': return AppTheme.danger;
-      case '높음':    return Colors.orange;
-      case '보통':    return Colors.yellow;
-      default:        return AppTheme.success;
-    }
-  }
+  Color _riskColor(String level) => AppTheme.riskLevelColor(level);
 
   @override
   Widget build(BuildContext context) {
@@ -171,37 +175,58 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       backgroundColor: AppTheme.background,
       appBar: const CommonAppBar(title: '분석 결과'),
       // bottomNavigationBar: const BannerAdWidget(),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
+      body: Stack(
         children: [
-          if (_imageUrls.isNotEmpty)
-            _ThumbnailStrip(
-              imageUrls: _imageUrls,
-              isGuest: widget.guestImageToken != null,
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                _RiskHeaderCard(
-                  riskLevel: riskLevel,
-                  riskScore: riskScore,
-                  verdict: verdict,
-                  riskColor: riskColor,
+          ListView(
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 48), // ← 버튼 높이만큼 패딩 추가
+            children: [
+              if (_imageUrls.isNotEmpty)
+                _ThumbnailStrip(
+                  imageUrls: _imageUrls,
+                  isGuest: widget.guestImageToken != null,
+                  categoryName: _categoryName,
                 ),
-                const SizedBox(height: 8),
-                ...displayMessages.map((m) => _buildCard(m)),
-                const SizedBox(height: 8),
-                if (widget.guestImageToken == null)
-                  _FeedbackCard(
-                    sessionId: widget.sessionId,
-                    submitted: _feedbackSubmitted,
-                    helpful: _feedbackHelpful,
-                    onFeedback: _submitFeedback,
-                  ),
-              ],
-            ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    _RiskHeaderCard(
+                      riskLevel: riskLevel,
+                      riskScore: riskScore,
+                      verdict: verdict,
+                      riskColor: riskColor,
+                    ),
+                    const SizedBox(height: 8),
+                    ...displayMessages.map((m) => _buildCard(m)),
+                    const SizedBox(height: 8),
+                    if (widget.guestImageToken == null)
+                      _FeedbackCard(
+                        sessionId: widget.sessionId,
+                        submitted: _feedbackSubmitted,
+                        helpful: _feedbackHelpful,
+                        onFeedback: _submitFeedback,
+                      ),
+                    const SizedBox(height: 8),
+                    // ← Positioned 블록 여기서 완전히 제거
+                  ],
+                ),
+              ),
+            ],
           ),
+
+          // ── 항상 하단에 고정 ──
+          if (widget.guestImageToken == null && widget.sessionId != null)
+            Positioned(
+              bottom: 24,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _ShareHintBounce(
+                  onTap: _shareToCommmunity,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -242,53 +267,92 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     });
   }
 
-}
+  Future<void> _shareToCommmunity() async {
+    // 이미지 URL → 바이트 로드 (편집 에디터에 넘겨주기 위해)
+    final futures = _imageUrls.map((url) async {
+      try {
+        final isGuest = widget.guestImageToken != null;
+        if (isGuest) {
+          final r = await http.get(Uri.parse(url));
+          if (r.statusCode == 200) return r.bodyBytes;
+        } else {
+          final path = url.replaceFirst(AppConfig.baseUrl, '');
+          final r = await ApiClient().get(path);
+          if (r.statusCode == 200) return r.bodyBytes;
+        }
+      } catch (_) {}
+      return null;
+    });
 
-// ── 공통 섹션 컨테이너 ───────────────────────────────
-class _SectionCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final Widget child;
+    final results = await Future.wait(futures);
+    final imageBytes = results.whereType<Uint8List>().toList();
 
-  const _SectionCard({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.child,
-  });
+    if (!mounted) return;
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(icon, color: color, size: 15),
-              const SizedBox(width: 6),
-              Text(label,
-                  style: TextStyle(
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600)),
-            ]),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
-      ),
+    final result = await ShareBottomSheet.show(
+      context,
+      sessionId: widget.sessionId ?? 0,
+      riskLevel: _findText('riskLevel'),
+      riskScore: int.tryParse(_findText('riskScore')) ?? 0,
+      summary: _findText('summary'),
+      imageBytesList: imageBytes,
+      categoryName: _categoryName,
     );
+
+    if (result == null || !mounted) return;
+
+    // 서버에 공유 요청
+    try {
+      if (result.editedImages.isNotEmpty) {
+        // 이미지가 있으면 multipart로 전송
+        final files = <http.MultipartFile>[];
+        for (int i = 0; i < result.editedImages.length; i++) {
+          files.add(http.MultipartFile.fromBytes(
+            'images',
+            result.editedImages[i],
+            filename: 'image_$i.png',
+          ));
+        }
+        await ApiClient().postMultipart(
+          '/api/community/posts',
+          files: files,
+          fields: {
+            'sessionId': result.sessionId.toString(),
+            'category': result.category,
+            'anonymous': result.anonymous.toString(),
+          },
+        );
+      } else {
+        await ApiClient().post('/api/community/posts', body: {
+          'sessionId': result.sessionId,
+          'category': result.category,
+          'anonymous': result.anonymous,
+          'includeImages': false,
+        });
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('커뮤니티에 공유됐어요!'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('공유 중 오류가 발생했어요'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+    }
   }
+
 }
+
+// ── 공통 섹션 컨테이너 → lib/core/widgets/section_card.dart 의 SectionCard 사용
+// (이 파일에서 _SectionCard 클래스 제거됨)
 
 // ── 종합 분석 ────────────────────────────────────────
 class _SummaryCard extends StatelessWidget {
@@ -297,7 +361,7 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _SectionCard(
+    return SectionCard(
       icon: Icons.smart_toy_outlined,
       label: '종합 분석',
       color: AppTheme.primary,
@@ -319,7 +383,7 @@ class _PsychologicalTacticsCard extends StatelessWidget {
     try { items = jsonDecode(json) as List; } catch (_) {}
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return _SectionCard(
+    return SectionCard(
       icon: Icons.psychology_outlined,
       label: '심리 조작 기법',
       color: Colors.purple,
@@ -428,7 +492,7 @@ class _SuspiciousCard extends StatelessWidget {
     try { items = jsonDecode(json) as List; } catch (_) {}
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return _SectionCard(
+    return SectionCard(
       icon: Icons.search_rounded,
       label: '의심 포인트',
       color: Colors.orange,
@@ -496,7 +560,7 @@ class _ActionCard extends StatelessWidget {
     try { items = jsonDecode(json) as List; } catch (_) {}
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return _SectionCard(
+    return SectionCard(
       icon: Icons.tips_and_updates_outlined,
       label: '권장 행동',
       color: AppTheme.success,
@@ -591,7 +655,7 @@ class _QuestionsCard extends StatelessWidget {
     try { items = jsonDecode(json) as List; } catch (_) {}
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return _SectionCard(
+    return SectionCard(
       icon: Icons.help_outline_rounded,
       label: '추가 확인 질문',
       color: Colors.blue,
@@ -780,10 +844,12 @@ class _RiskHeaderCard extends StatelessWidget {
 class _ThumbnailStrip extends StatelessWidget {
   final List<String> imageUrls;
   final bool isGuest;
+  final String? categoryName;
 
   const _ThumbnailStrip({
     required this.imageUrls,
     this.isGuest = false,
+    this.categoryName,
   });
 
   void _openFullscreen(BuildContext context, int initialIndex) {
@@ -808,7 +874,7 @@ class _ThumbnailStrip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 16, bottom: 8),
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
             child: Row(
               children: [
                 const Icon(Icons.photo_library_outlined,
@@ -823,6 +889,9 @@ class _ThumbnailStrip extends StatelessWidget {
                 Text('${imageUrls.length}장 · 탭하면 확대됩니다',
                     style: const TextStyle(
                         color: AppTheme.textHint, fontSize: 11)),
+                const Spacer(),
+                if (categoryName != null && categoryName!.isNotEmpty)
+                  _CategoryChip(categoryName: categoryName!),
               ],
             ),
           ),
@@ -1304,6 +1373,129 @@ class _GuestFullscreenViewerState extends State<_GuestFullscreenViewer> {
             child: Image.memory(widget.imageBytes[index], fit: BoxFit.contain),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── 제보하기 스크롤 힌트 동동이 버튼 ─────────────────
+class _ShareHintBounce extends StatefulWidget {
+  final VoidCallback onTap;
+  const _ShareHintBounce({required this.onTap});
+
+  @override
+  State<_ShareHintBounce> createState() => _ShareHintBounceState();
+}
+
+class _ShareHintBounceState extends State<_ShareHintBounce>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _bounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+
+    _bounce = Tween<double>(begin: 0, end: -7).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _bounce,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, _bounce.value),
+        child: child,
+      ),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppTheme.primary,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.campaign_outlined, color: Colors.white, size: 16),
+              SizedBox(width: 7),
+              Text(
+                '커뮤니티에 제보하기',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(width: 6),
+              Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  final String categoryName;
+  const _CategoryChip({required this.categoryName});
+
+  // 홈화면 _FraudTypeCards와 동일한 아이콘·색상
+  static const _style = {
+    '중고거래 사기': {'icon': Icons.storefront_outlined,   'color': Color(0xFF4FC3F7)},
+    '투자 사기':    {'icon': Icons.trending_up,            'color': Color(0xFF81C784)},
+    '게임 사기':    {'icon': Icons.sports_esports_outlined, 'color': Color(0xFFEF9A9A)},
+    '보이스피싱':   {'icon': Icons.phone_outlined,          'color': Color(0xFFCE93D8)},
+    '취업 사기':    {'icon': Icons.work_outline,            'color': Color(0xFFFFB74D)},
+    '로맨스 스캠':  {'icon': Icons.favorite_border,         'color': Color(0xFFF48FB1)},
+  };
+
+  static const _default = {
+    'icon': Icons.warning_amber_rounded,
+    'color': Color(0xFFFF8A65),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final s     = _style[categoryName] ?? _default;
+    final color = s['color'] as Color;
+    final icon  = s['icon']  as IconData;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            categoryName,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

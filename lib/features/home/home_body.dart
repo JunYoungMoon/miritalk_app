@@ -10,6 +10,7 @@ import 'package:miritalk_app/features/home/widgets/scroll_hint_arrow.dart';
 import 'package:miritalk_app/core/utils/screen_secure_util.dart';
 import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
+import 'package:miritalk_app/features/community/community_screen.dart';
 
 class HomeBody extends StatefulWidget {
   final Future<void> Function() onGoToUpload;
@@ -1206,82 +1207,93 @@ class _FeedTickerState extends State<_FeedTicker>
         : widget.items[0];
     final nextIsHigh = nextItem['isHigh'] as bool;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // 라벨
-          Row(
+    return GestureDetector(                          // ← 추가
+        onTap: () {
+          // 커뮤니티 탭으로 이동 — main_screen의 탭 인덱스에 맞게 조정 필요
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const CommunityScreen(),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: Center(
-                  child: Container(
-                    width: 7,
-                    height: 7,
+              // 라벨
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 18,
+                    height: 18,
                     decoration: BoxDecoration(
-                      color: AppTheme.primary,
-                      shape: BoxShape.circle,
+                      color: AppTheme.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  const Text(
+                    '인기 분석',
+                    style: TextStyle(color: AppTheme.textHint, fontSize: 10),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 10),
+              Container(width: 0.5, height: 18, color: AppTheme.divider),
+              const SizedBox(width: 10),
+
+              // 슬라이드 영역
+              Expanded(
+                child: SizedBox(
+                  height: 20,
+                  child: ClipRect(
+                    child: Stack(
+                      children: [
+                        // 나가는 텍스트
+                        SlideTransition(
+                          position: _slideOut,
+                          child: _TickerRow(
+                            riskPct: riskPct,
+                            riskColor: riskColor,
+                            riskBg: riskBg,
+                            isHigh: isHigh,
+                            text: text,
+                            likes: likes,
+                          ),
+                        ),
+                        // 들어오는 텍스트
+                        SlideTransition(
+                          position: _slideIn,
+                          child: _TickerRow(
+                            riskPct: nextItem['riskPct'] as int,
+                            riskColor: nextIsHigh ? AppTheme.riskHigh : AppTheme.riskMedium,
+                            riskBg: nextIsHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg,
+                            isHigh: nextIsHigh,
+                            text: nextItem['text'] as String,
+                            likes: nextItem['likes'] as int,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 5),
-              const Text(
-                '인기 분석',
-                style: TextStyle(color: AppTheme.textHint, fontSize: 10),
-              ),
             ],
           ),
-          const SizedBox(width: 10),
-          Container(width: 0.5, height: 18, color: AppTheme.divider),
-          const SizedBox(width: 10),
-
-          // 슬라이드 영역
-          Expanded(
-            child: SizedBox(
-              height: 20,
-              child: ClipRect(
-                child: Stack(
-                  children: [
-                    // 나가는 텍스트
-                    SlideTransition(
-                      position: _slideOut,
-                      child: _TickerRow(
-                        riskPct: riskPct,
-                        riskColor: riskColor,
-                        riskBg: riskBg,
-                        isHigh: isHigh,
-                        text: text,
-                        likes: likes,
-                      ),
-                    ),
-                    // 들어오는 텍스트
-                    SlideTransition(
-                      position: _slideIn,
-                      child: _TickerRow(
-                        riskPct: nextItem['riskPct'] as int,
-                        riskColor: nextIsHigh ? AppTheme.riskHigh : AppTheme.riskMedium,
-                        riskBg: nextIsHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg,
-                        isHigh: nextIsHigh,
-                        text: nextItem['text'] as String,
-                        likes: nextItem['likes'] as int,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        )
     );
   }
 }

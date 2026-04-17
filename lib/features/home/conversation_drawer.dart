@@ -373,6 +373,7 @@ class _ConversationTile extends StatelessWidget {
             imageUrls: imageUrls,
             sessionId: conversation.sessionId,
             feedbackHelpful: json['feedbackHelpful'] as bool?,
+            categoryName: json['categoryName'] as String?,
           ),
         ),
       );
@@ -585,6 +586,7 @@ class _GuestConversationTile extends StatelessWidget {
           sessionId: conversation.sessionId,
           feedbackHelpful: null,
           guestImageToken: token,
+          categoryName: json['categoryName'] as String?,
         ),
       ));
     } catch (e) {

@@ -76,12 +76,13 @@ class _LoginScreenState extends State<LoginScreen>
           opacity: _fadeIn,
           child: SlideTransition(
             position: _slideUp,
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const SizedBox(height: 40),
                   Image.asset('assets/icons/app_icon5.png', width: 72, height: 72),
                   const SizedBox(height: 12),
                   const Text(
@@ -171,6 +172,7 @@ class _LoginScreenState extends State<LoginScreen>
                       style: TextStyle(color: AppTheme.textHint, fontSize: 13),
                     ),
                   ),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
