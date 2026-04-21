@@ -75,12 +75,19 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   bool _categoriesLoading = true;
   String? _selectedDisplayName;
   bool _autoSelected = false;
+  final TextEditingController _contentCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _resolveImages();
     _resolveCategories();
+  }
+
+  @override
+  void dispose() {
+    _contentCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _resolveImages() async {
@@ -167,16 +174,16 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
         category: _selectedDisplayName!,
         anonymous: _anonymous,
         includeImages: _includeImages,
-        editedImages: _includeImages
-            ? (_editedImages ?? _imageBytes)
-            : [],
+        editedImages: _includeImages ? (_editedImages ?? []) : [],
+        content: _contentCtrl.text.trim(),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom
+        + MediaQuery.of(context).padding.bottom;
     return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
       child: SingleChildScrollView(
@@ -403,6 +410,31 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 const SizedBox(height: 20),
               ],
 
+              const Text('한 줄 설명',
+                  style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _contentCtrl,
+                maxLength: 100,
+                style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: '어떤 상황이었는지 간단히 적어주세요 (선택)',
+                  hintStyle: const TextStyle(color: AppTheme.textHint, fontSize: 13),
+                  filled: true,
+                  fillColor: AppTheme.surfaceDeep,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  counterStyle: const TextStyle(color: AppTheme.textHint, fontSize: 10),
+                ),
+              ),
+              const SizedBox(height: 12),
+
               // 익명 설정
               Row(
                 children: [
@@ -485,6 +517,7 @@ class ShareResult {
   final bool anonymous;
   final bool includeImages;
   final List<Uint8List> editedImages;
+  final String content;
 
   const ShareResult({
     required this.sessionId,
@@ -492,5 +525,6 @@ class ShareResult {
     required this.anonymous,
     required this.includeImages,
     required this.editedImages,
+    required this.content,
   });
 }

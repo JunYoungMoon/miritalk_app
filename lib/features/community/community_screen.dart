@@ -22,6 +22,7 @@ class CommunityPost {
   final int commentCount;
   final bool likedByMe;
   final DateTime createdAt;
+  final String content;
 
   const CommunityPost({
     required this.id,
@@ -37,6 +38,7 @@ class CommunityPost {
     required this.commentCount,
     required this.likedByMe,
     required this.createdAt,
+    required this.content,
   });
 
   factory CommunityPost.fromJson(Map<String, dynamic> j) => CommunityPost(
@@ -57,6 +59,7 @@ class CommunityPost {
     likedByMe: j['likedByMe'] as bool? ?? false,
     createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ??
         DateTime.now(),
+    content: j['content'] as String? ?? '',
   );
 }
 
@@ -74,7 +77,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   int _page = 0;
   String _selectedCategory = '전체';
 
-  static const _categories = ['전체', '직거래', '로맨스', '투자', '취업', '피싱', '기타'];
+  List<String> _categories = ['전체'];
 
   final ScrollController _scrollController = ScrollController();
 
@@ -88,12 +91,22 @@ class _CommunityScreenState extends State<CommunityScreen> {
         _load();
       }
     });
+    _loadCategories();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final response = await ApiClient().get('/api/fraud/categories');
+      final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      final names = list.map((e) => e['displayName'] as String).toList();
+      if (mounted) setState(() => _categories = ['전체', ...names]);
+    } catch (_) {}
   }
 
   Future<void> _load({bool reset = false}) async {
@@ -144,6 +157,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         commentCount: post.commentCount,
         likedByMe: liked,
         createdAt: post.createdAt,
+        content: post.content,
       );
     });
     try {

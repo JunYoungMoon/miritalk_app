@@ -227,7 +227,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         children: [
           ListView(
             controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(0, 0, 0, 48),
+            padding: EdgeInsets.fromLTRB(0, 0, 0, 48 + MediaQuery.of(context).padding.bottom),
             children: [
               if (_imageUrls.isNotEmpty)
                 _ThumbnailStrip(
@@ -264,7 +264,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
 
           if (widget.guestImageToken == null && widget.sessionId != null)
             Positioned(
-              bottom: 24,
+              bottom: 24 + MediaQuery.of(context).padding.bottom,
               left: 0,
               right: 0,
               child: Center(
@@ -331,32 +331,28 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     if (result == null || !mounted) return;
 
     try {
-      if (result.editedImages.isNotEmpty) {
-        final files = <http.MultipartFile>[];
+      final files = <http.MultipartFile>[];
+      if (result.includeImages && result.editedImages.isNotEmpty) {
         for (int i = 0; i < result.editedImages.length; i++) {
           files.add(http.MultipartFile.fromBytes(
-            'images',
+            'editedImages',
             result.editedImages[i],
             filename: 'image_$i.png',
           ));
         }
-        await ApiClient().postMultipart(
-          '/api/community/posts',
-          files: files,
-          fields: {
-            'sessionId': result.sessionId.toString(),
-            'category': result.category,
-            'anonymous': result.anonymous.toString(),
-          },
-        );
-      } else {
-        await ApiClient().post('/api/community/posts', body: {
-          'sessionId': result.sessionId,
-          'category': result.category,
-          'anonymous': result.anonymous,
-          'includeImages': false,
-        });
       }
+
+      await ApiClient().postMultipart(
+        '/api/community/posts',
+        files: files,
+        fields: {
+          'sessionId': result.sessionId.toString(),
+          'category': result.category,
+          'anonymous': result.anonymous.toString(),
+          'includeImages': result.includeImages.toString(),
+          'content': result.content,
+        },
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1040,7 +1036,9 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
           ),
           if (widget.imageUrls.length > 1)
             Positioned(
-              bottom: 24, left: 0, right: 0,
+              bottom: 24 + MediaQuery.of(context).padding.bottom,
+              left: 0,
+              right: 0,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: widget.imageUrls.asMap().entries.map((entry) {

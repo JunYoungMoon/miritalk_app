@@ -104,6 +104,8 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
                   _buildImages(),
                 ],
                 const SizedBox(height: 20),
+                _buildLikeButton(),
+                const SizedBox(height: 12),
                 _buildCommentSection(),
               ],
             ),
@@ -254,6 +256,75 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildLikeButton() {
+    final post = _post!;
+    return GestureDetector(
+      onTap: _toggleLike,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: post.likedByMe
+              ? AppTheme.danger.withValues(alpha: 0.1)
+              : AppTheme.surfaceDeep,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: post.likedByMe
+                ? AppTheme.danger.withValues(alpha: 0.4)
+                : AppTheme.divider,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              post.likedByMe ? Icons.favorite : Icons.favorite_border,
+              color: post.likedByMe ? AppTheme.danger : AppTheme.textHint,
+              size: 18,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '도움됐어요 ${post.likeCount}',
+              style: TextStyle(
+                color: post.likedByMe ? AppTheme.danger : AppTheme.textHint,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleLike() async {
+    if (_post == null) return;
+    final liked = !_post!.likedByMe;
+    setState(() {
+      _post = CommunityPost(
+        id: _post!.id,
+        category: _post!.category,
+        riskLevel: _post!.riskLevel,
+        riskScore: _post!.riskScore,
+        summary: _post!.summary,
+        verdict: _post!.verdict,
+        imageUrls: _post!.imageUrls,
+        author: _post!.author,
+        anonymous: _post!.anonymous,
+        likeCount: _post!.likeCount + (liked ? 1 : -1),
+        commentCount: _post!.commentCount,
+        likedByMe: liked,
+        createdAt: _post!.createdAt,
+        content: _post!.content,
+      );
+    });
+    try {
+      await ApiClient().post(
+        '/api/community/posts/${_post!.id}/like',
+        body: {'liked': liked},
+      );
+    } catch (_) {}
   }
 }
 

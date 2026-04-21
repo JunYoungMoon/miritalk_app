@@ -11,6 +11,9 @@ import 'package:miritalk_app/core/utils/screen_secure_util.dart';
 import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
 import 'package:miritalk_app/features/community/community_screen.dart';
+import 'dart:convert';
+import 'package:miritalk_app/features/community/community_detail_screen.dart';
+import 'package:miritalk_app/core/network/api_client.dart';
 
 class HomeBody extends StatefulWidget {
   final Future<void> Function() onGoToUpload;
@@ -27,6 +30,9 @@ class _HomeBodyState extends State<HomeBody> {
   bool _listenerAttached = false;
   late final ScreenTimeTracker _tracker;
   bool _wasLoggedIn = false;
+
+  List<Map<String, dynamic>> _rankingPosts = [];
+  bool _rankingLoading = true;
 
   // final CarouselSliderController _carouselController =
   // CarouselSliderController();
@@ -63,6 +69,7 @@ class _HomeBodyState extends State<HomeBody> {
       _refreshQuotaIfLoggedIn();
     });
     _scrollController.addListener(_checkButtonVisibility);
+    _loadRanking();
   }
 
   @override
@@ -223,6 +230,21 @@ class _HomeBodyState extends State<HomeBody> {
         ],
       ),
     );
+  }
+
+  Future<void> _loadRanking() async {
+    try {
+      final response = await ApiClient().get('/api/community/ranking');
+      final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      if (mounted) {
+        setState(() {
+          _rankingPosts = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _rankingLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _rankingLoading = false);
+    }
   }
 
   @override
@@ -408,6 +430,120 @@ class _HomeBodyState extends State<HomeBody> {
                     ),
 
                     const SizedBox(height: 20),
+
+                    // ── 5. 커뮤니티 Top3 ──
+                    if (!_rankingLoading && _rankingPosts.isNotEmpty) ...[
+                      const Text('많이 도움된 제보',
+                          style: TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 10),
+                      ..._rankingPosts.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final post = entry.value;
+                        final riskLevel = post['riskLevel'] as String? ?? '';
+                        final riskColor = AppTheme.riskLevelColor(riskLevel);
+                        return GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CommunityDetailScreen(
+                                  postId: post['id'] as int),
+                            ),
+                          ),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: riskColor.withValues(alpha: 0.2)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 24, height: 24,
+                                  decoration: BoxDecoration(
+                                    color: i == 0
+                                        ? const Color(0xFFFFD700).withValues(alpha: 0.2)
+                                        : i == 1
+                                        ? const Color(0xFFC0C0C0).withValues(alpha: 0.2)
+                                        : const Color(0xFFCD7F32).withValues(alpha: 0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text('${i + 1}',
+                                        style: TextStyle(
+                                            color: i == 0
+                                                ? const Color(0xFFFFD700)
+                                                : i == 1
+                                                ? const Color(0xFFC0C0C0)
+                                                : const Color(0xFFCD7F32),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold)),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if ((post['content'] as String? ?? '').isNotEmpty)
+                                        Text(
+                                          post['content'] as String,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              color: AppTheme.textPrimary,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600),
+                                        )
+                                      else
+                                        Text(
+                                          post['summary'] as String? ?? '',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              color: AppTheme.textPrimary, fontSize: 12),
+                                        ),
+                                      const SizedBox(height: 3),
+                                      Row(children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: riskColor.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            '$riskLevel ${post['riskScore']}%',
+                                            style: TextStyle(
+                                                color: riskColor,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        const Icon(Icons.favorite,
+                                            color: AppTheme.danger, size: 10),
+                                        const SizedBox(width: 2),
+                                        Text('${post['likeCount']}',
+                                            style: const TextStyle(
+                                                color: AppTheme.textHint, fontSize: 10)),
+                                      ]),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right,
+                                    color: AppTheme.textHint, size: 16),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 12),
+                    ],
 
                     // ── 6. 잔여 횟수 뱃지 ──
                     Padding(

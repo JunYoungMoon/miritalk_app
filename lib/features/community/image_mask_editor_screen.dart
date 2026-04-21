@@ -276,7 +276,7 @@ class _ImageMaskEditorScreenState extends State<ImageMaskEditorScreen> {
           // ── 하단 툴바 ───────────────────────────
           Container(
             color: const Color(0xFF111111),
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+            padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + MediaQuery.of(context).padding.bottom),
             child: Row(
               children: [
                 Expanded(
