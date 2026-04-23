@@ -95,11 +95,15 @@ class _ImageMaskEditorScreenState extends State<ImageMaskEditorScreen> {
 
   Future<void> _done() async {
     setState(() => _isCapturing = true);
-    final results = <Uint8List>[];
+    final results = <int, Uint8List>{};
+
     for (int i = 0; i < widget.imageBytesList.length; i++) {
+      if (_masksPerImage[i].isEmpty) continue;
+
       final captured = await _captureImage(i);
-      results.add(captured ?? widget.imageBytesList[i]);
+      if (captured != null) results[i] = captured;
     }
+
     if (!mounted) return;
     setState(() => _isCapturing = false);
     Navigator.pop(context, results);

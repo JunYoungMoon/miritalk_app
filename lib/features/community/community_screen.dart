@@ -64,7 +64,8 @@ class CommunityPost {
 }
 
 class CommunityScreen extends StatefulWidget {
-  const CommunityScreen({super.key});
+  final List<CommunityPost>? preloadedRanking;
+  const CommunityScreen({super.key, this.preloadedRanking});
 
   @override
   State<CommunityScreen> createState() => _CommunityScreenState();
@@ -76,28 +77,54 @@ class _CommunityScreenState extends State<CommunityScreen> {
   bool _hasMore = true;
   int _page = 0;
   String _selectedCategory = '전체';
-
   List<String> _categories = ['전체'];
+
+  // TOP3 랭킹
+  List<CommunityPost> _rankingPosts = [];
+  bool _rankingLoading = true;
 
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    if (widget.preloadedRanking != null) {
+      _rankingPosts = widget.preloadedRanking!;
+      _rankingLoading = false;
+    } else {
+      _loadRanking();
+    }
     _load();
+    _loadCategories();
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
         _load();
       }
     });
-    _loadCategories();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRanking() async {
+    try {
+      final response = await ApiClient().get('/api/community/ranking');
+      final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      if (mounted) {
+        setState(() {
+          _rankingPosts = list
+              .map((e) => CommunityPost.fromJson(e as Map<String, dynamic>))
+              .toList();
+          _rankingLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _rankingLoading = false);
+    }
   }
 
   Future<void> _loadCategories() async {
@@ -120,7 +147,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      final cat = _selectedCategory == '전체' ? '' : '&category=$_selectedCategory';
+      final cat =
+      _selectedCategory == '전체' ? '' : '&category=$_selectedCategory';
       final response = await ApiClient()
           .get('/api/community/posts?page=$_page&size=10$cat');
       final json =
@@ -161,8 +189,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
       );
     });
     try {
-      await ApiClient().post('/api/community/posts/${post.id}/like',
-          body: {'liked': liked});
+      await ApiClient()
+          .post('/api/community/posts/${post.id}/like', body: {'liked': liked});
     } catch (_) {}
   }
 
@@ -173,7 +201,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       appBar: const CommonAppBar(title: '사기 제보 커뮤니티'),
       body: Column(
         children: [
-          // ── 카테고리 탭 ──────────────────────────
+          // ── 카테고리 탭 ──
           _CategoryTabBar(
             categories: _categories,
             selected: _selectedCategory,
@@ -183,17 +211,39 @@ class _CommunityScreenState extends State<CommunityScreen> {
             },
           ),
 
-          // ── 피드 목록 ────────────────────────────
+          // ── 피드 목록 ──
           Expanded(
             child: _posts.isEmpty && !_isLoading
                 ? _EmptyState(category: _selectedCategory)
-                : ListView.separated(
+                : ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _posts.length + (_hasMore ? 1 : 0),
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              padding: EdgeInsets.zero,
+              itemCount: _posts.length + (_hasMore ? 1 : 0) + 1, // +1 for header
               itemBuilder: (context, index) {
-                if (index == _posts.length) {
+                // ── 0번 인덱스: 랭킹 헤더 ──
+                if (index == 0) {
+                  return _RankingSection(
+                    posts: _rankingPosts,
+                    isLoading: _rankingLoading,
+                    onTap: (postId) {
+                      final post = _rankingPosts.firstWhere((p) => p.id == postId);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CommunityDetailScreen(
+                            postId: postId,
+                            preloadedPost: post,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                }
+
+                final postIndex = index - 1;
+
+                // 로딩 인디케이터
+                if (postIndex == _posts.length) {
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(16),
@@ -202,14 +252,24 @@ class _CommunityScreenState extends State<CommunityScreen> {
                     ),
                   );
                 }
-                return _PostCard(
-                  post: _posts[index],
-                  onLike: () => _toggleLike(index),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CommunityDetailScreen(
-                        postId: _posts[index].id,
+
+                return Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    postIndex == 0 ? 12 : 6,
+                    16,
+                    6,
+                  ),
+                  child: _PostCard(
+                    post: _posts[postIndex],
+                    onLike: () => _toggleLike(postIndex),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CommunityDetailScreen(
+                          postId: _posts[postIndex].id,
+                          preloadedPost: _posts[postIndex],
+                        ),
                       ),
                     ),
                   ),
@@ -217,6 +277,157 @@ class _CommunityScreenState extends State<CommunityScreen> {
               },
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── TOP3 랭킹 섹션 ────────────────────────────────────
+class _RankingSection extends StatelessWidget {
+  final List<CommunityPost> posts;
+  final bool isLoading;
+  final ValueChanged<int> onTap;
+
+  const _RankingSection({
+    required this.posts,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  static const _medalColors = [
+    Color(0xFFFFD700),
+    Color(0xFFC0C0C0),
+    Color(0xFFCD7F32),
+  ];
+
+  static const _medalEmoji = ['🥇', '🥈', '🥉'];
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const SizedBox(
+        height: 60,
+        child: Center(
+          child: SizedBox(
+            width: 18, height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary),
+          ),
+        ),
+      );
+    }
+
+    if (posts.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 0, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 헤더
+          Padding(
+            padding: const EdgeInsets.only(right: 16, bottom: 10),
+            child: Row(
+              children: [
+                const Text('🏆',style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 6),
+                const Text('많이 도움된 제보',
+                    style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold)),
+                const Spacer(),
+                const Text('좋아요순',
+                    style: TextStyle(color: AppTheme.textHint, fontSize: 11)),
+                const SizedBox(width: 16),
+              ],
+            ),
+          ),
+
+          // 가로 스크롤 카드
+          SizedBox(
+            height: 118,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(right: 16),
+              itemCount: posts.length,
+              itemBuilder: (context, i) {
+                final post = posts[i];
+                final medalColor = _medalColors[i];
+                final riskColor = AppTheme.riskLevelColor(post.riskLevel);
+
+                return GestureDetector(
+                  onTap: () => onTap(post.id),
+                  child: Container(
+                    width: 220,
+                    margin: const EdgeInsets.only(right: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: medalColor.withValues(alpha: 0.35),
+                          width: 1.5),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 메달 + 좋아요
+                        Row(
+                          children: [
+                            Text(_medalEmoji[i], style: const TextStyle(fontSize: 14)),
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: riskColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '${post.riskLevel} ${post.riskScore}%',
+                                style: TextStyle(
+                                    color: riskColor, fontSize: 9, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            const Spacer(),
+                            Icon(Icons.favorite, color: AppTheme.danger, size: 12),
+                            const SizedBox(width: 2),
+                            Text('${post.likeCount}',
+                                style: const TextStyle(
+                                    color: AppTheme.danger,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 6), // 8 → 6으로 축소
+
+                        // 내용
+                        Text(
+                          post.content.isNotEmpty ? post.content : post.summary,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 12,
+                              height: 1.4,
+                              fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: 4), // 6 → 4으로 축소
+
+                        // 카테고리
+                        Text(
+                          post.category,
+                          style: const TextStyle(color: AppTheme.textHint, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 4),
         ],
       ),
     );
@@ -267,8 +478,7 @@ class _CategoryTabBar extends StatelessWidget {
                   style: TextStyle(
                     color: sel ? AppTheme.primary : AppTheme.textSecondary,
                     fontSize: 12,
-                    fontWeight:
-                    sel ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ),
@@ -312,21 +522,18 @@ class _PostCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppTheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: _riskColor.withValues(alpha: 0.2)),
+          border: Border.all(color: _riskColor.withValues(alpha: 0.2)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 헤더: 카테고리 뱃지 + 위험도 + 시간
             Row(
               children: [
                 AppBadge(text: post.category, color: AppTheme.primary),
                 const SizedBox(width: 6),
                 AppBadge(
-                  text: '${post.riskLevel} ${post.riskScore}%',
-                  color: _riskColor,
-                ),
+                    text: '${post.riskLevel} ${post.riskScore}%',
+                    color: _riskColor),
                 const Spacer(),
                 Text(_timeAgo(),
                     style: const TextStyle(
@@ -334,40 +541,26 @@ class _PostCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-
-            // 요약 텍스트
             Text(
               post.summary,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 13,
-                  height: 1.5),
+                  color: AppTheme.textPrimary, fontSize: 13, height: 1.5),
             ),
-
-            // 이미지 썸네일 (있을 때만)
             if (post.imageUrls.isNotEmpty) ...[
               const SizedBox(height: 10),
-              NetworkImageStrip(
-                imageUrls: post.imageUrls,
-                size: 56,
-                maxCount: 4,
-              ),
+              NetworkImageStrip(imageUrls: post.imageUrls, size: 56, maxCount: 4),
             ],
             const SizedBox(height: 10),
-
-            // 푸터: 작성자 + 좋아요 + 댓글
             Row(
               children: [
                 const Icon(Icons.person_outline,
                     color: AppTheme.textHint, size: 13),
                 const SizedBox(width: 3),
-                Text(
-                  post.anonymous ? '익명' : post.author,
-                  style: const TextStyle(
-                      color: AppTheme.textHint, fontSize: 12),
-                ),
+                Text(post.anonymous ? '익명' : post.author,
+                    style: const TextStyle(
+                        color: AppTheme.textHint, fontSize: 12)),
                 const Spacer(),
                 GestureDetector(
                   onTap: onLike,
@@ -412,9 +605,6 @@ class _PostCard extends StatelessWidget {
   }
 }
 
-// ── 뱃지 → lib/core/widgets/app_badge.dart 의 AppBadge 사용
-// (이 파일에서 _Badge 클래스 제거됨)
-
 // ── 빈 상태 ──────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
   final String category;
@@ -426,21 +616,19 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.forum_outlined,
-              color: AppTheme.textHint, size: 48),
+          const Icon(Icons.forum_outlined, color: AppTheme.textHint, size: 48),
           const SizedBox(height: 12),
           Text(
             category == '전체'
                 ? '아직 공유된 제보가 없어요'
                 : '$category 유형의 제보가 없어요',
-            style: const TextStyle(
-                color: AppTheme.textSecondary, fontSize: 14),
+            style:
+            const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
           ),
           const SizedBox(height: 6),
           const Text(
             '분석 결과 화면에서 공유하기를 눌러보세요',
-            style:
-            TextStyle(color: AppTheme.textHint, fontSize: 12),
+            style: TextStyle(color: AppTheme.textHint, fontSize: 12),
           ),
         ],
       ),

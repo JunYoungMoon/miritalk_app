@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:io';
 
 // ── 클래스 밖에 선언 ──
 enum WithdrawResult { success, notFound, error }
@@ -155,6 +156,7 @@ class AuthService {
   Future<void> _registerFcmToken(String? accessToken) async {
     if (accessToken == null) return;
     try {
+      final deviceInfo = '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
       final fcmToken = await FirebaseMessaging.instance.getToken();
       if (fcmToken == null) return;
 
@@ -164,7 +166,7 @@ class AuthService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
         },
-        body: jsonEncode({'token': fcmToken}),
+        body: jsonEncode({'token': fcmToken, 'deviceInfo': deviceInfo}),
       );
     } catch (e) {
       debugPrint('FCM 토큰 등록 실패: $e');

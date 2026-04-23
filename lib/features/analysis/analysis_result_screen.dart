@@ -80,7 +80,9 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       _feedbackHelpful = widget.feedbackHelpful;
     }
 
-    _categoriesFuture = _fetchCategories();
+    if (widget.guestImageToken == null) {
+      _categoriesFuture = _fetchCategories();
+    }
 
     if (_imageUrls.isNotEmpty) {
       _imagesForShareFuture = _fetchImagesForShare();
@@ -323,7 +325,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       riskLevel: _findText('riskLevel'),
       riskScore: int.tryParse(_findText('riskScore')) ?? 0,
       summary: _findText('summary'),
-      imagesFuture: _imagesForShareFuture!,  // ← 변경
+      imagesFuture: _imagesForShareFuture!,
       categoriesFuture: categoriesFuture,
       categoryName: _categoryName,
     );
@@ -350,6 +352,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           'category': result.category,
           'anonymous': result.anonymous.toString(),
           'includeImages': result.includeImages.toString(),
+          'editedImageOrders': result.editedImageOrders.join(','),
           'content': result.content,
         },
       );

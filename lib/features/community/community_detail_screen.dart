@@ -11,7 +11,13 @@ import 'package:miritalk_app/core/widgets/section_card.dart';
 
 class CommunityDetailScreen extends StatefulWidget {
   final int postId;
-  const CommunityDetailScreen({super.key, required this.postId});
+  final CommunityPost? preloadedPost;
+
+  const CommunityDetailScreen({
+    super.key,
+    required this.postId,
+    this.preloadedPost,
+  });
 
   @override
   State<CommunityDetailScreen> createState() => _CommunityDetailScreenState();
@@ -27,9 +33,15 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDetail();
+    // 미리 받은 데이터가 있으면 즉시 표시, 댓글만 API로 보완
+    if (widget.preloadedPost != null) {
+      _post = widget.preloadedPost;
+      _isLoading = false;
+      _loadCommentsOnly(); // ← 댓글만 따로 로딩
+    } else {
+      _loadDetail();
+    }
   }
-
   @override
   void dispose() {
     _commentCtrl.dispose();
@@ -54,6 +66,19 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
     } catch (_) {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadCommentsOnly() async {
+    try {
+      final r = await ApiClient().get('/api/community/posts/${widget.postId}');
+      final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+      final comments = (json['comments'] as List<dynamic>? ?? [])
+          .map((e) => _Comment.fromJson(e as Map<String, dynamic>))
+          .toList();
+      if (mounted) {
+        setState(() => _comments.addAll(comments));
+      }
+    } catch (_) {}
   }
 
   Future<void> _sendComment() async {

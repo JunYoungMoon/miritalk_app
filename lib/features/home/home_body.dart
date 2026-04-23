@@ -1,6 +1,5 @@
 // lib/features/home/home_body.dart
 import 'package:flutter/material.dart';
-// import 'package:carousel_slider/carousel_slider.dart';
 import 'package:provider/provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
@@ -12,7 +11,6 @@ import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
 import 'package:miritalk_app/features/community/community_screen.dart';
 import 'dart:convert';
-import 'package:miritalk_app/features/community/community_detail_screen.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
 
 class HomeBody extends StatefulWidget {
@@ -24,20 +22,17 @@ class HomeBody extends StatefulWidget {
 }
 
 class _HomeBodyState extends State<HomeBody> {
-  // int _currentSlide = 0;
-  // bool _isBannerLoaded = false;
   late AuthProvider _authProvider;
   bool _listenerAttached = false;
   late final ScreenTimeTracker _tracker;
   bool _wasLoggedIn = false;
 
+  // 랭킹 API 데이터
   List<Map<String, dynamic>> _rankingPosts = [];
   bool _rankingLoading = true;
 
-  // final CarouselSliderController _carouselController =
-  // CarouselSliderController();
-
-  final List<Map<String, dynamic>> _tickerItems = [
+  // 폴백용 하드코딩 데이터 (API 실패 시 사용)
+  final List<Map<String, dynamic>> _fallbackTickerItems = [
     {'riskPct': 92, 'isHigh': true,  'text': '입금 먼저 해주시면 바로 보내드려요', 'likes': 128},
     {'riskPct': 88, 'isHigh': true,  'text': '검찰청입니다. 계좌가 범죄에 연루됐습니다', 'likes': 94},
     {'riskPct': 67, 'isHigh': false, 'text': '하루 수익률 3% 보장 해드립니다', 'likes': 76},
@@ -82,18 +77,30 @@ class _HomeBodyState extends State<HomeBody> {
     super.dispose();
   }
 
+  Future<void> _loadRanking() async {
+    try {
+      final response = await ApiClient().get('/api/community/ranking');
+      final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      if (mounted) {
+        setState(() {
+          _rankingPosts = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _rankingLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _rankingLoading = false);
+    }
+  }
+
   void _refreshQuotaIfLoggedIn() {
     if (!mounted) return;
     final auth = context.read<AuthProvider>();
-    context
-        .read<AnalysisQuotaProvider>()
-        .loadQuota(isLoggedIn: auth.isLoggedIn);
+    context.read<AnalysisQuotaProvider>().loadQuota(isLoggedIn: auth.isLoggedIn);
   }
 
   void _onAuthChanged() {
     if (!mounted) return;
     final auth = context.read<AuthProvider>();
-    // 로그인 상태가 실제로 바뀌었을 때만 갱신
     if (auth.isLoggedIn != _wasLoggedIn) {
       _wasLoggedIn = auth.isLoggedIn;
       _refreshQuotaIfLoggedIn();
@@ -103,24 +110,21 @@ class _HomeBodyState extends State<HomeBody> {
   void _checkButtonVisibility() {
     final ctx = _analyzeButtonKey.currentContext;
     if (ctx == null) return;
-
     final renderBox = ctx.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
-
     final buttonOffset = renderBox.localToGlobal(Offset.zero);
     final screenHeight = MediaQuery.of(context).size.height;
     final isVisible = buttonOffset.dy < screenHeight - renderBox.size.height;
-
     if (mounted && _showScrollHint != !isVisible) {
       setState(() => _showScrollHint = !isVisible);
     }
   }
 
   final List<Map<String, String>> _evidenceImages = [
-    {'path': 'assets/images/evidence_4.jpg', 'label': '사기접수 및 검거'},// 큰 사진
-    {'path': 'assets/images/evidence_3.jpg', 'label': '사기 피해 대화'},// 우측 1번
-    {'path': 'assets/images/evidence_1.jpg', 'label': '진정서 작성'},// 우측 2번
-    {'path': 'assets/images/evidence_2.jpg', 'label': '경찰 조사'},// 우측 3번
+    {'path': 'assets/images/evidence_4.jpg', 'label': '사기접수 및 검거'},
+    {'path': 'assets/images/evidence_3.jpg', 'label': '사기 피해 대화'},
+    {'path': 'assets/images/evidence_1.jpg', 'label': '진정서 작성'},
+    {'path': 'assets/images/evidence_2.jpg', 'label': '경찰 조사'},
   ];
 
   Future<void> _onAnalysisTap(BuildContext context) async {
@@ -130,24 +134,19 @@ class _HomeBodyState extends State<HomeBody> {
     if (!auth.isLoggedIn) {
       await quota.loadQuota(isLoggedIn: false);
       if (!context.mounted) return;
-
       if (quota.isExhausted) {
-        // ── Analytics: 게스트 할당량 초과 ──
         TrackingService.instance.logQuotaExhausted(isGuest: true);
         _showGuestQuotaDialog(context);
         return;
       }
-
-      await widget.onGoToUpload(); // 결과 화면까지 갔다가 돌아올 때까지 대기
+      await widget.onGoToUpload();
       if (!context.mounted) return;
       return;
     }
 
     await quota.loadQuota(isLoggedIn: true);
     if (!context.mounted) return;
-
     if (quota.isExhausted) {
-      // ── Analytics: 로그인 유저 할당량 초과 ──
       TrackingService.instance.logQuotaExhausted(isGuest: false);
       _showQuotaDialog(context, quota.usedCount, quota.maxCount);
       return;
@@ -167,10 +166,8 @@ class _HomeBodyState extends State<HomeBody> {
           children: [
             Icon(Icons.lock_outline, color: AppTheme.primary, size: 20),
             SizedBox(width: 8),
-            Text(
-              '분석 횟수 소진',
-              style: TextStyle(color: AppTheme.textPrimary, fontSize: 16),
-            ),
+            Text('분석 횟수 소진',
+                style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
           ],
         ),
         content: const Text(
@@ -180,23 +177,17 @@ class _HomeBodyState extends State<HomeBody> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              '취소',
-              style: TextStyle(color: AppTheme.textSecondary),
-            ),
+            child: const Text('취소',
+                style: TextStyle(color: AppTheme.textSecondary)),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-              );
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()));
             },
-            child: const Text(
-              '로그인하기',
-              style: TextStyle(color: AppTheme.primary),
-            ),
+            child: const Text('로그인하기',
+                style: TextStyle(color: AppTheme.primary)),
           ),
         ],
       ),
@@ -224,33 +215,23 @@ class _HomeBodyState extends State<HomeBody> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child:
-            const Text('확인', style: TextStyle(color: AppTheme.primary)),
+            child: const Text('확인', style: TextStyle(color: AppTheme.primary)),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _loadRanking() async {
-    try {
-      final response = await ApiClient().get('/api/community/ranking');
-      final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
-      if (mounted) {
-        setState(() {
-          _rankingPosts = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-          _rankingLoading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _rankingLoading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final quota = context.watch<AnalysisQuotaProvider>();
+
+    // 랭킹 데이터가 있으면 API 데이터 사용, 없으면 폴백
+    final tickerItems = (!_rankingLoading && _rankingPosts.isNotEmpty)
+        ? _rankingPosts
+        : _fallbackTickerItems;
+    final useApiData = !_rankingLoading && _rankingPosts.isNotEmpty;
 
     return Column(
       children: [
@@ -271,12 +252,12 @@ class _HomeBodyState extends State<HomeBody> {
                       decoration: BoxDecoration(
                         color: AppTheme.surface,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
+                        border: Border.all(
+                            color: AppTheme.primary.withValues(alpha: 0.2)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // ── 상단 텍스트 영역 ──
                           Padding(
                             padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
                             child: Column(
@@ -285,14 +266,12 @@ class _HomeBodyState extends State<HomeBody> {
                                 Row(
                                   children: [
                                     _TagBadge(
-                                      label: '실제 피해 경험 기반',
-                                      color: AppTheme.primary,
-                                    ),
+                                        label: '실제 피해 경험 기반',
+                                        color: AppTheme.primary),
                                     const SizedBox(width: 6),
                                     _TagBadge(
-                                      label: '완전 무료',
-                                      color: AppTheme.success,
-                                    ),
+                                        label: '완전 무료',
+                                        color: AppTheme.success),
                                   ],
                                 ),
                                 const SizedBox(height: 14),
@@ -325,7 +304,6 @@ class _HomeBodyState extends State<HomeBody> {
                               height: 130,
                               child: Row(
                                 children: [
-                                  // 왼쪽 큰 사진
                                   Expanded(
                                     flex: 2,
                                     child: _EvidencePhoto(
@@ -337,7 +315,6 @@ class _HomeBodyState extends State<HomeBody> {
                                     ),
                                   ),
                                   const SizedBox(width: 6),
-                                  // 오른쪽 작은 사진 3장
                                   Expanded(
                                     flex: 1,
                                     child: Column(
@@ -386,19 +363,36 @@ class _HomeBodyState extends State<HomeBody> {
                           ),
 
                           // ── 인기 분석 티커 ──
-                          _FeedTicker(items: _tickerItems),
+                          _FeedTicker(
+                            items: tickerItems,
+                            useApiData: useApiData,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => CommunityScreen(
+                                    preloadedRanking: _rankingPosts.isNotEmpty
+                                        ? _rankingPosts
+                                        .map((e) => CommunityPost.fromJson(e))
+                                        .toList()
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
 
                     const SizedBox(height: 16),
 
-                    // ── 3. 사기 유형 카드 ──
+                    // ── 2. 사기 유형 카드 ──
                     const _FraudTypeCards(),
 
                     const SizedBox(height: 20),
 
-                    // ── 4. 사용 방법 안내 ──
+                    // ── 3. 사용 방법 안내 ──
                     const Text('이렇게 사용하세요',
                         style: TextStyle(
                             color: AppTheme.textPrimary,
@@ -431,121 +425,7 @@ class _HomeBodyState extends State<HomeBody> {
 
                     const SizedBox(height: 20),
 
-                    // ── 5. 커뮤니티 Top3 ──
-                    if (!_rankingLoading && _rankingPosts.isNotEmpty) ...[
-                      const Text('많이 도움된 제보',
-                          style: TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 10),
-                      ..._rankingPosts.asMap().entries.map((entry) {
-                        final i = entry.key;
-                        final post = entry.value;
-                        final riskLevel = post['riskLevel'] as String? ?? '';
-                        final riskColor = AppTheme.riskLevelColor(riskLevel);
-                        return GestureDetector(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CommunityDetailScreen(
-                                  postId: post['id'] as int),
-                            ),
-                          ),
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppTheme.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: riskColor.withValues(alpha: 0.2)),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 24, height: 24,
-                                  decoration: BoxDecoration(
-                                    color: i == 0
-                                        ? const Color(0xFFFFD700).withValues(alpha: 0.2)
-                                        : i == 1
-                                        ? const Color(0xFFC0C0C0).withValues(alpha: 0.2)
-                                        : const Color(0xFFCD7F32).withValues(alpha: 0.2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Text('${i + 1}',
-                                        style: TextStyle(
-                                            color: i == 0
-                                                ? const Color(0xFFFFD700)
-                                                : i == 1
-                                                ? const Color(0xFFC0C0C0)
-                                                : const Color(0xFFCD7F32),
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold)),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if ((post['content'] as String? ?? '').isNotEmpty)
-                                        Text(
-                                          post['content'] as String,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                              color: AppTheme.textPrimary,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600),
-                                        )
-                                      else
-                                        Text(
-                                          post['summary'] as String? ?? '',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                              color: AppTheme.textPrimary, fontSize: 12),
-                                        ),
-                                      const SizedBox(height: 3),
-                                      Row(children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: riskColor.withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            '$riskLevel ${post['riskScore']}%',
-                                            style: TextStyle(
-                                                color: riskColor,
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.bold),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        const Icon(Icons.favorite,
-                                            color: AppTheme.danger, size: 10),
-                                        const SizedBox(width: 2),
-                                        Text('${post['likeCount']}',
-                                            style: const TextStyle(
-                                                color: AppTheme.textHint, fontSize: 10)),
-                                      ]),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(Icons.chevron_right,
-                                    color: AppTheme.textHint, size: 16),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 12),
-                    ],
-
-                    // ── 6. 잔여 횟수 뱃지 ──
+                    // ── 4. 잔여 횟수 뱃지 ──
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _QuotaBadge(
@@ -555,7 +435,7 @@ class _HomeBodyState extends State<HomeBody> {
                       ),
                     ),
 
-                    // ── 7. 분석 시작 버튼 ──
+                    // ── 5. 분석 시작 버튼 ──
                     SizedBox(
                       key: _analyzeButtonKey,
                       width: double.infinity,
@@ -592,7 +472,7 @@ class _HomeBodyState extends State<HomeBody> {
                 ),
               ),
 
-              // ── 스크롤 힌트 화살표 (Stack 위에 오버레이) ──
+              // ── 스크롤 힌트 화살표 ──
               if (_showScrollHint)
                 Positioned(
                   bottom: 16,
@@ -611,9 +491,6 @@ class _HomeBodyState extends State<HomeBody> {
             ],
           ),
         ),
-
-        // ── 하단 Banner 광고 ──
-        // const BannerAdWidget(),
       ],
     );
   }
@@ -624,36 +501,11 @@ class _FraudTypeCards extends StatelessWidget {
   const _FraudTypeCards();
 
   static const _types = [
-    (
-    icon: Icons.storefront_outlined,
-    color: Color(0xFF4FC3F7),
-    title: '중고거래 사기',
-    desc: '입금 후\n잠적·미배송',
-    ),
-    (
-    icon: Icons.trending_up,
-    color: Color(0xFF81C784),
-    title: '투자 사기',
-    desc: '고수익 미끼로\n투자 유도',
-    ),
-    (
-    icon: Icons.sports_esports_outlined,
-    color: Color(0xFFEF9A9A),
-    title: '게임 사기',
-    desc: '아이템 거래 후\n잠적·미지급',
-    ),
-    (
-    icon: Icons.phone_outlined,
-    color: Color(0xFFCE93D8),
-    title: '보이스피싱',
-    desc: '기관 사칭으로\n송금 유도',
-    ),
-    (
-    icon: Icons.work_outline,
-    color: Color(0xFFFFB74D),
-    title: '취업 사기',
-    desc: '허위 채용으로\n개인정보 탈취',
-    ),
+    (icon: Icons.storefront_outlined, color: Color(0xFF4FC3F7), title: '중고거래 사기', desc: '입금 후\n잠적·미배송'),
+    (icon: Icons.trending_up,         color: Color(0xFF81C784), title: '투자 사기',    desc: '고수익 미끼로\n투자 유도'),
+    (icon: Icons.sports_esports_outlined, color: Color(0xFFEF9A9A), title: '게임 사기', desc: '아이템 거래 후\n잠적·미지급'),
+    (icon: Icons.phone_outlined,      color: Color(0xFFCE93D8), title: '보이스피싱',   desc: '기관 사칭으로\n송금 유도'),
+    (icon: Icons.work_outline,        color: Color(0xFFFFB74D), title: '취업 사기',    desc: '허위 채용으로\n개인정보 탈취'),
   ];
 
   @override
@@ -661,17 +513,14 @@ class _FraudTypeCards extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '이런 사기를 사전에 탐지합니다',
-          style: TextStyle(
-            color: AppTheme.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        const Text('이런 사기를 사전에 탐지합니다',
+            style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         SizedBox(
-          height: 115, // 100 → 110
+          height: 115,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _types.length,
@@ -679,7 +528,7 @@ class _FraudTypeCards extends StatelessWidget {
             itemBuilder: (context, index) {
               final t = _types[index];
               return Container(
-                constraints: BoxConstraints(minWidth: 100, maxWidth: 120),
+                constraints: const BoxConstraints(minWidth: 100, maxWidth: 120),
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
                 decoration: BoxDecoration(
                   color: t.color.withValues(alpha: 0.08),
@@ -691,25 +540,17 @@ class _FraudTypeCards extends StatelessWidget {
                   children: [
                     Icon(t.icon, color: t.color, size: 22),
                     const SizedBox(height: 5),
-                    Text(
-                      t.title,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: t.color,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text(t.title,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: t.color,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold)),
                     const SizedBox(height: 3),
-                    Text(
-                      t.desc,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppTheme.textHint,
-                        fontSize: 9,
-                        height: 1.4,
-                      ),
-                    ),
+                    Text(t.desc,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: AppTheme.textHint, fontSize: 9, height: 1.4)),
                   ],
                 ),
               );
@@ -726,11 +567,7 @@ class _QuotaBadge extends StatelessWidget {
   final int used;
   final int max;
   final bool isGuest;
-  const _QuotaBadge({
-    required this.used,
-    required this.max,
-    this.isGuest = false,
-  });
+  const _QuotaBadge({required this.used, required this.max, this.isGuest = false});
 
   @override
   Widget build(BuildContext context) {
@@ -748,30 +585,21 @@ class _QuotaBadge extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Icon(
-                isExhausted ? Icons.block : Icons.analytics_outlined,
-                color: color,
-                size: 16,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                isExhausted
-                    ? (isGuest
-                    ? '로그인하면 매일 3회 분석할 수 있어요'
-                    : '오늘 분석 횟수를 모두 사용했습니다')
-                    : (isGuest ? '오늘 남은 분석 횟수' : '오늘 남은 분석 횟수'),
-                style: TextStyle(color: color, fontSize: 12),
-              ),
-            ],
-          ),
-          if (!isExhausted)
+          Row(children: [
+            Icon(isExhausted ? Icons.block : Icons.analytics_outlined,
+                color: color, size: 16),
+            const SizedBox(width: 8),
             Text(
-              '$remaining / $max',
-              style: TextStyle(
-                  color: color, fontSize: 13, fontWeight: FontWeight.bold),
+              isExhausted
+                  ? (isGuest ? '로그인하면 매일 3회 분석할 수 있어요' : '오늘 분석 횟수를 모두 사용했습니다')
+                  : '오늘 남은 분석 횟수',
+              style: TextStyle(color: color, fontSize: 12),
             ),
+          ]),
+          if (!isExhausted)
+            Text('$remaining / $max',
+                style: TextStyle(
+                    color: color, fontSize: 13, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -805,30 +633,23 @@ class _StepCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // ── 스텝 번호 ──
           Container(
-            width: 36,
-            height: 36,
+            width: 36, height: 36,
             decoration: BoxDecoration(
               color: AppTheme.primary.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
-              child: Text(
-                step,
-                style: const TextStyle(
-                  color: AppTheme.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
+              child: Text(step,
+                  style: const TextStyle(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15)),
             ),
           ),
           const SizedBox(width: 14),
-          // ── 아이콘 ──
           Icon(icon, color: AppTheme.textHint, size: 20),
           const SizedBox(width: 10),
-          // ── 텍스트 ──
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -841,54 +662,46 @@ class _StepCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(description,
                     style: const TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 12, height: 1.4)),
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        height: 1.4)),
               ],
             ),
           ),
-          // ── 오른쪽 이미지 ──
           if (imagePath != null) ...[
             const SizedBox(width: 10),
             GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    fullscreenDialog: true,
-                    builder: (_) => _AssetFullscreenViewer(
-                      images: [{'path': imagePath!, 'label': title}],
-                      initialIndex: 0,
-                      showWatermark: false, // 스텝 이미지는 워터마크 없음
-                    ),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => _AssetFullscreenViewer(
+                    images: [{'path': imagePath!, 'label': title}],
+                    initialIndex: 0,
+                    showWatermark: false,
                   ),
-                );
-              },
+                ),
+              ),
               child: Stack(
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(
-                      imagePath!,
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color: AppTheme.primary.withValues(alpha: 0.2)),
-                        ),
-                        child: const Icon(Icons.image_outlined,
-                            color: AppTheme.primary, size: 24),
-                      ),
-                    ),
+                    child: Image.asset(imagePath!,
+                        width: 64, height: 64, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 64, height: 64,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: AppTheme.primary.withValues(alpha: 0.2)),
+                          ),
+                          child: const Icon(Icons.image_outlined,
+                              color: AppTheme.primary, size: 24),
+                        )),
                   ),
-                  // 확대 힌트 아이콘
                   Positioned(
-                    top: 3,
-                    right: 3,
+                    top: 3, right: 3,
                     child: Container(
                       padding: const EdgeInsets.all(2),
                       decoration: BoxDecoration(
@@ -909,7 +722,7 @@ class _StepCard extends StatelessWidget {
   }
 }
 
-// 1. 풀스크린 뷰어 위젯 추가
+// ── 풀스크린 뷰어 ────────────────────────────────────
 class _AssetFullscreenViewer extends StatefulWidget {
   final List<Map<String, String>> images;
   final int initialIndex;
@@ -954,52 +767,34 @@ class _AssetFullscreenViewerState extends State<_AssetFullscreenViewer> {
           icon: const Icon(Icons.close, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          widget.images[_currentIndex]['label'] ?? '',
-          style: const TextStyle(color: Colors.white, fontSize: 15),
-        ),
+        title: Text(widget.images[_currentIndex]['label'] ?? '',
+            style: const TextStyle(color: Colors.white, fontSize: 15)),
         centerTitle: true,
       ),
       body: Stack(
         children: [
-          // ── 이미지 페이지뷰 ──
           PageView.builder(
             controller: _pageController,
             itemCount: widget.images.length,
             onPageChanged: (i) => setState(() => _currentIndex = i),
-            itemBuilder: (context, index) {
-              return InteractiveViewer(
-                minScale: 1.0,
-                maxScale: 4.0,
-                child: Center(
-                  child: Image.asset(
-                    widget.images[index]['path']!,
+            itemBuilder: (context, index) => InteractiveViewer(
+              minScale: 1.0,
+              maxScale: 4.0,
+              child: Center(
+                child: Image.asset(widget.images[index]['path']!,
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => const Icon(
-                      Icons.image_outlined,
-                      color: Colors.white38,
-                      size: 60,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-
-          // ── 워터마크 오버레이 (포인터 이벤트 통과) ──
-          if (widget.showWatermark)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: _WatermarkOverlay(),
+                        Icons.image_outlined, color: Colors.white38, size: 60)),
               ),
             ),
-
-          // ── 하단 인디케이터 ──
+          ),
+          if (widget.showWatermark)
+            Positioned.fill(
+              child: IgnorePointer(child: _WatermarkOverlay()),
+            ),
           if (widget.images.length > 1)
             Positioned(
-              bottom: 24,
-              left: 0,
-              right: 0,
+              bottom: 24, left: 0, right: 0,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: widget.images.asMap().entries.map((entry) {
@@ -1029,10 +824,7 @@ class _WatermarkOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _WatermarkPainter(),
-      child: Container(), // CustomPaint가 Positioned.fill을 채우도록
-    );
+    return CustomPaint(painter: _WatermarkPainter(), child: Container());
   }
 }
 
@@ -1044,28 +836,8 @@ class _WatermarkPainter extends CustomPainter {
       textAlign: TextAlign.center,
     );
 
-    // 대각선으로 텍스트를 반복 배치
-    final lines = [
-      '© 미리톡  무단 캡처 금지',
-      '저작권법 위반 시 민·형사상 책임',
-    ];
-
-    for (final line in lines) {
-      textPainter.text = TextSpan(
-        text: line,
-        style: const TextStyle(
-          color: Color(0x12FFFFFF), // 매우 연하게
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.2,
-        ),
-      );
-      textPainter.layout(maxWidth: size.width);
-    }
-
-    // 대각선 패턴으로 전체 화면에 반복 출력
     canvas.save();
-    canvas.rotate(-0.45); // 약 -25도 기울기
+    canvas.rotate(-0.45);
 
     const spacingX = 220.0;
     const spacingY = 90.0;
@@ -1076,17 +848,14 @@ class _WatermarkPainter extends CustomPainter {
       for (int col = -2; col < cols; col++) {
         final x = col * spacingX + (row.isEven ? 0 : spacingX / 2);
         final y = row * spacingY;
-
-        // 홀수 행: 저작권 경고, 짝수 행: 앱 이름
         final text = row.isEven ? '© 미리톡  무단캡처금지' : '저작권법 위반 시 법적 책임';
         textPainter.text = TextSpan(
           text: text,
           style: const TextStyle(
-            color: Color(0x12FFFFFF),
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 1.0,
-          ),
+              color: Color(0x12FFFFFF),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 1.0),
         );
         textPainter.layout();
         textPainter.paint(canvas, Offset(x, y));
@@ -1095,37 +864,25 @@ class _WatermarkPainter extends CustomPainter {
 
     canvas.restore();
 
-    // ── 하단 법적 경고 바 ──
     final warningRect = Rect.fromLTWH(0, size.height - 52, size.width, 52);
-    canvas.drawRect(
-      warningRect,
-      Paint()..color = Colors.black.withValues(alpha: 0.65),
-    );
+    canvas.drawRect(warningRect,
+        Paint()..color = Colors.black.withValues(alpha: 0.65));
 
     final warningPainter = TextPainter(
-      text: const TextSpan(
-        children: [
-          TextSpan(
-            text: '⚠️  ',
-            style: TextStyle(fontSize: 12),
-          ),
-          TextSpan(
-            text: '본 이미지는 저작권법의 보호를 받습니다.\n',
-            style: TextStyle(
+      text: const TextSpan(children: [
+        TextSpan(text: '⚠️  ', style: TextStyle(fontSize: 12)),
+        TextSpan(
+          text: '본 이미지는 저작권법의 보호를 받습니다.\n',
+          style: TextStyle(
               color: Color(0xFFFFD54F),
               fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          TextSpan(
-            text: '무단 캡처·배포 시 민·형사상 책임이 발생할 수 있습니다.',
-            style: TextStyle(
-              color: Color(0xAAFFFFFF),
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
+              fontWeight: FontWeight.w600),
+        ),
+        TextSpan(
+          text: '무단 캡처·배포 시 민·형사상 책임이 발생할 수 있습니다.',
+          style: TextStyle(color: Color(0xAAFFFFFF), fontSize: 11),
+        ),
+      ]),
       textDirection: TextDirection.ltr,
       maxLines: 2,
       textAlign: TextAlign.center,
@@ -1149,7 +906,6 @@ class _WatermarkPainter extends CustomPainter {
 class _TagBadge extends StatelessWidget {
   final String label;
   final Color color;
-
   const _TagBadge({required this.label, required this.color});
 
   @override
@@ -1166,19 +922,12 @@ class _TagBadge extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 5,
-            height: 5,
+            width: 5, height: 5,
             margin: const EdgeInsets.only(top: 1),
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(color: color, fontSize: 11),
-          ),
+          Text(label, style: TextStyle(color: color, fontSize: 11)),
         ],
       ),
     );
@@ -1209,9 +958,7 @@ class _EvidencePhoto extends StatelessWidget {
         MaterialPageRoute(
           fullscreenDialog: true,
           builder: (_) => _AssetFullscreenViewer(
-            images: allImages,
-            initialIndex: initialIndex,
-          ),
+              images: allImages, initialIndex: initialIndex),
         ),
       ),
       child: ClipRRect(
@@ -1219,35 +966,22 @@ class _EvidencePhoto extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(
-              imagePath,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                color: AppTheme.surfaceDeep,
-                child: const Icon(
-                  Icons.image_outlined,
-                  color: AppTheme.primary,
-                  size: 24,
-                ),
-              ),
-            ),
-            // 하단 라벨
+            Image.asset(imagePath,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                    color: AppTheme.surfaceDeep,
+                    child: const Icon(Icons.image_outlined,
+                        color: AppTheme.primary, size: 24))),
             Positioned(
               bottom: 0, left: 0, right: 0,
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 color: AppTheme.photoLabelBg,
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 9,
-                  ),
-                ),
+                child: Text(label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 9)),
               ),
             ),
-            // 줌 힌트 (큰 사진만)
             if (showZoom)
               Positioned(
                 top: 5, right: 5,
@@ -1257,11 +991,8 @@ class _EvidencePhoto extends StatelessWidget {
                     color: AppTheme.overlayMedium,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Icon(
-                    Icons.zoom_in,
-                    color: Colors.white70,
-                    size: 12,
-                  ),
+                  child: const Icon(Icons.zoom_in,
+                      color: Colors.white70, size: 12),
                 ),
               ),
           ],
@@ -1271,10 +1002,17 @@ class _EvidencePhoto extends StatelessWidget {
   }
 }
 
-// ── 인기 분석 티커 ─────────────────────────────────
+// ── 인기 분석 티커 ────────────────────────────────────
 class _FeedTicker extends StatefulWidget {
   final List<Map<String, dynamic>> items;
-  const _FeedTicker({required this.items});
+  final bool useApiData;
+  final VoidCallback onTap;
+
+  const _FeedTicker({
+    required this.items,
+    required this.onTap,
+    this.useApiData = false,
+  });
 
   @override
   State<_FeedTicker> createState() => _FeedTickerState();
@@ -1294,15 +1032,10 @@ class _FeedTickerState extends State<_FeedTicker>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    _slideOut = Tween<Offset>(
-      begin: Offset.zero,
-      end: const Offset(0, -1),
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
-    _slideIn = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
+    _slideOut = Tween<Offset>(begin: Offset.zero, end: const Offset(0, -1))
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+    _slideIn = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
     _startTicker();
   }
 
@@ -1326,110 +1059,117 @@ class _FeedTickerState extends State<_FeedTicker>
     super.dispose();
   }
 
+  // API 데이터 파싱 헬퍼
+  bool _isHigh(Map<String, dynamic> item) {
+    if (widget.useApiData) {
+      return ['높음', '매우높음'].contains(item['riskLevel'] as String? ?? '');
+    }
+    return item['isHigh'] as bool;
+  }
+
+  int _riskPct(Map<String, dynamic> item) {
+    if (widget.useApiData) return (item['riskScore'] as int? ?? 0);
+    return item['riskPct'] as int;
+  }
+
+  String _text(Map<String, dynamic> item) {
+    if (widget.useApiData) {
+      final content = item['content'] as String? ?? '';
+      return content.isNotEmpty ? content : (item['summary'] as String? ?? '');
+    }
+    return item['text'] as String;
+  }
+
+  int _likes(Map<String, dynamic> item) {
+    if (widget.useApiData) return (item['likeCount'] as int? ?? 0);
+    return item['likes'] as int;
+  }
+
+  void _onTap(BuildContext context) {
+    widget.onTap();
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.items[_currentIndex];
-    final isHigh = item['isHigh'] as bool;
-    final riskPct = item['riskPct'] as int;
-    final text = item['text'] as String;
-    final likes = item['likes'] as int;
-
-    final riskColor = isHigh ? AppTheme.riskHigh : AppTheme.riskMedium;
-    final riskBg    = isHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg;
-
-    // SlideTransition 들어오는 텍스트 바로 위에 변수 선언
     final nextItem = _currentIndex + 1 < widget.items.length
         ? widget.items[_currentIndex + 1]
         : widget.items[0];
-    final nextIsHigh = nextItem['isHigh'] as bool;
+
+    final isHigh = _isHigh(item);
+    final nextIsHigh = _isHigh(nextItem);
 
     return GestureDetector(
-        onTap: () {
-          // 커뮤니티 탭으로 이동 — main_screen의 탭 인덱스에 맞게 조정 필요
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const CommunityScreen(),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // 라벨
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
+      onTap: widget.onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 라벨
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 18, height: 18,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(5),
                   ),
-                  const SizedBox(width: 5),
-                  const Text(
-                    '인기 분석',
-                    style: TextStyle(color: AppTheme.textHint, fontSize: 10),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 10),
-              Container(width: 0.5, height: 18, color: AppTheme.divider),
-              const SizedBox(width: 10),
-
-              // 슬라이드 영역
-              Expanded(
-                child: SizedBox(
-                  height: 20,
-                  child: ClipRect(
-                    child: Stack(
-                      children: [
-                        // 나가는 텍스트
-                        SlideTransition(
-                          position: _slideOut,
-                          child: _TickerRow(
-                            riskPct: riskPct,
-                            riskColor: riskColor,
-                            riskBg: riskBg,
-                            isHigh: isHigh,
-                            text: text,
-                            likes: likes,
-                          ),
-                        ),
-                        // 들어오는 텍스트
-                        SlideTransition(
-                          position: _slideIn,
-                          child: _TickerRow(
-                            riskPct: nextItem['riskPct'] as int,
-                            riskColor: nextIsHigh ? AppTheme.riskHigh : AppTheme.riskMedium,
-                            riskBg: nextIsHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg,
-                            isHigh: nextIsHigh,
-                            text: nextItem['text'] as String,
-                            likes: nextItem['likes'] as int,
-                          ),
-                        ),
-                      ],
+                  child: Center(
+                    child: Container(
+                      width: 7, height: 7,
+                      decoration: BoxDecoration(
+                          color: AppTheme.primary, shape: BoxShape.circle),
                     ),
                   ),
                 ),
+                const SizedBox(width: 5),
+                const Text('인기 분석',
+                    style: TextStyle(color: AppTheme.textHint, fontSize: 10)),
+              ],
+            ),
+            const SizedBox(width: 10),
+            Container(width: 0.5, height: 18, color: AppTheme.divider),
+            const SizedBox(width: 10),
+
+            // 슬라이드 영역
+            Expanded(
+              child: SizedBox(
+                height: 20,
+                child: ClipRect(
+                  child: Stack(
+                    children: [
+                      SlideTransition(
+                        position: _slideOut,
+                        child: _TickerRow(
+                          riskPct: _riskPct(item),
+                          riskColor: isHigh ? AppTheme.riskHigh : AppTheme.riskMedium,
+                          riskBg: isHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg,
+                          isHigh: isHigh,
+                          text: _text(item),
+                          likes: _likes(item),
+                        ),
+                      ),
+                      SlideTransition(
+                        position: _slideIn,
+                        child: _TickerRow(
+                          riskPct: _riskPct(nextItem),
+                          riskColor: nextIsHigh ? AppTheme.riskHigh : AppTheme.riskMedium,
+                          riskBg: nextIsHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg,
+                          isHigh: nextIsHigh,
+                          text: _text(nextItem),
+                          likes: _likes(nextItem),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ],
-          ),
-        )
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1461,38 +1201,24 @@ class _TickerRow extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: riskBg,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              '${isHigh ? "위험" : "의심"} $riskPct%',
-              style: TextStyle(
-                color: riskColor,
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+                color: riskBg, borderRadius: BorderRadius.circular(4)),
+            child: Text('${isHigh ? "위험" : "의심"} $riskPct%',
+                style: TextStyle(
+                    color: riskColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold)),
           ),
           const SizedBox(width: 6),
           Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 11,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Text(text,
+                style: const TextStyle(
+                    color: AppTheme.textSecondary, fontSize: 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
           ),
           const SizedBox(width: 6),
-          Text(
-            '♥ $likes',
-            style: const TextStyle(
-              color: AppTheme.textHint,
-              fontSize: 10,
-            ),
-          ),
+          Text('♥ $likes',
+              style: const TextStyle(color: AppTheme.textHint, fontSize: 10)),
         ],
       ),
     );

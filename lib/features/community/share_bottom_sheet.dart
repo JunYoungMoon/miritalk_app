@@ -63,7 +63,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   // 이미지
   List<Uint8List> _imageBytes = [];
   bool _imagesLoading = true;
-  List<Uint8List>? _editedImages;
+  Map<int, Uint8List>? _editedImageMap;
 
   // 설정
   bool _includeImages = true;
@@ -154,19 +154,27 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   Future<void> _openEditor() async {
-    final edited = await Navigator.push<List<Uint8List>>(
+    final edited = await Navigator.push<Map<int, Uint8List>>(
       context,
       MaterialPageRoute(
         builder: (_) => ImageMaskEditorScreen(
-          imageBytesList: _editedImages ?? _imageBytes,
+          imageBytesList: _imageBytes,
         ),
       ),
     );
-    if (edited != null) setState(() => _editedImages = edited);
+    if (edited != null) setState(() => _editedImageMap = edited);
   }
 
   void _submit() {
     if (_selectedDisplayName == null) return;
+
+    final editedImages = _includeImages
+        ? (_editedImageMap?.values.toList() ?? [])
+        : <Uint8List>[];
+    final editedOrders = _includeImages
+        ? (_editedImageMap?.keys.toList() ?? [])
+        : <int>[];
+
     Navigator.pop(
       context,
       ShareResult(
@@ -174,7 +182,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
         category: _selectedDisplayName!,
         anonymous: _anonymous,
         includeImages: _includeImages,
-        editedImages: _includeImages ? (_editedImages ?? []) : [],
+        editedImages: editedImages,
+        editedImageOrders: editedOrders,
         content: _contentCtrl.text.trim(),
       ),
     );
@@ -374,20 +383,20 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     child: OutlinedButton.icon(
                       onPressed: _openEditor,
                       icon: Icon(
-                        _editedImages != null
+                        _editedImageMap != null
                             ? Icons.check_circle_outline
                             : Icons.edit_outlined,
                         size: 16,
-                        color: _editedImages != null
+                        color: _editedImageMap != null
                             ? AppTheme.success
                             : AppTheme.primary,
                       ),
                       label: Text(
-                        _editedImages != null
+                        _editedImageMap != null
                             ? '편집 완료 (다시 편집하기)'
                             : '개인정보 가리기 (권장)',
                         style: TextStyle(
-                          color: _editedImages != null
+                          color: _editedImageMap != null
                               ? AppTheme.success
                               : AppTheme.primary,
                           fontSize: 13,
@@ -395,7 +404,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       ),
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(
-                          color: _editedImages != null
+                          color: _editedImageMap != null
                               ? AppTheme.success
                               : AppTheme.primary,
                         ),
@@ -517,6 +526,7 @@ class ShareResult {
   final bool anonymous;
   final bool includeImages;
   final List<Uint8List> editedImages;
+  final List<int> editedImageOrders;
   final String content;
 
   const ShareResult({
@@ -525,6 +535,7 @@ class ShareResult {
     required this.anonymous,
     required this.includeImages,
     required this.editedImages,
+    required this.editedImageOrders,
     required this.content,
   });
 }
