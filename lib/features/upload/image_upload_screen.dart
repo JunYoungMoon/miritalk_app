@@ -273,109 +273,153 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ── 설명 텍스트 ──
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 24, 12, 20),
-              child: Text(
-                '의심되는 대화 내역을 캡처해서 업로드하면,\n실제 사기 사례로 학습된 AI가 분석합니다.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, height: 1.6),
-              ),
-            ),
-
-            // ── 이미지 선택 영역 ──
-            Container(
-              color: AppTheme.surface,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: SizedBox(
-                height: 90,
-                child: Row(
-                  children: [
-                    _CameraButton(
-                      count: _selectedImages.length,
-                      maxCount: _maxImages,
-                      onTap: _openGallery,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 10),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(100),
+                      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.25), width: 0.5),
                     ),
-                    if (_selectedImages.isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: SizedBox(
-                          height: 90,
-                          child: ReorderableListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            buildDefaultDragHandles: false,
-                            proxyDecorator: (child, index, animation) {
-                              return AnimatedBuilder(
-                                animation: animation,
-                                builder: (_, __) {
-                                  final scale =
-                                  Tween<double>(begin: 1.0, end: 1.15).evaluate(
-                                    CurvedAnimation(
-                                        parent: animation,
-                                        curve: Curves.easeOut),
-                                  );
-                                  return Transform.scale(
-                                    scale: scale,
-                                    child: Material(
-                                        color: Colors.transparent, child: child),
-                                  );
-                                },
-                              );
-                            },
-                            onReorder: (oldIndex, newIndex) {
-                              setState(() {
-                                if (newIndex > oldIndex) newIndex--;
-                                final item = _selectedImages.removeAt(oldIndex);
-                                _selectedImages.insert(newIndex, item);
-                              });
-                            },
-                            itemCount: _selectedImages.length,
-                            itemBuilder: (context, index) {
-                              return ReorderableDelayedDragStartListener(
-                                key: ValueKey(_selectedImages[index].id),
-                                index: index,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: _ImageThumbnail(
-                                    asset: _selectedImages[index],
-                                    isFirst: index == 0,
-                                    onRemove: () => _removeImage(index),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.auto_awesome, size: 12, color: Color(0xFFBDB0FF)),
+                        SizedBox(width: 6),
+                        Text('실제 사기 사례로 학습된 AI',
+                            style: TextStyle(color: Color(0xFFBDB0FF), fontSize: 11, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    '의심되는 대화 내역을 캡처해서\n업로드해 주세요.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      height: 1.5,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                ],
               ),
             ),
 
             // ── 안내 문구 ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              child: Column(
+                children: const [
+                  _InfoRow(icon: Icons.chat_outlined,
+                      text: '카카오톡, 문자, 거래 앱 등 모든 대화 캡처를 분석할 수 있습니다.',
+                      highlight: true),
+                  SizedBox(height: 8),
+                  _InfoRow(icon: Icons.star_outline,
+                      text: '첫 번째 사진을 가장 중요하거나 강조하고 싶은 장면으로 선택하세요.'),
+                  SizedBox(height: 8),
+                  _InfoRow(icon: Icons.lock_outline,
+                      text: '업로드된 사진은 분석에만 사용되며 AI 학습에 활용되지 않습니다.'),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ── 이미지 선택 영역 ──
+            Container(
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                border: Border.symmetric(
+                  horizontal: BorderSide(color: AppTheme.divider, width: 0.5),
+                ),
+              ),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  _InfoRow(
-                    icon: Icons.chat_outlined,
-                    text: '카카오톡, 문자, 거래 앱 등 모든 대화 캡처를 분석할 수 있습니다.',
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      RichText(
+                        text: TextSpan(children: [
+                          const TextSpan(text: '선택한 사진',
+                              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                          TextSpan(text: '  ${_selectedImages.length}',
+                              style: const TextStyle(color: Color(0xFFBDB0FF), fontSize: 12, fontWeight: FontWeight.w700)),
+                          TextSpan(text: ' / $_maxImages',
+                              style: const TextStyle(color: AppTheme.textHint, fontSize: 12)),
+                        ]),
+                      ),
+                      const Row(children: [
+                        Icon(Icons.reorder, color: AppTheme.textHint, size: 13),
+                        SizedBox(width: 4),
+                        Text('길게 눌러 순서 변경',
+                            style: TextStyle(color: AppTheme.textHint, fontSize: 11)),
+                      ]),
+                    ],
                   ),
-                  SizedBox(height: 6),
-                  _InfoRow(
-                    icon: Icons.star_outline,
-                    text: '첫 번째 사진을 가장 중요하거나 강조하고 싶은 장면으로 선택하세요.',
-                  ),
-                  SizedBox(height: 6),
-                  _InfoRow(
-                    icon: Icons.swap_vert,
-                    text: '사진을 길게 눌러 드래그하면 순서를 변경할 수 있습니다.',
-                  ),
-                  SizedBox(height: 6),
-                  _InfoRow(
-                    icon: Icons.lock_outline,
-                    text: '업로드된 사진은 분석에만 사용되며 AI 학습에 활용되지 않습니다.',
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 92,
+                    child: Row(
+                      children: [
+                        _CameraButton(
+                          count: _selectedImages.length,
+                          maxCount: _maxImages,
+                          onTap: _openGallery,
+                        ),
+                        if (_selectedImages.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: SizedBox(
+                              height: 92,
+                              child: ReorderableListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                buildDefaultDragHandles: false,
+                                proxyDecorator: (child, index, animation) {
+                                  return AnimatedBuilder(
+                                    animation: animation,
+                                    builder: (_, __) {
+                                      final scale = Tween<double>(begin: 1.0, end: 1.15)
+                                          .evaluate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
+                                      return Transform.scale(scale: scale,
+                                          child: Material(color: Colors.transparent, child: child));
+                                    },
+                                  );
+                                },
+                                onReorder: (oldIndex, newIndex) {
+                                  setState(() {
+                                    if (newIndex > oldIndex) newIndex--;
+                                    final item = _selectedImages.removeAt(oldIndex);
+                                    _selectedImages.insert(newIndex, item);
+                                  });
+                                },
+                                itemCount: _selectedImages.length,
+                                itemBuilder: (context, index) {
+                                  return ReorderableDelayedDragStartListener(
+                                    key: ValueKey(_selectedImages[index].id),
+                                    index: index,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: _ImageThumbnail(
+                                        asset: _selectedImages[index],
+                                        isFirst: index == 0,
+                                        onRemove: () => _removeImage(index),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -384,37 +428,49 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
             const Spacer(),
 
             // ── 분석 요청 버튼 ──
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: ElevatedButton(
-                  onPressed: _isUploading ? null : _uploadImages,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    disabledBackgroundColor:
-                    AppTheme.primary.withValues(alpha: 0.3),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, 14, 16,
+                  MediaQuery.of(context).padding.bottom + 20),
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: _isUploading
+                      ? LinearGradient(colors: [
+                    AppTheme.primary.withValues(alpha: 0.5),
+                    AppTheme.primaryDeep.withValues(alpha: 0.5),
+                  ])
+                      : const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [AppTheme.primary, AppTheme.primaryDeep],
                   ),
-                  child: _isUploading
-                      ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                      : const Text(
-                    '분석 요청하기',
-                    style: TextStyle(
-                        fontSize: 16,
-                        color: AppTheme.textPrimary,
-                        fontWeight: FontWeight.bold),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: _isUploading ? null : _uploadImages,
+                    child: Center(
+                      child: _isUploading
+                          ? const SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.psychology_outlined, color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Text('분석 요청하기',
+                              style: TextStyle(
+                                  color: Colors.white, fontSize: 16,
+                                  fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -428,41 +484,95 @@ class _CameraButton extends StatelessWidget {
   final int maxCount;
   final VoidCallback onTap;
 
-  const _CameraButton(
-      {required this.count, required this.maxCount, required this.onTap});
+  const _CameraButton({required this.count, required this.maxCount, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 76,
-        height: 90,
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-              color: AppTheme.primary.withValues(alpha: 0.4), width: 1.2),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.camera_alt_outlined,
-                color: AppTheme.primary, size: 28),
-            const SizedBox(height: 6),
-            Text(
-              count == 0 ? '사진 선택' : '$count/$maxCount',
-              style: const TextStyle(
-                color: AppTheme.primary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
+      child: SizedBox(
+        width: 76, height: 92,
+        child: CustomPaint(
+          painter: _DashedBorderPainter(
+            color: AppTheme.primary.withValues(alpha: 0.5),
+            radius: 12,
+            dashWidth: 3,
+            dashSpace: 2,
+            strokeWidth: 1.0,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.camera_alt_outlined, color: AppTheme.primary, size: 20),
+                const SizedBox(height: 3),
+                Text(
+                  '$count/$maxCount',
+                  style: const TextStyle(
+                    color: Color(0xFFBDB0FF),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double radius;
+  final double dashWidth;
+  final double dashSpace;
+  final double strokeWidth;
+
+  const _DashedBorderPainter({
+    required this.color,
+    required this.radius,
+    required this.dashWidth,
+    required this.dashSpace,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(strokeWidth / 2, strokeWidth / 2,
+            size.width - strokeWidth, size.height - strokeWidth),
+        Radius.circular(radius),
+      ));
+
+    for (final metric in path.computeMetrics()) {
+      double distance = 0;
+      while (distance < metric.length) {
+        canvas.drawPath(
+          metric.extractPath(distance, distance + dashWidth),
+          paint,
+        );
+        distance += dashWidth + dashSpace;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter old) =>
+      old.color != color ||
+          old.dashWidth != dashWidth ||
+          old.dashSpace != dashSpace;
 }
 
 // ── 선택된 이미지 썸네일 위젯 ────────────────────
@@ -487,10 +597,18 @@ class _ImageThumbnail extends StatelessWidget {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.done &&
                   snapshot.data != null) {
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.memory(snapshot.data!,
-                      width: 76, height: 90, fit: BoxFit.cover),
+                return Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: isFirst
+                        ? Border.all(color: AppTheme.primary, width: 1.2)
+                        : Border.all(color: AppTheme.divider, width: 0.5),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(11),
+                    child: Image.memory(snapshot.data!,
+                        width: 76, height: 92, fit: BoxFit.cover),
+                  ),
                 );
               }
               return ClipRRect(
@@ -560,24 +678,55 @@ class _ImageThumbnail extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String text;
+  final bool highlight;
 
-  const _InfoRow({required this.icon, required this.text});
+  const _InfoRow({required this.icon, required this.text, this.highlight = false});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Icon(icon, color: AppTheme.primary, size: 14),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-                color: AppTheme.primary, fontSize: 12, height: 1.5),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: highlight
+            ? AppTheme.primary.withValues(alpha: 0.08)
+            : AppTheme.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: highlight
+              ? AppTheme.primary.withValues(alpha: 0.25)
+              : AppTheme.divider,
+          width: 0.5,
         ),
-      ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 24, height: 24,
+            decoration: BoxDecoration(
+              color: highlight
+                  ? AppTheme.primary.withValues(alpha: 0.18)
+                  : AppTheme.surfaceDeep,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(icon,
+                size: 13,
+                color: highlight ? const Color(0xFFBDB0FF) : AppTheme.textSecondary),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: highlight ? AppTheme.textPrimary : AppTheme.textSecondary,
+                fontSize: 12,
+                height: 1.55,
+                letterSpacing: -0.15,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

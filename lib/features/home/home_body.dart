@@ -1,17 +1,19 @@
 // lib/features/home/home_body.dart
+import 'dart:convert';
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
+import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
+import 'package:miritalk_app/core/tracking/tracking_service.dart';
+import 'package:miritalk_app/core/utils/screen_secure_util.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
+import 'package:miritalk_app/features/community/community_screen.dart';
 import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
 import 'package:miritalk_app/features/home/widgets/scroll_hint_arrow.dart';
-import 'package:miritalk_app/core/utils/screen_secure_util.dart';
-import 'package:miritalk_app/core/tracking/tracking_service.dart';
-import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
-import 'package:miritalk_app/features/community/community_screen.dart';
-import 'dart:convert';
-import 'package:miritalk_app/core/network/api_client.dart';
+import 'package:provider/provider.dart';
 
 class HomeBody extends StatefulWidget {
   final Future<void> Function() onGoToUpload;
@@ -27,11 +29,9 @@ class _HomeBodyState extends State<HomeBody> {
   late final ScreenTimeTracker _tracker;
   bool _wasLoggedIn = false;
 
-  // 랭킹 API 데이터
   List<Map<String, dynamic>> _rankingPosts = [];
   bool _rankingLoading = true;
 
-  // 폴백용 하드코딩 데이터 (API 실패 시 사용)
   final List<Map<String, dynamic>> _fallbackTickerItems = [
     {'riskPct': 92, 'isHigh': true,  'text': '입금 먼저 해주시면 바로 보내드려요', 'likes': 128},
     {'riskPct': 88, 'isHigh': true,  'text': '검찰청입니다. 계좌가 범죄에 연루됐습니다', 'likes': 94},
@@ -41,19 +41,15 @@ class _HomeBodyState extends State<HomeBody> {
   ];
 
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey _analyzeButtonKey = GlobalKey();
+  final GlobalKey _ctaButtonKey = GlobalKey();
   bool _showScrollHint = false;
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_listenerAttached) {
-      _authProvider = context.read<AuthProvider>();
-      _wasLoggedIn = _authProvider.isLoggedIn;
-      _authProvider.addListener(_onAuthChanged);
-      _listenerAttached = true;
-    }
-  }
+  final List<Map<String, String>> _evidenceImages = [
+    {'path': 'assets/images/evidence_4.jpg', 'label': '사기접수 및 검거'},
+    {'path': 'assets/images/evidence_3.jpg', 'label': '사기 피해 대화'},
+    {'path': 'assets/images/evidence_1.jpg', 'label': '진정서 작성'},
+    {'path': 'assets/images/evidence_2.jpg', 'label': '경찰 조사'},
+  ];
 
   @override
   void initState() {
@@ -68,11 +64,20 @@ class _HomeBodyState extends State<HomeBody> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_listenerAttached) {
+      _authProvider = context.read<AuthProvider>();
+      _wasLoggedIn = _authProvider.isLoggedIn;
+      _authProvider.addListener(_onAuthChanged);
+      _listenerAttached = true;
+    }
+  }
+
+  @override
   void dispose() {
     _tracker.dispose();
-    if (_listenerAttached) {
-      _authProvider.removeListener(_onAuthChanged);
-    }
+    if (_listenerAttached) _authProvider.removeListener(_onAuthChanged);
     _scrollController.dispose();
     super.dispose();
   }
@@ -108,24 +113,17 @@ class _HomeBodyState extends State<HomeBody> {
   }
 
   void _checkButtonVisibility() {
-    final ctx = _analyzeButtonKey.currentContext;
+    final ctx = _ctaButtonKey.currentContext;
     if (ctx == null) return;
     final renderBox = ctx.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
-    final buttonOffset = renderBox.localToGlobal(Offset.zero);
+    final offset = renderBox.localToGlobal(Offset.zero);
     final screenHeight = MediaQuery.of(context).size.height;
-    final isVisible = buttonOffset.dy < screenHeight - renderBox.size.height;
+    final isVisible = offset.dy < screenHeight - renderBox.size.height;
     if (mounted && _showScrollHint != !isVisible) {
       setState(() => _showScrollHint = !isVisible);
     }
   }
-
-  final List<Map<String, String>> _evidenceImages = [
-    {'path': 'assets/images/evidence_4.jpg', 'label': '사기접수 및 검거'},
-    {'path': 'assets/images/evidence_3.jpg', 'label': '사기 피해 대화'},
-    {'path': 'assets/images/evidence_1.jpg', 'label': '진정서 작성'},
-    {'path': 'assets/images/evidence_2.jpg', 'label': '경찰 조사'},
-  ];
 
   Future<void> _onAnalysisTap(BuildContext context) async {
     final auth = context.read<AuthProvider>();
@@ -140,7 +138,6 @@ class _HomeBodyState extends State<HomeBody> {
         return;
       }
       await widget.onGoToUpload();
-      if (!context.mounted) return;
       return;
     }
 
@@ -153,7 +150,6 @@ class _HomeBodyState extends State<HomeBody> {
     }
 
     await widget.onGoToUpload();
-    if (!context.mounted) return;
   }
 
   void _showGuestQuotaDialog(BuildContext context) {
@@ -162,14 +158,12 @@ class _HomeBodyState extends State<HomeBody> {
       builder: (_) => AlertDialog(
         backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.lock_outline, color: AppTheme.primary, size: 20),
-            SizedBox(width: 8),
-            Text('분석 횟수 소진',
-                style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
-          ],
-        ),
+        title: const Row(children: [
+          Icon(Icons.lock_outline, color: AppTheme.primary, size: 20),
+          SizedBox(width: 8),
+          Text('분석 횟수 소진',
+              style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
+        ]),
         content: const Text(
           '비로그인 1회를 사용했습니다.\n로그인하면 매일 3회 분석할 수 있어요!',
           style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
@@ -200,14 +194,12 @@ class _HomeBodyState extends State<HomeBody> {
       builder: (_) => AlertDialog(
         backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.block, color: AppTheme.danger, size: 20),
-            SizedBox(width: 8),
-            Text('오늘 분석 횟수 초과',
-                style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
-          ],
-        ),
+        title: const Row(children: [
+          Icon(Icons.block, color: AppTheme.danger, size: 20),
+          SizedBox(width: 8),
+          Text('오늘 분석 횟수 초과',
+              style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
+        ]),
         content: Text(
           '오늘 분석 횟수($max회)를 모두 사용했습니다.\n내일 자정에 횟수가 초기화됩니다.',
           style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
@@ -215,7 +207,8 @@ class _HomeBodyState extends State<HomeBody> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('확인', style: TextStyle(color: AppTheme.primary)),
+            child: const Text('확인',
+                style: TextStyle(color: AppTheme.primary)),
           ),
         ],
       ),
@@ -227,11 +220,13 @@ class _HomeBodyState extends State<HomeBody> {
     final auth = context.watch<AuthProvider>();
     final quota = context.watch<AnalysisQuotaProvider>();
 
-    // 랭킹 데이터가 있으면 API 데이터 사용, 없으면 폴백
     final tickerItems = (!_rankingLoading && _rankingPosts.isNotEmpty)
         ? _rankingPosts
         : _fallbackTickerItems;
     final useApiData = !_rankingLoading && _rankingPosts.isNotEmpty;
+
+    final isExhausted = quota.isExhausted;
+    final isGuest = !auth.isLoggedIn;
 
     return Column(
       children: [
@@ -241,243 +236,65 @@ class _HomeBodyState extends State<HomeBody> {
               SingleChildScrollView(
                 controller: _scrollController,
                 padding: EdgeInsets.fromLTRB(
-                  12, 16, 12,
-                  MediaQuery.of(context).padding.bottom + 20,
+                  16, 14, 16,
+                  MediaQuery.of(context).padding.bottom + 24,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── 1. 헤더 스토리 카드 ──
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: AppTheme.primary.withValues(alpha: 0.2)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    _TagBadge(
-                                        label: '실제 피해 경험 기반',
-                                        color: AppTheme.primary),
-                                    const SizedBox(width: 6),
-                                    _TagBadge(
-                                        label: '완전 무료',
-                                        color: AppTheme.success),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-                                const Text(
-                                  '사기를 당하다 보니\n전문가가 됐습니다.',
-                                  style: TextStyle(
-                                    color: AppTheme.textPrimary,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.4,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  '직접 겪은 수십 건의 사기 경험을 AI에 담았어요.\n대화 캡처 한 장으로 사기 여부를 판단해드립니다.',
-                                  style: TextStyle(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 12,
-                                    height: 1.7,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // ── 사진 영역 ──
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
-                            child: SizedBox(
-                              height: 130,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    flex: 2,
-                                    child: _EvidencePhoto(
-                                      imagePath: _evidenceImages[0]['path']!,
-                                      label: _evidenceImages[0]['label']!,
-                                      allImages: _evidenceImages,
-                                      initialIndex: 0,
-                                      showZoom: true,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    flex: 1,
-                                    child: Column(
-                                      children: [
-                                        Expanded(
-                                          child: _EvidencePhoto(
-                                            imagePath: _evidenceImages[1]['path']!,
-                                            label: _evidenceImages[1]['label']!,
-                                            allImages: _evidenceImages,
-                                            initialIndex: 1,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 5),
-                                        Expanded(
-                                          child: _EvidencePhoto(
-                                            imagePath: _evidenceImages[2]['path']!,
-                                            label: _evidenceImages[2]['label']!,
-                                            allImages: _evidenceImages,
-                                            initialIndex: 2,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 5),
-                                        Expanded(
-                                          child: _EvidencePhoto(
-                                            imagePath: _evidenceImages[3]['path']!,
-                                            label: _evidenceImages[3]['label']!,
-                                            allImages: _evidenceImages,
-                                            initialIndex: 3,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          // ── 구분선 ──
-                          Divider(
-                            height: 1,
-                            thickness: 0.5,
-                            color: AppTheme.divider,
-                            indent: 18,
-                            endIndent: 18,
-                          ),
-
-                          // ── 인기 분석 티커 ──
-                          _FeedTicker(
-                            items: tickerItems,
-                            useApiData: useApiData,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => CommunityScreen(
-                                    preloadedRanking: _rankingPosts.isNotEmpty
-                                        ? _rankingPosts
-                                        .map((e) => CommunityPost.fromJson(e))
-                                        .toList()
-                                        : null,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+                    // ── 1. Hero Story Card ──
+                    _HeroStoryCard(
+                      evidenceImages: _evidenceImages,
+                      tickerItems: tickerItems,
+                      useApiData: useApiData,
+                      rankingPosts: _rankingPosts,
                     ),
 
                     const SizedBox(height: 16),
 
-                    // ── 2. 사기 유형 카드 ──
-                    const _FraudTypeCards(),
-
-                    const SizedBox(height: 20),
-
-                    // ── 3. 사용 방법 안내 ──
-                    const Text('이렇게 사용하세요',
-                        style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold)),
+                    // ── 2. Category row ──
+                    const _SectionTitle(
+                      overline: '카테고리',
+                      title: '이런 사기를 사전에 탐지합니다',
+                    ),
                     const SizedBox(height: 14),
-                    const _StepCard(
-                      step: '1',
-                      icon: Icons.chat_bubble_outline,
-                      title: '대화 화면 캡처',
-                      description: '의심되는 상대방과의 대화 내용을 캡처해 주세요.',
-                      imagePath: 'assets/images/step_capture.jpg',
-                    ),
-                    const SizedBox(height: 10),
-                    const _StepCard(
-                      step: '2',
-                      icon: Icons.upload_outlined,
-                      title: '사진 업로드',
-                      description: '캡처한 사진을 최대 5장까지 업로드합니다.',
-                      imagePath: 'assets/images/step_upload.gif',
-                    ),
-                    const SizedBox(height: 10),
-                    const _StepCard(
-                      step: '3',
-                      icon: Icons.analytics_outlined,
-                      title: 'AI 분석',
-                      description: '미리톡 AI가 사기 패턴을 분석하고 결과를 알려드립니다.',
-                      imagePath: 'assets/images/step_result.gif',
-                    ),
+                    const _CategoryRow(),
+                    const SizedBox(height: 14),
 
+                    // ── 3. Step list ──
+                    const _SectionTitle(
+                      overline: '사용 방법',
+                      title: '3단계면 충분해요',
+                    ),
+                    const SizedBox(height: 14),
+                    const _StepList(),
                     const SizedBox(height: 20),
 
-                    // ── 4. 잔여 횟수 뱃지 ──
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _QuotaBadge(
-                        used: quota.usedCount,
-                        max: quota.maxCount,
-                        isGuest: quota.isGuest,
+                    // ── 4. Quota Strip ──
+                    _QuotaStrip(
+                      used: quota.usedCount,
+                      max: quota.maxCount,
+                      isGuest: isGuest,
+                    ),
+                    const SizedBox(height: 14),
+
+                    // ── 5. Primary CTA ──
+                    SizedBox(
+                      key: _ctaButtonKey,
+                      child: _PrimaryCTA(
+                        isExhausted: isExhausted,
+                        isGuest: isGuest,
+                        onTap: () => _onAnalysisTap(context),
                       ),
                     ),
 
-                    // ── 5. 분석 시작 버튼 ──
-                    SizedBox(
-                      key: _analyzeButtonKey,
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _onAnalysisTap(context),
-                        icon: Icon(
-                          (!auth.isLoggedIn && quota.isExhausted)
-                              ? Icons.lock_outline
-                              : Icons.shield_outlined,
-                          color: Colors.white,
-                        ),
-                        label: Text(
-                          (!auth.isLoggedIn && quota.isExhausted)
-                              ? '로그인하고 계속 분석하기'
-                              : '지금 바로 사기 분석하기',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: AppTheme.textPrimary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: (!auth.isLoggedIn && quota.isExhausted)
-                              ? AppTheme.primary.withValues(alpha: 0.6)
-                              : AppTheme.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
 
-              // ── 스크롤 힌트 화살표 ──
               if (_showScrollHint)
                 Positioned(
-                  bottom: 16,
-                  left: 0,
-                  right: 0,
+                  bottom: 16, left: 0, right: 0,
                   child: Center(
                     child: ScrollHintArrow(
                       onTap: () => _scrollController.animateTo(
@@ -496,130 +313,532 @@ class _HomeBodyState extends State<HomeBody> {
   }
 }
 
-// ── 사기 유형 카드 ────────────────────────────────────
-class _FraudTypeCards extends StatelessWidget {
-  const _FraudTypeCards();
+// ══════════════════════════════════════════════════════════════
+// Hero Story Card
+// ══════════════════════════════════════════════════════════════
+class _HeroStoryCard extends StatelessWidget {
+  final List<Map<String, String>> evidenceImages;
+  final List<Map<String, dynamic>> tickerItems;
+  final bool useApiData;
+  final List<Map<String, dynamic>> rankingPosts;
 
-  static const _types = [
-    (icon: Icons.storefront_outlined, color: Color(0xFF4FC3F7), title: '중고거래 사기', desc: '입금 후\n잠적·미배송'),
-    (icon: Icons.trending_up,         color: Color(0xFF81C784), title: '투자 사기',    desc: '고수익 미끼로\n투자 유도'),
-    (icon: Icons.sports_esports_outlined, color: Color(0xFFEF9A9A), title: '게임 사기', desc: '아이템 거래 후\n잠적·미지급'),
-    (icon: Icons.phone_outlined,      color: Color(0xFFCE93D8), title: '보이스피싱',   desc: '기관 사칭으로\n송금 유도'),
-    (icon: Icons.work_outline,        color: Color(0xFFFFB74D), title: '취업 사기',    desc: '허위 채용으로\n개인정보 탈취'),
-  ];
+  const _HeroStoryCard({
+    required this.evidenceImages,
+    required this.tickerItems,
+    required this.useApiData,
+    required this.rankingPosts,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('이런 사기를 사전에 탐지합니다',
-            style: TextStyle(
-                color: AppTheme.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 115,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _types.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final t = _types[index];
-              return Container(
-                constraints: const BoxConstraints(minWidth: 100, maxWidth: 120),
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                decoration: BoxDecoration(
-                  color: t.color.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: t.color.withValues(alpha: 0.25)),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(t.icon, color: t.color, size: 22),
-                    const SizedBox(height: 5),
-                    Text(t.title,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: t.color,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 3),
-                    Text(t.desc,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            color: AppTheme.textHint, fontSize: 9, height: 1.4)),
-                  ],
-                ),
-              );
-            },
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppTheme.primary.withValues(alpha: 0.08),
+              AppTheme.surface,
+            ],
+          ),
+          border: Border.all(
+            color: AppTheme.primary.withValues(alpha: 0.2),
+            width: 0.5,
           ),
         ),
+        child: Stack(
+          children: [
+            // ── ambient glow ──
+            Positioned(
+              top: -60, right: -40,
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                child: Container(
+                  width: 180, height: 180,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.primary.withValues(alpha: 0.15),
+                  ),
+                ),
+              ),
+            ),
+
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── header text ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // badges
+                      Row(children: [
+                        _TagBadge(label: '실제 피해 경험 기반', color: AppTheme.primary),
+                        const SizedBox(width: 6),
+                        _TagBadge(label: '완전 무료', color: AppTheme.success),
+                        const Spacer(),
+                        const _TrustTooltipButton(),
+                      ]),
+
+                      const SizedBox(height: 14),
+
+                      // headline with gradient on last line
+                      const Text(
+                        '사기를 당하다 보니',
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          height: 1.3,
+                          letterSpacing: -0.03 * 22,
+                        ),
+                      ),
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [Color(0xFFBDB0FF), Color(0xFF9B87F5)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds),
+                        child: const Text(
+                          '전문가가 됐습니다.',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            height: 1.3,
+                            letterSpacing: -0.03 * 22,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+                      const Text(
+                        '직접 겪은 수십 건의 사기 경험을 AI에 담았어요.\n대화 캡처 한 장으로 사기 여부를 판단해드립니다.',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                          height: 1.7,
+                          letterSpacing: -0.01 * 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ── evidence collage ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+                  child: SizedBox(
+                    height: 126,
+                    child: Row(
+                      children: [
+                        // large left photo
+                        Expanded(
+                          flex: 2,
+                          child: _EvidencePhoto(
+                            imagePath: evidenceImages[0]['path']!,
+                            label: evidenceImages[0]['label']!,
+                            allImages: evidenceImages,
+                            initialIndex: 0,
+                            showZoom: true,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // small right column
+                        Expanded(
+                          flex: 1,
+                          child: Column(
+                            children: [
+                              Expanded(child: _EvidencePhoto(
+                                imagePath: evidenceImages[1]['path']!,
+                                label: evidenceImages[1]['label']!,
+                                allImages: evidenceImages,
+                                initialIndex: 1,
+                              )),
+                              const SizedBox(height: 5),
+                              Expanded(child: _EvidencePhoto(
+                                imagePath: evidenceImages[2]['path']!,
+                                label: evidenceImages[2]['label']!,
+                                allImages: evidenceImages,
+                                initialIndex: 2,
+                              )),
+                              const SizedBox(height: 5),
+                              Expanded(child: _EvidencePhoto(
+                                imagePath: evidenceImages[3]['path']!,
+                                label: evidenceImages[3]['label']!,
+                                allImages: evidenceImages,
+                                initialIndex: 3,
+                              )),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // ── divider ──
+                Container(
+                  height: 0.5,
+                  margin: const EdgeInsets.symmetric(horizontal: 18),
+                  color: AppTheme.divider,
+                ),
+
+                // ── popular ticker ──
+                _FeedTicker(
+                  items: tickerItems,
+                  useApiData: useApiData,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CommunityScreen(
+                        preloadedRanking: rankingPosts.isNotEmpty
+                            ? rankingPosts.map((e) => CommunityPost.fromJson(e)).toList()
+                            : null,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Section Title (overline + title)
+// ══════════════════════════════════════════════════════════════
+class _SectionTitle extends StatelessWidget {
+  final String overline;
+  final String title;
+  final Widget? trailing;
+
+  const _SectionTitle({
+    required this.overline,
+    required this.title,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              overline.toUpperCase(),
+              style: const TextStyle(
+                color: AppTheme.primary, fontSize: 10,
+                fontWeight: FontWeight.w700, letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: const TextStyle(
+                color: AppTheme.textPrimary, fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: 6),
+          trailing!,
+        ],
       ],
     );
   }
 }
 
-// ── 잔여 횟수 뱃지 ────────────────────────────────────
-class _QuotaBadge extends StatelessWidget {
+// ══════════════════════════════════════════════════════════════
+// Quota Strip (with progress bar)
+// ══════════════════════════════════════════════════════════════
+class _QuotaStrip extends StatelessWidget {
   final int used;
   final int max;
   final bool isGuest;
-  const _QuotaBadge({required this.used, required this.max, this.isGuest = false});
+
+  const _QuotaStrip({
+    required this.used,
+    required this.max,
+    required this.isGuest,
+  });
 
   @override
   Widget build(BuildContext context) {
     final remaining = max - used;
-    final isExhausted = remaining <= 0;
-    final color = isExhausted ? AppTheme.danger : AppTheme.primary;
+    final pct = max > 0 ? used / max : 1.0;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.divider, width: 0.5),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          Row(children: [
-            Icon(isExhausted ? Icons.block : Icons.analytics_outlined,
-                color: color, size: 16),
-            const SizedBox(width: 8),
-            Text(
-              isExhausted
-                  ? (isGuest ? '로그인하면 매일 3회 분석할 수 있어요' : '오늘 분석 횟수를 모두 사용했습니다')
-                  : '오늘 남은 분석 횟수',
-              style: TextStyle(color: color, fontSize: 12),
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: AppTheme.primary, size: 14),
+              const SizedBox(width: 8),
+              Text(
+                isGuest ? '게스트 무료 분석' : '오늘 남은 분석',
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 12,
+                  letterSpacing: -0.01 * 12,
+                ),
+              ),
+              const Spacer(),
+              RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$remaining',
+                      style: const TextStyle(
+                        color: Color(0xFFBDB0FF),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' / $max',
+                      style: const TextStyle(
+                        color: AppTheme.textHint,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: Container(
+              height: 3,
+              color: AppTheme.surfaceDeep,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: (1.0 - pct).clamp(0.0, 1.0),
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppTheme.primary, Color(0xFFBDB0FF)],
+                      ),
+                      borderRadius: BorderRadius.all(Radius.circular(2)),
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ]),
-          if (!isExhausted)
-            Text('$remaining / $max',
-                style: TextStyle(
-                    color: color, fontSize: 13, fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );
   }
 }
 
-// ── 단계 안내 카드 ─────────────────────────────────────
-class _StepCard extends StatelessWidget {
-  final String step;
+// ══════════════════════════════════════════════════════════════
+// Primary CTA (gradient button)
+// ══════════════════════════════════════════════════════════════
+class _PrimaryCTA extends StatelessWidget {
+  final bool isExhausted;
+  final bool isGuest;
+  final VoidCallback onTap;
+
+  const _PrimaryCTA({
+    required this.isExhausted,
+    required this.isGuest,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = isGuest && isExhausted;
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: locked
+              ? [AppTheme.primary.withValues(alpha: 0.5), AppTheme.primaryDeep.withValues(alpha: 0.5)]
+              : [AppTheme.primary, AppTheme.primaryDeep],
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                locked ? Icons.lock_outline : Icons.shield_outlined,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                locked ? '로그인하고 계속 분석하기' : '지금 바로 사기 분석하기',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.02 * 16,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.arrow_forward_ios,
+                  color: Colors.white70, size: 14),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Category Row
+// ══════════════════════════════════════════════════════════════
+class _CategoryRow extends StatelessWidget {
+  const _CategoryRow();
+
+  static const _cats = [
+    (icon: Icons.storefront_outlined, color: Color(0xFF4FC3F7), title: '중고거래 사기', desc: '입금 후 잠적·미배송'),
+    (icon: Icons.trending_up,         color: Color(0xFF81C784), title: '투자 사기',    desc: '고수익 미끼로 유도'),
+    (icon: Icons.sports_esports_outlined, color: Color(0xFFEF9A9A), title: '게임 사기', desc: '아이템 거래 후 잠적'),
+    (icon: Icons.phone_outlined,      color: Color(0xFFCE93D8), title: '보이스피싱',   desc: '기관 사칭으로 송금'),
+    (icon: Icons.work_outline,        color: Color(0xFFFFB74D), title: '취업 사기',    desc: '허위 채용으로 탈취'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 115,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _cats.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
+          final c = _cats[i];
+          return Container(
+            constraints: const BoxConstraints(minWidth: 100, maxWidth: 120),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+            decoration: BoxDecoration(
+              color: AppTheme.surface,                              // 단색 서피스
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: c.color.withValues(alpha: 0.15), width: 0.5),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: c.color.withValues(alpha: 0.13),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(c.icon, color: c.color, size: 18),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  c.title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: c.color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  c.desc,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppTheme.textHint,
+                    fontSize: 8,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Step List
+// ══════════════════════════════════════════════════════════════
+class _StepList extends StatelessWidget {
+  const _StepList();
+
+  static const _steps = [
+    (n: 1, icon: Icons.chat_bubble_outline, title: '대화 화면 캡처',
+    desc: '의심되는 상대방과의 대화 내용을 캡처해 주세요.',
+    imagePath: 'assets/images/step_capture.jpg'),
+    (n: 2, icon: Icons.upload_outlined, title: '사진 업로드',
+    desc: '캡처한 사진을 최대 5장까지 업로드합니다.',
+    imagePath: 'assets/images/step_upload.gif'),
+    (n: 3, icon: Icons.analytics_outlined, title: 'AI 분석',
+    desc: '미리톡 AI가 사기 패턴을 분석하고 결과를 알려드립니다.',
+    imagePath: 'assets/images/step_result.gif'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: _steps.map((s) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _StepItem(
+            n: s.n,
+            icon: s.icon,
+            title: s.title,
+            desc: s.desc,
+            imagePath: s.imagePath,
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _StepItem extends StatelessWidget {
+  final int n;
   final IconData icon;
   final String title;
-  final String description;
-  final String? imagePath;
+  final String desc;
+  final String imagePath;
 
-  const _StepCard({
-    required this.step,
+  const _StepItem({
+    required this.n,
     required this.icon,
     required this.title,
-    required this.description,
-    this.imagePath,
+    required this.desc,
+    required this.imagePath,
   });
 
   @override
@@ -628,101 +847,570 @@ class _StepCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.divider, width: 0.5),
       ),
       child: Row(
         children: [
+          // STEP N badge
           Container(
-            width: 36, height: 36,
+            width: 38, height: 38,
             decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
+              color: AppTheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppTheme.primary.withValues(alpha: 0.2),
+                width: 0.5,
+              ),
             ),
-            child: Center(
-              child: Text(step,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'STEP',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 7,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                Text(
+                  '$n',
                   style: const TextStyle(
-                      color: AppTheme.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15)),
+                    color: Color(0xFFBDB0FF),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 14),
-          Icon(icon, color: AppTheme.textHint, size: 20),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
+          // content
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(
+                Row(
+                  children: [
+                    Icon(icon, color: AppTheme.textHint, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      title,
+                      style: const TextStyle(
                         color: AppTheme.textPrimary,
                         fontSize: 14,
-                        fontWeight: FontWeight.w600)),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.02 * 14,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 3),
-                Text(description,
-                    style: const TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 12,
-                        height: 1.4)),
+                Text(
+                  desc,
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
+                ),
               ],
             ),
           ),
-          if (imagePath != null) ...[
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  fullscreenDialog: true,
-                  builder: (_) => _AssetFullscreenViewer(
-                    images: [{'path': imagePath!, 'label': title}],
-                    initialIndex: 0,
-                    showWatermark: false,
-                  ),
+          const SizedBox(width: 10),
+          // thumbnail
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                fullscreenDialog: true,
+                builder: (_) => _AssetFullscreenViewer(
+                  images: [{'path': imagePath, 'label': title}],
+                  initialIndex: 0,
+                  showWatermark: false,
                 ),
               ),
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(imagePath!,
-                        width: 64, height: 64, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 64, height: 64,
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: AppTheme.primary.withValues(alpha: 0.2)),
-                          ),
-                          child: const Icon(Icons.image_outlined,
-                              color: AppTheme.primary, size: 24),
-                        )),
-                  ),
-                  Positioned(
-                    top: 3, right: 3,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(4),
+            ),
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: 56, height: 56,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: AppTheme.divider,
+                        width: 0.5,
                       ),
-                      child: const Icon(Icons.zoom_in,
-                          color: Colors.white70, size: 11),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Image.asset(
+                      imagePath,
+                      width: 56, height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: AppTheme.surfaceDeep,
+                        child: const Icon(Icons.image_outlined,
+                            color: AppTheme.primary, size: 22),
+                      ),
                     ),
                   ),
-                ],
-              ),
+                ),
+                Positioned(
+                  top: 3, right: 3,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(Icons.zoom_in,
+                        color: Colors.white70, size: 11),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 }
 
-// ── 풀스크린 뷰어 ────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// Trust Footer
+// ══════════════════════════════════════════════════════════════
+class _TrustFooter extends StatelessWidget {
+  const _TrustFooter();
+
+  static const _items = [
+    (icon: Icons.lock_outline,     label: '업로드 사진\n분석 전용'),
+    (icon: Icons.verified_outlined, label: 'AI 학습\n미활용'),
+    (icon: Icons.auto_awesome,     label: '실제 사례\n기반 분석'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceDeep,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.divider, width: 0.5),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: _items.map((it) {
+          return Expanded(
+            child: Column(
+              children: [
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppTheme.divider,
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Icon(it.icon,
+                      color: const Color(0xFFBDB0FF), size: 16),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  it.label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 10,
+                    height: 1.5,
+                    letterSpacing: -0.01 * 10,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Feed Ticker (Popular Analysis)
+// ══════════════════════════════════════════════════════════════
+class _FeedTicker extends StatefulWidget {
+  final List<Map<String, dynamic>> items;
+  final bool useApiData;
+  final VoidCallback onTap;
+
+  const _FeedTicker({
+    required this.items,
+    required this.onTap,
+    this.useApiData = false,
+  });
+
+  @override
+  State<_FeedTicker> createState() => _FeedTickerState();
+}
+
+class _FeedTickerState extends State<_FeedTicker>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Offset> _slideOut;
+  late Animation<Offset> _slideIn;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _slideOut = Tween<Offset>(begin: Offset.zero, end: const Offset(0, -1))
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+    _slideIn = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _startTicker();
+  }
+
+  void _startTicker() {
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 3));
+      if (!mounted) return false;
+      await _controller.forward();
+      if (!mounted) return false;
+      setState(() {
+        _currentIndex = (_currentIndex + 1) % widget.items.length;
+      });
+      _controller.reset();
+      return true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool _isHigh(Map<String, dynamic> item) {
+    if (widget.useApiData) {
+      return ['높음', '매우높음'].contains(item['riskLevel'] as String? ?? '');
+    }
+    return item['isHigh'] as bool;
+  }
+
+  int _riskPct(Map<String, dynamic> item) {
+    if (widget.useApiData) return (item['riskScore'] as int? ?? 0);
+    return item['riskPct'] as int;
+  }
+
+  String _text(Map<String, dynamic> item) {
+    if (widget.useApiData) {
+      final content = item['content'] as String? ?? '';
+      return content.isNotEmpty ? content : (item['summary'] as String? ?? '');
+    }
+    return item['text'] as String;
+  }
+
+  int _likes(Map<String, dynamic> item) {
+    if (widget.useApiData) return (item['likeCount'] as int? ?? 0);
+    return item['likes'] as int;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.items[_currentIndex];
+    final nextItem = _currentIndex + 1 < widget.items.length
+        ? widget.items[_currentIndex + 1]
+        : widget.items[0];
+
+    final isHigh = _isHigh(item);
+    final nextIsHigh = _isHigh(nextItem);
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // label
+            Row(
+              children: [
+                Container(
+                  width: 20, height: 20,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 6, height: 6,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primary.withValues(alpha: 0.6),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                const Text('인기 분석',
+                    style: TextStyle(
+                      color: AppTheme.textHint,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    )),
+              ],
+            ),
+            const SizedBox(width: 10),
+            Container(width: 0.5, height: 14, color: AppTheme.divider),
+            const SizedBox(width: 10),
+
+            // sliding area
+            Expanded(
+              child: SizedBox(
+                height: 20,
+                child: ClipRect(
+                  child: Stack(
+                    children: [
+                      SlideTransition(
+                        position: _slideOut,
+                        child: _TickerRow(
+                          riskPct: _riskPct(item),
+                          riskColor: isHigh ? AppTheme.riskHigh : AppTheme.riskMedium,
+                          riskBg: isHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg,
+                          isHigh: isHigh,
+                          text: _text(item),
+                          likes: _likes(item),
+                        ),
+                      ),
+                      SlideTransition(
+                        position: _slideIn,
+                        child: _TickerRow(
+                          riskPct: _riskPct(nextItem),
+                          riskColor: nextIsHigh ? AppTheme.riskHigh : AppTheme.riskMedium,
+                          riskBg: nextIsHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg,
+                          isHigh: nextIsHigh,
+                          text: _text(nextItem),
+                          likes: _likes(nextItem),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right,
+                color: AppTheme.textHint, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TickerRow extends StatelessWidget {
+  final int riskPct;
+  final Color riskColor;
+  final Color riskBg;
+  final bool isHigh;
+  final String text;
+  final int likes;
+
+  const _TickerRow({
+    required this.riskPct,
+    required this.riskColor,
+    required this.riskBg,
+    required this.isHigh,
+    required this.text,
+    required this.likes,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 20,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: riskBg,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '${isHigh ? "위험" : "의심"} $riskPct%',
+              style: TextStyle(
+                color: riskColor,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                letterSpacing: -0.01 * 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '♥ $likes',
+            style: const TextStyle(color: AppTheme.textHint, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Tag Badge
+// ══════════════════════════════════════════════════════════════
+class _TagBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _TagBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5, height: 5,
+            margin: const EdgeInsets.only(top: 1),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(label, style: TextStyle(color: color, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Evidence Photo Thumbnail
+// ══════════════════════════════════════════════════════════════
+class _EvidencePhoto extends StatelessWidget {
+  final String imagePath;
+  final String label;
+  final List<Map<String, String>> allImages;
+  final int initialIndex;
+  final bool showZoom;
+
+  const _EvidencePhoto({
+    required this.imagePath,
+    required this.label,
+    required this.allImages,
+    required this.initialIndex,
+    this.showZoom = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => _AssetFullscreenViewer(
+            images: allImages,
+            initialIndex: initialIndex,
+          ),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(imagePath,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                    color: AppTheme.surfaceDeep,
+                    child: const Icon(Icons.image_outlined,
+                        color: AppTheme.primary, size: 24))),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Color(0xCC000000), Colors.transparent],
+                  ),
+                  borderRadius:
+                  BorderRadius.vertical(bottom: Radius.circular(10)),
+                ),
+                child: Text(label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 9)),
+              ),
+            ),
+            if (showZoom)
+              Positioned(
+                top: 6, right: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.remove_red_eye_outlined,
+                          color: Colors.white, size: 11),
+                      SizedBox(width: 3),
+                      Text('탭해서 보기',
+                          style:
+                          TextStyle(color: Colors.white, fontSize: 9)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Fullscreen Image Viewer (unchanged logic)
+// ══════════════════════════════════════════════════════════════
 class _AssetFullscreenViewer extends StatefulWidget {
   final List<Map<String, String>> images;
   final int initialIndex;
@@ -767,8 +1455,10 @@ class _AssetFullscreenViewerState extends State<_AssetFullscreenViewer> {
           icon: const Icon(Icons.close, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(widget.images[_currentIndex]['label'] ?? '',
-            style: const TextStyle(color: Colors.white, fontSize: 15)),
+        title: Text(
+          widget.images[_currentIndex]['label'] ?? '',
+          style: const TextStyle(color: Colors.white, fontSize: 15),
+        ),
         centerTitle: true,
       ),
       body: Stack(
@@ -781,10 +1471,14 @@ class _AssetFullscreenViewerState extends State<_AssetFullscreenViewer> {
               minScale: 1.0,
               maxScale: 4.0,
               child: Center(
-                child: Image.asset(widget.images[index]['path']!,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(
-                        Icons.image_outlined, color: Colors.white38, size: 60)),
+                child: Image.asset(
+                  widget.images[index]['path']!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.image_outlined,
+                      color: Colors.white38,
+                      size: 60),
+                ),
               ),
             ),
           ),
@@ -861,12 +1555,12 @@ class _WatermarkPainter extends CustomPainter {
         textPainter.paint(canvas, Offset(x, y));
       }
     }
-
     canvas.restore();
 
-    final warningRect = Rect.fromLTWH(0, size.height - 52, size.width, 52);
-    canvas.drawRect(warningRect,
-        Paint()..color = Colors.black.withValues(alpha: 0.65));
+    final warningRect =
+    Rect.fromLTWH(0, size.height - 52, size.width, 52);
+    canvas.drawRect(
+        warningRect, Paint()..color = Colors.black.withValues(alpha: 0.65));
 
     final warningPainter = TextPainter(
       text: const TextSpan(children: [
@@ -887,7 +1581,6 @@ class _WatermarkPainter extends CustomPainter {
       maxLines: 2,
       textAlign: TextAlign.center,
     );
-
     warningPainter.layout(maxWidth: size.width - 32);
     warningPainter.paint(
       canvas,
@@ -902,324 +1595,160 @@ class _WatermarkPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ── 태그 뱃지 ────────────────────────────────────────
-class _TagBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _TagBadge({required this.label, required this.color});
+class _TrustTooltipButton extends StatefulWidget {
+  const _TrustTooltipButton();
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
+  State<_TrustTooltipButton> createState() => _TrustTooltipButtonState();
+}
+
+class _TrustTooltipButtonState extends State<_TrustTooltipButton> {
+  final GlobalKey _btnKey = GlobalKey();
+  OverlayEntry? _overlay;
+
+  static const _items = [
+    (icon: Icons.lock_outline,      label: '업로드 사진\n분석 전용'),
+    (icon: Icons.verified_outlined, label: 'AI 학습\n미활용'),
+    (icon: Icons.auto_awesome,      label: '실제 사례\n기반 분석'),
+  ];
+
+  void _show() {
+    final renderBox =
+    _btnKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final btnSize = renderBox.size;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // 버튼 우측 끝 기준으로 툴팁 우측 정렬, 버튼 아래 8px 간격
+    final rightEdge = screenWidth - (offset.dx + btnSize.width);
+
+    _overlay = OverlayEntry(
+      builder: (_) => Stack(
         children: [
-          Container(
-            width: 5, height: 5,
-            margin: const EdgeInsets.only(top: 1),
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          // 바깥 탭 시 닫기
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _dismiss,
+              behavior: HitTestBehavior.opaque,
+              child: const SizedBox.expand(),
+            ),
           ),
-          const SizedBox(width: 5),
-          Text(label, style: TextStyle(color: color, fontSize: 11)),
+          // 툴팁 카드
+          Positioned(
+            top: offset.dy + btnSize.height + 8,
+            right: rightEdge,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: 216,
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceDeep,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: AppTheme.primary.withValues(alpha: 0.25)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 헤더
+                    Row(children: const [
+                      Icon(Icons.shield_outlined,
+                          color: AppTheme.primary, size: 13),
+                      SizedBox(width: 5),
+                      Text(
+                        '미리톡 보안 정책',
+                        style: TextStyle(
+                          color: AppTheme.primary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 12),
+                    // 아이템 3개
+                    Row(
+                      children: _items.map((it) {
+                        return Expanded(
+                          child: Column(children: [
+                            Container(
+                              width: 36, height: 36,
+                              decoration: BoxDecoration(
+                                color: AppTheme.surface,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                    color: AppTheme.primary
+                                        .withValues(alpha: 0.2)),
+                              ),
+                              child: Icon(it.icon,
+                                  color: const Color(0xFFBDB0FF), size: 16),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              it.label,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 10,
+                                height: 1.4,
+                              ),
+                            ),
+                          ]),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
-  }
-}
 
-// ── 증거 사진 썸네일 ──────────────────────────────────
-class _EvidencePhoto extends StatelessWidget {
-  final String imagePath;
-  final String label;
-  final List<Map<String, String>> allImages;
-  final int initialIndex;
-  final bool showZoom;
-
-  const _EvidencePhoto({
-    required this.imagePath,
-    required this.label,
-    required this.allImages,
-    required this.initialIndex,
-    this.showZoom = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => _AssetFullscreenViewer(
-              images: allImages, initialIndex: initialIndex),
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset(imagePath,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                    color: AppTheme.surfaceDeep,
-                    child: const Icon(Icons.image_outlined,
-                        color: AppTheme.primary, size: 24))),
-            Positioned(
-              bottom: 0, left: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                color: AppTheme.photoLabelBg,
-                child: Text(label,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white, fontSize: 9)),
-              ),
-            ),
-            if (showZoom)
-              Positioned(
-                top: 5, right: 5,
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: AppTheme.overlayMedium,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Icon(Icons.zoom_in,
-                      color: Colors.white70, size: 12),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── 인기 분석 티커 ────────────────────────────────────
-class _FeedTicker extends StatefulWidget {
-  final List<Map<String, dynamic>> items;
-  final bool useApiData;
-  final VoidCallback onTap;
-
-  const _FeedTicker({
-    required this.items,
-    required this.onTap,
-    this.useApiData = false,
-  });
-
-  @override
-  State<_FeedTicker> createState() => _FeedTickerState();
-}
-
-class _FeedTickerState extends State<_FeedTicker>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<Offset> _slideOut;
-  late Animation<Offset> _slideIn;
-  int _currentIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _slideOut = Tween<Offset>(begin: Offset.zero, end: const Offset(0, -1))
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
-    _slideIn = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-    _startTicker();
+    Overlay.of(context).insert(_overlay!);
+    setState(() {}); // 토글 상태 반영
   }
 
-  void _startTicker() {
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 3));
-      if (!mounted) return false;
-      await _controller.forward();
-      if (!mounted) return false;
-      setState(() {
-        _currentIndex = (_currentIndex + 1) % widget.items.length;
-      });
-      _controller.reset();
-      return true;
-    });
+  void _dismiss() {
+    _overlay?.remove();
+    _overlay = null;
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _dismiss();
     super.dispose();
   }
 
-  // API 데이터 파싱 헬퍼
-  bool _isHigh(Map<String, dynamic> item) {
-    if (widget.useApiData) {
-      return ['높음', '매우높음'].contains(item['riskLevel'] as String? ?? '');
-    }
-    return item['isHigh'] as bool;
-  }
-
-  int _riskPct(Map<String, dynamic> item) {
-    if (widget.useApiData) return (item['riskScore'] as int? ?? 0);
-    return item['riskPct'] as int;
-  }
-
-  String _text(Map<String, dynamic> item) {
-    if (widget.useApiData) {
-      final content = item['content'] as String? ?? '';
-      return content.isNotEmpty ? content : (item['summary'] as String? ?? '');
-    }
-    return item['text'] as String;
-  }
-
-  int _likes(Map<String, dynamic> item) {
-    if (widget.useApiData) return (item['likeCount'] as int? ?? 0);
-    return item['likes'] as int;
-  }
-
-  void _onTap(BuildContext context) {
-    widget.onTap();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final item = widget.items[_currentIndex];
-    final nextItem = _currentIndex + 1 < widget.items.length
-        ? widget.items[_currentIndex + 1]
-        : widget.items[0];
-
-    final isHigh = _isHigh(item);
-    final nextIsHigh = _isHigh(nextItem);
-
     return GestureDetector(
-      onTap: widget.onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // 라벨
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 18, height: 18,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Center(
-                    child: Container(
-                      width: 7, height: 7,
-                      decoration: BoxDecoration(
-                          color: AppTheme.primary, shape: BoxShape.circle),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 5),
-                const Text('인기 분석',
-                    style: TextStyle(color: AppTheme.textHint, fontSize: 10)),
-              ],
-            ),
-            const SizedBox(width: 10),
-            Container(width: 0.5, height: 18, color: AppTheme.divider),
-            const SizedBox(width: 10),
-
-            // 슬라이드 영역
-            Expanded(
-              child: SizedBox(
-                height: 20,
-                child: ClipRect(
-                  child: Stack(
-                    children: [
-                      SlideTransition(
-                        position: _slideOut,
-                        child: _TickerRow(
-                          riskPct: _riskPct(item),
-                          riskColor: isHigh ? AppTheme.riskHigh : AppTheme.riskMedium,
-                          riskBg: isHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg,
-                          isHigh: isHigh,
-                          text: _text(item),
-                          likes: _likes(item),
-                        ),
-                      ),
-                      SlideTransition(
-                        position: _slideIn,
-                        child: _TickerRow(
-                          riskPct: _riskPct(nextItem),
-                          riskColor: nextIsHigh ? AppTheme.riskHigh : AppTheme.riskMedium,
-                          riskBg: nextIsHigh ? AppTheme.tickerHighBg : AppTheme.tickerMediumBg,
-                          isHigh: nextIsHigh,
-                          text: _text(nextItem),
-                          likes: _likes(nextItem),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
+      onTap: _overlay == null ? _show : _dismiss,
+      child: Container(
+        key: _btnKey,
+        width: 22, height: 22,
+        margin: const EdgeInsets.only(bottom: 2),
+        decoration: BoxDecoration(
+          color: (_overlay != null)
+              ? AppTheme.primary.withValues(alpha: 0.25) // 열림 상태 강조
+              : AppTheme.primary.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+          border: Border.all(
+              color: AppTheme.primary.withValues(alpha: 0.3), width: 0.5),
         ),
-      ),
-    );
-  }
-}
-
-class _TickerRow extends StatelessWidget {
-  final int riskPct;
-  final Color riskColor;
-  final Color riskBg;
-  final bool isHigh;
-  final String text;
-  final int likes;
-
-  const _TickerRow({
-    required this.riskPct,
-    required this.riskColor,
-    required this.riskBg,
-    required this.isHigh,
-    required this.text,
-    required this.likes,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 20,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-                color: riskBg, borderRadius: BorderRadius.circular(4)),
-            child: Text('${isHigh ? "위험" : "의심"} $riskPct%',
-                style: TextStyle(
-                    color: riskColor,
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(text,
-                style: const TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 11),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
-          ),
-          const SizedBox(width: 6),
-          Text('♥ $likes',
-              style: const TextStyle(color: AppTheme.textHint, fontSize: 10)),
-        ],
+        child: const Icon(Icons.security,
+            color: AppTheme.primary, size: 13),
       ),
     );
   }

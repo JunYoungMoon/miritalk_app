@@ -49,15 +49,21 @@ class ApiClient {
   }
 
   Future<http.Response> post(String path,
-      {Map<String, dynamic>? body, bool includeDeviceId = false}) async {
+      {Map<String, dynamic>? body,
+        bool includeDeviceId = false,
+        String? fcmToken}) async {
+    final headers = await _headers(includeDeviceId: includeDeviceId);
+    if (fcmToken != null && fcmToken.isNotEmpty) {
+      headers['X-FCM-Token'] = fcmToken;
+    }
     final response = await http.post(
       Uri.parse('${AppConfig.baseUrl}$path'),
-      headers: await _headers(includeDeviceId: includeDeviceId),
+      headers: headers,
       body: body != null ? jsonEncode(body) : null,
     );
     return _handleUnauthorized(
       response,
-          () => post(path, body: body, includeDeviceId: includeDeviceId),
+          () => post(path, body: body, includeDeviceId: includeDeviceId, fcmToken: fcmToken),
     );
   }
 

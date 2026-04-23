@@ -47,15 +47,16 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   int? _riskScore;
   String? _riskLevel;
   bool _isDone = false;
+  int _dotCount = 1;
+  late Timer _dotTimer;
 
-  final List<String> _steps = [
-    '이미지에서 텍스트를 추출하고 있습니다...',
-    '대화 패턴을 분석하고 있습니다...',
-    '사기 사례와 비교하고 있습니다...',
-    '심리 조작 기법을 탐지하고 있습니다...',
-    '분석 결과를 정리하고 있습니다...',
-  ];
-  int _currentStep = 0;
+  final Map<int, String> _stepStates = {
+    0: 'pending',
+    1: 'pending',
+    2: 'pending',
+    3: 'pending',
+  };
+
   final List<ChatMessage> _messages = [];
   StreamSubscription? _sseSubscription;
   String? _guestImageToken;
@@ -63,6 +64,10 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   @override
   void initState() {
     super.initState();
+
+    _dotTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
+      if (mounted) setState(() => _dotCount = (_dotCount % 3) + 1);
+    });
 
     // ── 프로그레스바: 60초 동안 0 → 0.95
     _progressController = AnimationController(
@@ -84,14 +89,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
     );
 
-    // 스텝 텍스트 순환
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 3));
-      if (!mounted) return false;
-      setState(() => _currentStep = (_currentStep + 1) % _steps.length);
-      return true;
-    });
-
     AdManager.instance.loadInterstitial();
     _startAnalysis();
   }
@@ -101,6 +98,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     _sseSubscription?.cancel();
     _progressController.dispose();
     _shimmerController.dispose();
+    _dotTimer.cancel();
     super.dispose();
   }
 
@@ -303,6 +301,15 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       final json = jsonDecode(data);
       final type = json['type'] as String;
 
+      if (type == 'step') {
+        final step = json['step'] as int? ?? 0;
+        final state = json['state'] as String? ?? 'start';
+        if (mounted) setState(() {
+          _stepStates[step] = state == 'done' ? 'done' : 'active';
+        });
+        return;
+      }
+
       if (type == 'riskScore') {
         _riskScore = int.tryParse(json['content'] as String? ?? '');
       } else if (type == 'riskLevel') {
@@ -351,86 +358,134 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       canPop: false,
       child: Scaffold(
         backgroundColor: AppTheme.background,
-        // bottomNavigationBar: const BannerAdWidget(),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // ── 아이콘 (shimmer 링 효과)
-                _ShimmerRing(shimmerAnimation: _shimmerAnimation),
+        appBar: AppBar(
+          backgroundColor: AppTheme.background,
+          automaticallyImplyLeading: false,
+          title: Text('분석중${'.' * _dotCount}',
+              style: const TextStyle(color: AppTheme.textPrimary,
+                  fontSize: 17, fontWeight: FontWeight.w700)),
+          centerTitle: true,
+          elevation: 0,
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                  child: Column(
+                    children: [
+                      // ── Orb ──
+                      _AnalysisOrb(shimmerAnimation: _shimmerAnimation),
 
-                const SizedBox(height: 32),
+                      const SizedBox(height: 20),
 
-                // ── 타이틀
-                const Text(
-                  '대화 내역을 면밀하게\n분석 중입니다',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    height: 1.5,
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // ── 스텝 텍스트 (shimmer 효과)
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 400),
-                  child: _ShimmerText(
-                    key: ValueKey(_currentStep),
-                    text: _steps[_currentStep],
-                    shimmerAnimation: _shimmerAnimation,
-                  ),
-                ),
-
-                const SizedBox(height: 32),
-
-                // ── SSE로 들어오는 실시간 텍스트 (shimmer)
-                if (_messages.isNotEmpty)
-                  _StreamingTextArea(
-                    messages: _messages,
-                    shimmerAnimation: _shimmerAnimation,
-                  ),
-
-                const SizedBox(height: 32),
-
-                // ── 프로그레스바
-                AnimatedBuilder(
-                  animation: _progressAnimation,
-                  builder: (context, _) {
-                    final percent =
-                    (_progressAnimation.value * 100).toInt();
-                    return Column(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: LinearProgressIndicator(
-                            value: _progressAnimation.value,
-                            backgroundColor: AppTheme.surface,
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                                AppTheme.primary),
-                            minHeight: 6,
-                          ),
+                      // ── 타이틀 ──
+                      const Text(
+                        'AI가 대화를 분석하고 있어요',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.6,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '$percent%',
-                          style: const TextStyle(
-                            color: AppTheme.primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // ── 서브타이틀 ──
+                      const Text(
+                        '보통 15~30초 정도 소요됩니다.\n잠시만 기다려 주세요.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                          height: 1.6,
+                          letterSpacing: -0.15,
                         ),
-                      ],
-                    );
-                  },
+                      ),
+
+                      const SizedBox(height: 28),
+
+                      // ── 프로그레스바 ──
+                      AnimatedBuilder(
+                        animation: _progressAnimation,
+                        builder: (context, _) {
+                          final percent =
+                          (_progressAnimation.value * 100).toInt();
+                          return Column(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(2),
+                                child: Container(
+                                  height: 4,
+                                  color: AppTheme.surface,
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: FractionallySizedBox(
+                                      widthFactor: _progressAnimation.value,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              AppTheme.primary,
+                                              Color(0xFFBDB0FF),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(2),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: AppTheme.primary
+                                                  .withValues(alpha: 0.6),
+                                              blurRadius: 10,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('진행률',
+                                      style: TextStyle(
+                                          color: AppTheme.textHint,
+                                          fontSize: 11)),
+                                  Text(
+                                    '$percent%',
+                                    style: const TextStyle(
+                                      color: Color(0xFFBDB0FF),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      _StepsCard(
+                        stepStates: _stepStates,
+                        shimmerAnimation: _shimmerAnimation,
+                        messages: _messages,
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+
+              // ── Tip 박스 (하단 고정) ──
+              const _TipBox(),
+            ],
           ),
         ),
       ),
@@ -439,197 +494,78 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
 }
 
 // ── shimmer 링이 감싸는 아이콘 ───────────────────────
-class _ShimmerRing extends StatelessWidget {
+class _AnalysisOrb extends StatelessWidget {
   final Animation<double> shimmerAnimation;
-  const _ShimmerRing({required this.shimmerAnimation});
+  const _AnalysisOrb({required this.shimmerAnimation});
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: shimmerAnimation,
       builder: (_, __) {
-        return Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: SweepGradient(
-              startAngle: 0,
-              endAngle: 2 * pi,
-              transform: GradientRotation(shimmerAnimation.value * pi),
-              colors: [
-                AppTheme.primary.withValues(alpha: 0.0),
-                AppTheme.primary.withValues(alpha: 0.6),
-                AppTheme.primary.withValues(alpha: 0.0),
-              ],
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(2),
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.primary.withValues(alpha: 0.15),
-              ),
-              child: const Icon(
-                Icons.manage_search_rounded,
-                color: AppTheme.primary,
-                size: 40,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ── shimmer 텍스트 ───────────────────────────────────
-class _ShimmerText extends StatelessWidget {
-  final String text;
-  final Animation<double> shimmerAnimation;
-
-  const _ShimmerText({
-    super.key,
-    required this.text,
-    required this.shimmerAnimation,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: shimmerAnimation,
-      builder: (_, __) {
-        return ShaderMask(
-          shaderCallback: (bounds) => LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            stops: [
-              (shimmerAnimation.value - 0.4).clamp(0.0, 1.0),
-              shimmerAnimation.value.clamp(0.0, 1.0),
-              (shimmerAnimation.value + 0.4).clamp(0.0, 1.0),
-            ],
-            colors: const [
-              AppTheme.textSecondary,
-              AppTheme.textPrimary,
-              AppTheme.textSecondary,
-            ],
-          ).createShader(bounds),
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 13,
-              height: 1.5,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ── SSE 실시간 텍스트 영역 ───────────────────────────
-class _StreamingTextArea extends StatelessWidget {
-  final List<ChatMessage> messages;
-  final Animation<double> shimmerAnimation;
-
-  const _StreamingTextArea({
-    required this.messages,
-    required this.shimmerAnimation,
-  });
-
-  String get _latestText {
-    if (messages.isEmpty) return '';
-    final last = messages.last;
-    // 마지막 메시지에서 최대 80자만 표시
-    final text = last.text;
-    return text.length > 80 ? '...${text.substring(text.length - 80)}' : text;
-  }
-
-  String get _typeLabel {
-    switch (messages.last.type) {
-      case 'summary':             return '종합 분석 작성 중';
-      case 'suspicious':          return '의심 포인트 탐지 중';
-      case 'action':              return '권장 행동 도출 중';
-      case 'questions':           return '확인 질문 생성 중';
-      case 'psychologicalTactics':return '심리 조작 기법 분석 중';
-      default:                    return '분석 중';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: shimmerAnimation,
-      builder: (_, __) {
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppTheme.primary.withValues(alpha: 0.2),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        return SizedBox(
+          width: 260, height: 260,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              // 타입 레이블 + 깜빡이는 커서 점
-              Row(
-                children: [
-                  ShaderMask(
-                    shaderCallback: (bounds) => LinearGradient(
-                      stops: [
-                        (shimmerAnimation.value - 0.3).clamp(0.0, 1.0),
-                        shimmerAnimation.value.clamp(0.0, 1.0),
-                        (shimmerAnimation.value + 0.3).clamp(0.0, 1.0),
-                      ],
-                      colors: const [
-                        AppTheme.primary,
-                        Colors.white,
-                        AppTheme.primary,
-                      ],
-                    ).createShader(bounds),
-                    child: Text(
-                      _typeLabel,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+              // 바깥 링 2
+              Container(
+                width: 260, height: 260,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.06),
+                    width: 1,
                   ),
-                  const SizedBox(width: 6),
-                  _BlinkingDots(shimmerAnimation: shimmerAnimation),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // 실시간 텍스트
-              ShaderMask(
-                shaderCallback: (bounds) => LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    AppTheme.textPrimary,
-                  ],
-                  stops: const [0.0, 0.4],
-                ).createShader(bounds),
-                blendMode: BlendMode.dstIn,
-                child: Text(
-                  _latestText,
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    height: 1.5,
-                  ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              // 바깥 링 1
+              Container(
+                width: 220, height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.15),
+                    width: 1,
+                  ),
+                ),
+              ),
+              // orb 본체
+              Container(
+                width: 180, height: 180,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    center: Alignment(-0.3, -0.3),
+                    radius: 0.9,
+                    colors: [
+                      Color(0xFFBDB0FF),
+                      AppTheme.primaryDeep,
+                      AppTheme.background,
+                    ],
+                    stops: [0.0, 0.6, 1.0],
+                  ),
+                ),
+              ),
+              // 회전 sweep 글로우
+              Container(
+                width: 180, height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: SweepGradient(
+                    transform: GradientRotation(
+                        shimmerAnimation.value * 2 * pi),
+                    colors: [
+                      Colors.transparent,
+                      Colors.white.withValues(alpha: 0.12),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+              // 아이콘
+              const Icon(Icons.psychology_outlined,
+                  color: Colors.white, size: 52),
             ],
           ),
         );
@@ -665,6 +601,215 @@ class _BlinkingDots extends StatelessWidget {
           }),
         );
       },
+    );
+  }
+}
+
+class _StepsCard extends StatelessWidget {
+  final Map<int, String> stepStates;
+  final Animation<double> shimmerAnimation;
+  final List<ChatMessage> messages;
+
+  static const _labels = [
+    '이미지 업로드',
+    '사기 패턴 감지',
+    '심리 조작 기법 분석',
+    '결과 리포트 생성',
+  ];
+
+  const _StepsCard({
+    required this.stepStates,
+    required this.shimmerAnimation,
+    this.messages = const [],
+  });
+
+  String get _streamText {
+    if (messages.isEmpty) return '';
+    final streamMsg = messages.lastWhere(
+          (m) => m.type == 'stream',
+      orElse: () => messages.last,
+    );
+    final text = streamMsg.text;
+    return text.length > 120
+        ? '...${text.substring(text.length - 120)}'
+        : text;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.divider, width: 0.5),
+      ),
+      child: Column(
+        children: List.generate(_labels.length, (i) {
+          final state = stepStates[i] ?? 'pending';
+          final isDone   = state == 'done';
+          final isActive = state == 'active';
+
+          // 결과 리포트(step 3)가 active일 때만 스트리밍 텍스트 표시
+          final showStream = isActive && i == _labels.length - 1
+              && messages.isNotEmpty;
+
+          return Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: i < _labels.length - 1
+                ? const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: AppTheme.divider, width: 0.5),
+              ),
+            )
+                : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    // 상태 원
+                    Container(
+                      width: 22, height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDone
+                            ? AppTheme.success.withValues(alpha: 0.13)
+                            : isActive
+                            ? AppTheme.primary.withValues(alpha: 0.13)
+                            : AppTheme.surfaceDeep,
+                        border: Border.all(
+                          color: isDone
+                              ? AppTheme.success
+                              : isActive
+                              ? AppTheme.primary
+                              : AppTheme.divider,
+                          width: 1,
+                        ),
+                      ),
+                      child: isDone
+                          ? const Icon(Icons.check,
+                          color: AppTheme.success, size: 13)
+                          : isActive
+                          ? Center(
+                        child: Container(
+                          width: 7, height: 7,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppTheme.primary,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primary
+                                    .withValues(alpha: 0.6),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _labels[i],
+                        style: TextStyle(
+                          color: isDone
+                              ? AppTheme.textSecondary
+                              : isActive
+                              ? AppTheme.textPrimary
+                              : AppTheme.textHint,
+                          fontSize: 13,
+                          fontWeight: isActive
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          letterSpacing: -0.15,
+                        ),
+                      ),
+                    ),
+                    if (isActive)
+                      _BlinkingDots(shimmerAnimation: shimmerAnimation),
+                  ],
+                ),
+
+                // 스트리밍 텍스트
+                if (showStream) ...[
+                  const SizedBox(height: 8),
+                  AnimatedBuilder(
+                    animation: shimmerAnimation,
+                    builder: (_, __) => ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, AppTheme.textPrimary],
+                        stops: [0.0, 0.35],
+                      ).createShader(bounds),
+                      blendMode: BlendMode.dstIn,
+                      child: Text(
+                        _streamText,
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 11,
+                          height: 1.6,
+                          letterSpacing: -0.1,
+                        ),
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _TipBox extends StatelessWidget {
+  const _TipBox();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceDeep,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.divider, width: 0.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.tips_and_updates_outlined,
+              color: AppTheme.warning, size: 16),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              text: const TextSpan(
+                style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                    height: 1.6),
+                children: [
+                  TextSpan(
+                    text: 'Tip. ',
+                    style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.w700),
+                  ),
+                  TextSpan(
+                    text: '분석이 끝나면 알림으로 알려드려요. 앱을 닫아도 됩니다.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

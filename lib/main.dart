@@ -14,6 +14,7 @@ import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
 import 'package:miritalk_app/core/tracking/mixpanel_service.dart';
 import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:miritalk_app/features/inquiry/inquiry_list_screen.dart';
 import 'dart:ui';
 import 'firebase_options.dart';
 import 'package:flutter/services.dart';
@@ -104,6 +105,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           arguments: {'sessionId': sessionId, 'imageToken': imageToken},
         );
       },
+      onInquiryReply: () {
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const InquiryListScreen()),
+        );
+      },
     );
   }
 
@@ -132,6 +138,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             guestImageToken: null,
           );
         },
+        '/inquiry': (_) => const InquiryListScreen(),
       },
       builder: (context, child) {
         return MediaQuery(

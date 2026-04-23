@@ -1,5 +1,6 @@
 // lib/features/analysis/analysis_result_screen.dart
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
@@ -11,7 +12,6 @@ import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
 import 'package:http/http.dart' as http;
 import 'package:miritalk_app/features/community/share_bottom_sheet.dart';
-import 'package:miritalk_app/core/widgets/section_card.dart';
 
 class ChatMessage {
   final String type;
@@ -104,14 +104,13 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     setState(() => _isLoading = true);
     try {
       final isGuest = widget.guestImageToken != null;
-
       final response = isGuest
           ? await ApiClient().get(
-        '/api/fraud/result/guest/$sessionId?token=${widget.guestImageToken}',
-      )
+          '/api/fraud/result/guest/$sessionId?token=${widget.guestImageToken}')
           : await ApiClient().get('/api/fraud/result/$sessionId');
 
-      final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      final json =
+      jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
 
       setState(() {
         _imageUrls = (json['imageUrls'] as List<dynamic>?)
@@ -142,7 +141,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         }
         _categoryName = json['categoryName'] as String?;
         _isLoading = false;
-
       });
       _imagesForShareFuture ??= _fetchImagesForShare();
     } catch (e) {
@@ -160,15 +158,12 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     }
   }
 
-  // _AuthImage 캐시 우선, 없으면 API 호출
   Future<List<Uint8List>> _fetchImagesForShare() async {
     final results = await Future.wait(
       _imageUrls.map((url) async {
-        // 이미 _AuthImage 캐시에 있으면 즉시 반환
         if (AppImageCache.instance.has(url)) {
           return AppImageCache.instance.get(url)!;
         }
-        // 없으면 API 호출 후 캐시 저장
         try {
           Uint8List? bytes;
           if (widget.guestImageToken != null) {
@@ -196,8 +191,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     }
   }
 
-  Color _riskColor(String level) => AppTheme.riskLevelColor(level);
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -210,9 +203,8 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     }
 
     final riskLevel = _findText('riskLevel');
-    final riskScore = _findText('riskScore');
-    final verdict   = _findText('verdict');
-    final riskColor = _riskColor(riskLevel);
+    final riskScore = int.tryParse(_findText('riskScore')) ?? 0;
+    final verdict = _findText('verdict');
 
     final displayMessages = _messages
         .where((m) =>
@@ -229,27 +221,34 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         children: [
           ListView(
             controller: _scrollController,
-            padding: EdgeInsets.fromLTRB(0, 0, 0, 48 + MediaQuery.of(context).padding.bottom),
+            padding: EdgeInsets.fromLTRB(
+                0, 0, 0, 80 + MediaQuery.of(context).padding.bottom),
             children: [
+              // 썸네일 스트립
               if (_imageUrls.isNotEmpty)
                 _ThumbnailStrip(
                   imageUrls: _imageUrls,
                   isGuest: widget.guestImageToken != null,
                   categoryName: _categoryName,
                 ),
+
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    _RiskHeaderCard(
+                    // 위험도 게이지 카드
+                    _RiskHeroCard(
+                      score: riskScore,
                       riskLevel: riskLevel,
-                      riskScore: riskScore,
                       verdict: verdict,
-                      riskColor: riskColor,
                     ),
-                    const SizedBox(height: 8),
+
+                    // 분석 결과 카드들
                     ...displayMessages.map((m) => _buildCard(m)),
+
                     const SizedBox(height: 8),
+
+                    // 피드백
                     if (widget.guestImageToken == null)
                       _FeedbackCard(
                         sessionId: widget.sessionId,
@@ -257,6 +256,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                         helpful: _feedbackHelpful,
                         onFeedback: _submitFeedback,
                       ),
+
                     const SizedBox(height: 8),
                   ],
                 ),
@@ -264,15 +264,14 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
             ],
           ),
 
+          // 플로팅 제보 버튼
           if (widget.guestImageToken == null && widget.sessionId != null)
             Positioned(
-              bottom: 24 + MediaQuery.of(context).padding.bottom,
+              bottom: 20 + MediaQuery.of(context).padding.bottom,
               left: 0,
               right: 0,
               child: Center(
-                child: _ShareHintBounce(
-                  onTap: _shareToCommmunity,
-                ),
+                child: _ShareHintBounce(onTap: _shareToCommmunity),
               ),
             ),
         ],
@@ -316,9 +315,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
 
   Future<void> _shareToCommmunity() async {
     if (!mounted) return;
-
     final categoriesFuture = _categoriesFuture ?? _fetchCategories();
-
     final result = await ShareBottomSheet.show(
       context,
       sessionId: widget.sessionId ?? 0,
@@ -337,13 +334,11 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       if (result.includeImages && result.editedImages.isNotEmpty) {
         for (int i = 0; i < result.editedImages.length; i++) {
           files.add(http.MultipartFile.fromBytes(
-            'editedImages',
-            result.editedImages[i],
+            'editedImages', result.editedImages[i],
             filename: 'image_$i.png',
           ));
         }
       }
-
       await ApiClient().postMultipart(
         '/api/community/posts',
         files: files,
@@ -356,45 +351,393 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           'content': result.content,
         },
       );
-
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('커뮤니티에 공유됐어요!'),
-          backgroundColor: AppTheme.success,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('커뮤니티에 공유됐어요!'),
+        backgroundColor: AppTheme.success,
+      ));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('공유 중 오류가 발생했어요'),
-          backgroundColor: AppTheme.danger,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('공유 중 오류가 발생했어요'),
+        backgroundColor: AppTheme.danger,
+      ));
     }
   }
 }
 
-// ── 종합 분석 ────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// Risk Hero Card — 반원 게이지
+// ══════════════════════════════════════════════════════════════
+class _RiskHeroCard extends StatelessWidget {
+  final int score;
+  final String riskLevel;
+  final String verdict;
+
+  const _RiskHeroCard({
+    required this.score,
+    required this.riskLevel,
+    required this.verdict,
+  });
+
+  static Color _scoreColor(int score) {
+    if (score >= 80) return AppTheme.danger;
+    if (score >= 60) return AppTheme.warning;
+    if (score >= 40) return const Color(0xFFD9C04A);
+    return AppTheme.success;
+  }
+
+  static String _levelText(int score) {
+    if (score >= 80) return '매우 높음';
+    if (score >= 60) return '높음';
+    if (score >= 40) return '보통';
+    return '낮음';
+  }
+
+  static Color _segmentColor(int segIndex, int filledCount) {
+    if (segIndex >= filledCount) return const Color(0xFF22223A);
+    final threshold = (segIndex + 1) * 10;
+    if (threshold <= 40) return AppTheme.success;
+    if (threshold <= 60) return const Color(0xFFD9C04A);
+    if (threshold <= 80) return AppTheme.warning;
+    return AppTheme.danger;
+  }
+
+  static const _verdictStyle = {
+    '거래진행가능': {'color': AppTheme.success,      'icon': Icons.check_circle_outline},
+    '추가검증필요': {'color': Colors.orange,         'icon': Icons.help_outline},
+    '거래중단권고': {'color': Colors.deepOrange,     'icon': Icons.warning_amber_rounded},
+    '즉시중단':    {'color': AppTheme.danger,        'icon': Icons.cancel_outlined},
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _scoreColor(score);
+    final levelText = _levelText(score);
+    final filledSeg = (score / 100 * 10).round();
+    final vs = _verdictStyle[verdict];
+    final verdictColor = vs?['color'] as Color? ?? AppTheme.textHint;
+    final verdictIcon = vs?['icon'] as IconData? ?? Icons.info_outline;
+
+    const zoneLabels = ['안전', '주의', '위험', '매우위험'];
+    const zoneThresholds = [0, 40, 60, 80];
+    const zoneMaxes = [40, 60, 80, 101];
+    final zoneColors = [AppTheme.success, const Color(0xFFD9C04A), AppTheme.warning, AppTheme.danger];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color.withValues(alpha: 0.13), AppTheme.surface],
+        ),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 헤더: 점수(좌) + 레벨 배지(우)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '사기 위험도',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        '$score',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 52,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -2,
+                          height: 1,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        '%',
+                        style: TextStyle(
+                          color: color.withValues(alpha: 0.7),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.13),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
+                    ),
+                    child: Text(
+                      riskLevel.isEmpty ? levelText : riskLevel,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '상위 ${max(1, 100 - score)}%',
+                    style: const TextStyle(color: AppTheme.textHint, fontSize: 11),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // 10칸 세그먼트 바
+          Row(
+            children: List.generate(10, (i) {
+              return Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(right: i < 9 ? 3 : 0),
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: _segmentColor(i, filledSeg),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              );
+            }),
+          ),
+
+          const SizedBox(height: 8),
+
+          // 구간 라벨
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(4, (i) {
+              final isActive = score >= zoneThresholds[i] && score < zoneMaxes[i];
+              return Text(
+                zoneLabels[i],
+                style: TextStyle(
+                  color: isActive ? zoneColors[i] : AppTheme.textHint,
+                  fontSize: 10,
+                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
+                  letterSpacing: -0.1,
+                ),
+              );
+            }),
+          ),
+
+          const SizedBox(height: 16),
+
+          // verdict 박스
+          if (verdict.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+              decoration: BoxDecoration(
+                color: verdictColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: verdictColor.withValues(alpha: 0.4), width: 0.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(verdictIcon, color: verdictColor, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    verdict,
+                    style: TextStyle(
+                      color: verdictColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Section Card (공통 래퍼)
+// ══════════════════════════════════════════════════════════════
+class _SectionCard extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Widget child;
+
+  const _SectionCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.child,
+  });
+
+  @override
+  State<_SectionCard> createState() => _SectionCardState();
+}
+
+class _SectionCardState extends State<_SectionCard>
+    with SingleTickerProviderStateMixin {
+  bool _expanded = true;
+  late final AnimationController _controller;
+  late final Animation<double> _expandAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+      value: 1.0,
+    );
+    _expandAnim = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggle() {
+    setState(() => _expanded = !_expanded);
+    if (_expanded) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.divider, width: 0.5),
+      ),
+      child: Column(
+        children: [
+          // 헤더
+          GestureDetector(
+            onTap: _toggle,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 26, height: 26,
+                    decoration: BoxDecoration(
+                      color: widget.color.withValues(alpha: 0.13),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(widget.icon, color: widget.color, size: 14),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _expanded ? 0 : -0.5, // 0도 ↔ 180도
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeInOut,
+                    child: const Icon(
+                      Icons.keyboard_arrow_up,
+                      color: AppTheme.textHint,
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // 내용 — SizeTransition으로 펼침/접힘
+          SizeTransition(
+            sizeFactor: _expandAnim,
+            axisAlignment: -1,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: widget.child,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 종합 분석
+// ══════════════════════════════════════════════════════════════
 class _SummaryCard extends StatelessWidget {
   final String text;
   const _SummaryCard({required this.text});
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
-      icon: Icons.smart_toy_outlined,
+    return _SectionCard(
+      icon: Icons.psychology_outlined,
       label: '종합 분석',
       color: AppTheme.primary,
-      child: Text(text,
-          style: const TextStyle(
-              color: AppTheme.textPrimary, fontSize: 14, height: 1.6)),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppTheme.textPrimary,
+          fontSize: 13,
+          height: 1.7,
+          letterSpacing: -0.15,
+        ),
+      ),
     );
   }
 }
 
-// ── 심리 조작 기법 (아코디언) ────────────────────────
+// ══════════════════════════════════════════════════════════════
+// 심리 조작 기법 (아코디언)
+// ══════════════════════════════════════════════════════════════
 class _PsychologicalTacticsCard extends StatelessWidget {
   final String json;
   const _PsychologicalTacticsCard({required this.json});
@@ -405,31 +748,28 @@ class _PsychologicalTacticsCard extends StatelessWidget {
     try { items = jsonDecode(json) as List; } catch (_) {}
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return SectionCard(
+    return _SectionCard(
       icon: Icons.psychology_outlined,
       label: '심리 조작 기법',
       color: Colors.purple,
       child: Column(
         children: items.map((item) {
-          final tactic   = item['tactic']   as String? ?? '';
+          final tactic = item['tactic'] as String? ?? '';
           final evidence = item['evidence'] as String? ?? '';
-          return _AccordionItem(title: tactic, content: evidence, color: Colors.purple);
+          return _AccordionItem(
+              title: tactic, content: evidence, color: Colors.purple);
         }).toList(),
       ),
     );
   }
 }
 
-// ── 아코디언 아이템 ──────────────────────────────────
 class _AccordionItem extends StatefulWidget {
   final String title;
   final String content;
   final Color color;
-  const _AccordionItem({
-    required this.title,
-    required this.content,
-    required this.color,
-  });
+  const _AccordionItem(
+      {required this.title, required this.content, required this.color});
 
   @override
   State<_AccordionItem> createState() => _AccordionItemState();
@@ -446,8 +786,8 @@ class _AccordionItemState extends State<_AccordionItem> {
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
           color: widget.color.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: widget.color.withValues(alpha: 0.2)),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: widget.color.withValues(alpha: 0.2), width: 0.5),
         ),
         child: Column(
           children: [
@@ -480,7 +820,7 @@ class _AccordionItemState extends State<_AccordionItem> {
                     style: const TextStyle(
                         color: AppTheme.textSecondary,
                         fontSize: 13,
-                        height: 1.5)),
+                        height: 1.55)),
               ),
           ],
         ),
@@ -489,17 +829,19 @@ class _AccordionItemState extends State<_AccordionItem> {
   }
 }
 
-// ── 의심 포인트 ──────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// 의심 포인트
+// ══════════════════════════════════════════════════════════════
 class _SuspiciousCard extends StatelessWidget {
   final String json;
   const _SuspiciousCard({required this.json});
 
   static const _categoryColor = {
-    '행동': Colors.orange,
-    '인증': Colors.red,
-    '계좌': Colors.deepOrange,
+    '행동': Color(0xFFE09C40),
+    '인증': Color(0xFFE05252),
+    '계좌': Color(0xFFE05252),
     '사진': Colors.purple,
-    '신원': Colors.pink,
+    '신원': Color(0xFFE59090),
   };
 
   @override
@@ -508,23 +850,26 @@ class _SuspiciousCard extends StatelessWidget {
     try { items = jsonDecode(json) as List; } catch (_) {}
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return SectionCard(
+    return _SectionCard(
       icon: Icons.search_rounded,
       label: '의심 포인트',
-      color: Colors.orange,
+      color: AppTheme.warning,
       child: Column(
-        children: items.map((item) {
-          final category    = item['category']    as String? ?? '';
+        children: items.asMap().entries.map((entry) {
+          final i = entry.key;
+          final item = entry.value;
+          final category = item['category'] as String? ?? '';
           final description = item['description'] as String? ?? '';
-          final color = _categoryColor[category] ?? Colors.orange;
+          final color = _categoryColor[category] ?? AppTheme.warning;
+          final isLast = i == items.length - 1;
 
           return Container(
-            margin: const EdgeInsets.only(bottom: 8),
+            margin: EdgeInsets.only(bottom: isLast ? 0 : 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: color.withValues(alpha: 0.25)),
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: color.withValues(alpha: 0.25), width: 0.5),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -533,21 +878,26 @@ class _SuspiciousCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(5),
                   ),
-                  child: Text(category,
-                      style: TextStyle(
-                          color: color,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold)),
+                  child: Text(
+                    category,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700),
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(description,
-                      style: const TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 13,
-                          height: 1.5)),
+                  child: Text(
+                    description,
+                    style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 13,
+                        height: 1.55,
+                        letterSpacing: -0.15),
+                  ),
                 ),
               ],
             ),
@@ -558,15 +908,17 @@ class _SuspiciousCard extends StatelessWidget {
   }
 }
 
-// ── 권장 행동 (타임라인) ─────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// 권장 행동 (타임라인)
+// ══════════════════════════════════════════════════════════════
 class _ActionCard extends StatelessWidget {
   final String json;
   const _ActionCard({required this.json});
 
   static const _priorityStyle = {
-    '즉시': {'color': Colors.red,    'icon': Icons.warning_rounded},
-    '단기': {'color': Colors.orange, 'icon': Icons.schedule_rounded},
-    '참고': {'color': Colors.blue,   'icon': Icons.info_outline},
+    '즉시': {'color': AppTheme.danger,   'icon': Icons.warning_rounded},
+    '단기': {'color': AppTheme.warning,  'icon': Icons.schedule_rounded},
+    '참고': {'color': Colors.blue,       'icon': Icons.info_outline},
   };
 
   @override
@@ -575,20 +927,20 @@ class _ActionCard extends StatelessWidget {
     try { items = jsonDecode(json) as List; } catch (_) {}
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return SectionCard(
+    return _SectionCard(
       icon: Icons.tips_and_updates_outlined,
       label: '권장 행동',
       color: AppTheme.success,
       child: Column(
         children: items.asMap().entries.map((entry) {
-          final index    = entry.key;
-          final item     = entry.value;
+          final index = entry.key;
+          final item = entry.value;
           final priority = item['priority'] as String? ?? '';
-          final action   = item['action']   as String? ?? '';
-          final style    = _priorityStyle[priority] ?? _priorityStyle['참고']!;
-          final color    = style['color'] as Color;
-          final icon     = style['icon']  as IconData;
-          final isLast   = index == items.length - 1;
+          final action = item['action'] as String? ?? '';
+          final style = _priorityStyle[priority] ?? _priorityStyle['참고']!;
+          final color = style['color'] as Color;
+          final icon = style['icon'] as IconData;
+          final isLast = index == items.length - 1;
 
           return IntrinsicHeight(
             child: Row(
@@ -601,16 +953,18 @@ class _ActionCard extends StatelessWidget {
                       Container(
                         width: 26, height: 26,
                         decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.15),
+                          color: color.withValues(alpha: 0.13),
                           shape: BoxShape.circle,
+                          border: Border.all(
+                              color: color.withValues(alpha: 0.35), width: 1),
                         ),
-                        child: Icon(icon, color: color, size: 14),
+                        child: Icon(icon, color: color, size: 12),
                       ),
                       if (!isLast)
                         Expanded(
                           child: Container(
                             width: 1.5,
-                            margin: const EdgeInsets.symmetric(vertical: 3),
+                            margin: const EdgeInsets.symmetric(vertical: 2),
                             color: color.withValues(alpha: 0.25),
                           ),
                         ),
@@ -625,23 +979,30 @@ class _ActionCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(5),
                           ),
-                          child: Text(priority,
-                              style: TextStyle(
-                                  color: color,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold)),
+                          child: Text(
+                            priority,
+                            style: TextStyle(
+                                color: color,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.1),
+                          ),
                         ),
                         const SizedBox(height: 5),
-                        Text(action,
-                            style: const TextStyle(
-                                color: AppTheme.textPrimary,
-                                fontSize: 13,
-                                height: 1.5)),
+                        Text(
+                          action,
+                          style: const TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 13,
+                              height: 1.55,
+                              letterSpacing: -0.15),
+                        ),
                       ],
                     ),
                   ),
@@ -655,7 +1016,9 @@ class _ActionCard extends StatelessWidget {
   }
 }
 
-// ── 추가 확인 질문 ───────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// 추가 확인 질문 (채팅 버블)
+// ══════════════════════════════════════════════════════════════
 class _QuestionsCard extends StatelessWidget {
   final String json;
   const _QuestionsCard({required this.json});
@@ -666,28 +1029,35 @@ class _QuestionsCard extends StatelessWidget {
     try { items = jsonDecode(json) as List; } catch (_) {}
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return SectionCard(
+    return _SectionCard(
       icon: Icons.help_outline_rounded,
       label: '추가 확인 질문',
       color: Colors.blue,
       child: Column(
-        children: items.map((item) {
-          final purpose  = item['purpose']  as String? ?? '';
+        children: items.asMap().entries.map((entry) {
+          final i = entry.key;
+          final item = entry.value;
+          final purpose = item['purpose'] as String? ?? '';
           final question = item['question'] as String? ?? '';
+          final isLast = i == items.length - 1;
 
           return Container(
-            margin: const EdgeInsets.only(bottom: 10),
+            margin: EdgeInsets.only(bottom: isLast ? 0 : 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.lightbulb_outline, color: Colors.blue, size: 12),
+                    const Icon(Icons.bolt, color: Colors.blue, size: 11),
                     const SizedBox(width: 4),
                     Expanded(
-                      child: Text(purpose,
-                          style: const TextStyle(
-                              color: Colors.blue, fontSize: 11, height: 1.4)),
+                      child: Text(
+                        purpose,
+                        style: const TextStyle(
+                            color: Colors.blue,
+                            fontSize: 11,
+                            letterSpacing: -0.1),
+                      ),
                     ),
                   ],
                 ),
@@ -696,18 +1066,24 @@ class _QuestionsCard extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.08),
+                    color: Colors.blue.withValues(alpha: 0.07),
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(4),
                       topRight: Radius.circular(12),
                       bottomLeft: Radius.circular(12),
                       bottomRight: Radius.circular(12),
                     ),
-                    border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                    border: Border.all(
+                        color: Colors.blue.withValues(alpha: 0.2), width: 0.5),
                   ),
-                  child: Text(question,
-                      style: const TextStyle(
-                          color: AppTheme.textPrimary, fontSize: 13, height: 1.5)),
+                  child: Text(
+                    question,
+                    style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 13,
+                        height: 1.55,
+                        letterSpacing: -0.15),
+                  ),
                 ),
               ],
             ),
@@ -718,128 +1094,9 @@ class _QuestionsCard extends StatelessWidget {
   }
 }
 
-// ── 위험도 헤더 카드 ─────────────────────────────────
-class _RiskHeaderCard extends StatelessWidget {
-  final String riskLevel;
-  final String riskScore;
-  final String verdict;
-  final Color riskColor;
-
-  const _RiskHeaderCard({
-    required this.riskLevel,
-    required this.riskScore,
-    required this.verdict,
-    required this.riskColor,
-  });
-
-  static const _verdictStyle = {
-    '거래진행가능': {'color': AppTheme.success,  'icon': Icons.check_circle_outline},
-    '추가검증필요': {'color': Colors.orange,      'icon': Icons.help_outline},
-    '거래중단권고': {'color': Colors.deepOrange,  'icon': Icons.warning_amber_rounded},
-    '즉시중단':    {'color': AppTheme.danger,     'icon': Icons.cancel_outlined},
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final score = int.tryParse(riskScore) ?? 0;
-    final vs    = _verdictStyle[verdict];
-    final verdictColor = vs?['color'] as Color?   ?? AppTheme.textHint;
-    final verdictIcon  = vs?['icon']  as IconData? ?? Icons.info_outline;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [riskColor.withValues(alpha: 0.2), AppTheme.surface],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: riskColor.withValues(alpha: 0.4)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('사기 위험도',
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-                  const SizedBox(height: 4),
-                  Text(
-                    riskLevel.isEmpty ? '분석 중' : riskLevel,
-                    style: TextStyle(
-                        color: riskColor,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 64, height: 64,
-                    child: CircularProgressIndicator(
-                      value: score / 100,
-                      strokeWidth: 6,
-                      backgroundColor: AppTheme.surfaceDeep,
-                      valueColor: AlwaysStoppedAnimation<Color>(riskColor),
-                    ),
-                  ),
-                  Text('$score%',
-                      style: TextStyle(
-                          color: riskColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: score / 100,
-              minHeight: 6,
-              backgroundColor: AppTheme.surfaceDeep,
-              valueColor: AlwaysStoppedAnimation<Color>(riskColor),
-            ),
-          ),
-          if (verdict.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: verdictColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: verdictColor.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(verdictIcon, color: verdictColor, size: 16),
-                  const SizedBox(width: 6),
-                  Text(verdict,
-                      style: TextStyle(
-                          color: verdictColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── 상단 썸네일 스트립 ───────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// 썸네일 스트립
+// ══════════════════════════════════════════════════════════════
 class _ThumbnailStrip extends StatelessWidget {
   final List<String> imageUrls;
   final bool isGuest;
@@ -868,38 +1125,42 @@ class _ThumbnailStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppTheme.surface,
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        border: Border(
+          bottom: BorderSide(color: AppTheme.divider, width: 0.5),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.photo_library_outlined,
-                    color: AppTheme.primary, size: 13),
-                const SizedBox(width: 5),
-                const Text('분석한 이미지',
-                    style: TextStyle(
-                        color: AppTheme.primary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600)),
-                const SizedBox(width: 6),
-                Text('${imageUrls.length}장 · 탭하면 확대됩니다',
-                    style: const TextStyle(
-                        color: AppTheme.textHint, fontSize: 11)),
-                const Spacer(),
-                if (categoryName != null && categoryName!.isNotEmpty)
-                  _CategoryChip(categoryName: categoryName!),
-              ],
-            ),
+          // 헤더 행
+          Row(
+            children: [
+              const Icon(Icons.image_outlined,
+                  color: Color(0xFFBDB0FF), size: 13),
+              const SizedBox(width: 5),
+              const Text('분석한 이미지',
+                  style: TextStyle(
+                      color: Color(0xFFBDB0FF),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(width: 6),
+              Text('${imageUrls.length}장',
+                  style: const TextStyle(
+                      color: AppTheme.textHint, fontSize: 11)),
+              const Spacer(),
+              if (categoryName != null && categoryName!.isNotEmpty)
+                _CategoryChip(categoryName: categoryName!),
+            ],
           ),
+          const SizedBox(height: 10),
+          // 썸네일 목록
           SizedBox(
             height: 72,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: imageUrls.length,
               itemBuilder: (context, index) {
                 final isFirst = index == 0;
@@ -908,54 +1169,65 @@ class _ThumbnailStrip extends StatelessWidget {
                   child: Container(
                     margin: const EdgeInsets.only(right: 8),
                     width: 72, height: 72,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isFirst
+                            ? AppTheme.primary.withValues(alpha: 0.5)
+                            : AppTheme.divider,
+                        width: isFirst ? 1 : 0.5,
+                      ),
+                    ),
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(9),
                           child: _AuthImage(
                             url: imageUrls[index],
                             fit: BoxFit.cover,
                             isGuest: isGuest,
                           ),
                         ),
-                        if (isFirst)
-                          Positioned(
-                            bottom: 0, left: 0, right: 0,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: AppTheme.overlayDark,
-                                borderRadius: const BorderRadius.only(
-                                  bottomLeft: Radius.circular(8),
-                                  bottomRight: Radius.circular(8),
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              child: const Text('대표',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      color: AppTheme.textPrimary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                          ),
+                        // 번호 뱃지
                         Positioned(
                           top: 3, right: 3,
                           child: Container(
                             width: 18, height: 18,
                             decoration: BoxDecoration(
-                              color: AppTheme.overlayLight,
+                              color: Colors.black.withValues(alpha: 0.55),
                               shape: BoxShape.circle,
                             ),
                             child: Center(
                               child: Text('${index + 1}',
                                   style: const TextStyle(
-                                      color: AppTheme.textPrimary,
+                                      color: Colors.white,
                                       fontSize: 10,
-                                      fontWeight: FontWeight.bold)),
+                                      fontWeight: FontWeight.w700)),
                             ),
                           ),
                         ),
+                        // 대표 라벨
+                        if (isFirst)
+                          Positioned(
+                            bottom: 0, left: 0, right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.75),
+                                borderRadius: const BorderRadius.only(
+                                  bottomLeft: Radius.circular(9),
+                                  bottomRight: Radius.circular(9),
+                                ),
+                              ),
+                              child: const Text('대표',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: Color(0xFFBDB0FF),
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700)),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -969,7 +1241,9 @@ class _ThumbnailStrip extends StatelessWidget {
   }
 }
 
-// ── 풀스크린 이미지 뷰어 ────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// 풀스크린 이미지 뷰어
+// ══════════════════════════════════════════════════════════════
 class _FullscreenImageViewer extends StatefulWidget {
   final List<String> imageUrls;
   final int initialIndex;
@@ -982,7 +1256,8 @@ class _FullscreenImageViewer extends StatefulWidget {
   });
 
   @override
-  State<_FullscreenImageViewer> createState() => _FullscreenImageViewerState();
+  State<_FullscreenImageViewer> createState() =>
+      _FullscreenImageViewerState();
 }
 
 class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
@@ -1012,10 +1287,8 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
           icon: const Icon(Icons.close, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          '${_currentIndex + 1} / ${widget.imageUrls.length}',
-          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
-        ),
+        title: Text('${_currentIndex + 1} / ${widget.imageUrls.length}',
+            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
         centerTitle: true,
       ),
       body: Stack(
@@ -1025,8 +1298,7 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
             itemCount: widget.imageUrls.length,
             onPageChanged: (i) => setState(() => _currentIndex = i),
             itemBuilder: (context, index) => InteractiveViewer(
-              minScale: 1.0,
-              maxScale: 4.0,
+              minScale: 1.0, maxScale: 4.0,
               child: Center(
                 child: _AuthImage(
                   url: widget.imageUrls[index],
@@ -1040,8 +1312,7 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
           if (widget.imageUrls.length > 1)
             Positioned(
               bottom: 24 + MediaQuery.of(context).padding.bottom,
-              left: 0,
-              right: 0,
+              left: 0, right: 0,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: widget.imageUrls.asMap().entries.map((entry) {
@@ -1066,7 +1337,9 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
   }
 }
 
-// ── 인증 이미지 로더 ──────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// 인증 이미지 로더
+// ══════════════════════════════════════════════════════════════
 class _AuthImage extends StatefulWidget {
   final String url;
   final BoxFit fit;
@@ -1094,26 +1367,20 @@ class _AuthImageState extends State<_AuthImage> {
   }
 
   Future<Uint8List?> _load() async {
-    // ── 캐시 히트 시 즉시 반환 ────────────────────────
     if (AppImageCache.instance.has(widget.url)) {
       return AppImageCache.instance.get(widget.url);
     }
-
     try {
       Uint8List? bytes;
       if (widget.isGuest) {
-        final response = await http.get(Uri.parse(widget.url));
-        if (response.statusCode == 200) bytes = response.bodyBytes;
+        final r = await http.get(Uri.parse(widget.url));
+        if (r.statusCode == 200) bytes = r.bodyBytes;
       } else {
         final path = widget.url.replaceFirst(AppConfig.baseUrl, '');
-        final response = await ApiClient().get(path);
-        if (response.statusCode == 200) bytes = response.bodyBytes;
+        final r = await ApiClient().get(path);
+        if (r.statusCode == 200) bytes = r.bodyBytes;
       }
-
-      // ── 로드 성공 시 캐시 저장 ────────────────────────
-      if (bytes != null) {
-        AppImageCache.instance.set(widget.url, bytes);
-      }
+      if (bytes != null) AppImageCache.instance.set(widget.url, bytes);
       return bytes;
     } catch (_) {}
     return null;
@@ -1151,7 +1418,9 @@ class _AuthImageState extends State<_AuthImage> {
   }
 }
 
-// ── 피드백 카드 ─────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// 피드백 카드
+// ══════════════════════════════════════════════════════════════
 class _FeedbackCard extends StatefulWidget {
   final int? sessionId;
   final bool submitted;
@@ -1184,11 +1453,11 @@ class _FeedbackCardState extends State<_FeedbackCard> {
   Widget build(BuildContext context) {
     if (widget.sessionId == null) return const SizedBox.shrink();
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.divider, width: 0.5),
       ),
       child: widget.submitted ? _buildDone() : _buildForm(),
     );
@@ -1200,14 +1469,12 @@ class _FeedbackCardState extends State<_FeedbackCard> {
         widget.helpful == true
             ? Icons.thumb_up_rounded
             : Icons.thumb_down_rounded,
-        color: widget.helpful == true ? AppTheme.success : Colors.orange,
+        color: widget.helpful == true ? AppTheme.success : AppTheme.warning,
         size: 18,
       ),
       const SizedBox(width: 8),
       Text(
-        widget.helpful == true
-            ? '도움됐다고 평가하셨습니다'
-            : '아쉽다고 평가하셨습니다',
+        widget.helpful == true ? '도움됐다고 평가하셨습니다' : '아쉽다고 평가하셨습니다',
         style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
       ),
     ],
@@ -1219,9 +1486,10 @@ class _FeedbackCardState extends State<_FeedbackCard> {
       const Text('이 분석이 도움이 됐나요?',
           style: TextStyle(
               color: AppTheme.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600)),
-      const SizedBox(height: 12),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3)),
+      const SizedBox(height: 10),
       if (!_showReasons)
         Row(children: [
           Expanded(
@@ -1237,12 +1505,12 @@ class _FeedbackCardState extends State<_FeedbackCard> {
               },
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: _FeedbackButton(
               icon: Icons.thumb_down_rounded,
               label: '아쉬워요',
-              color: Colors.orange,
+              color: AppTheme.warning,
               isLoading: _isLoading,
               onTap: () => setState(() => _showReasons = true),
             ),
@@ -1262,14 +1530,18 @@ class _FeedbackCardState extends State<_FeedbackCard> {
                 setState(() => _isLoading = false);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
+                  color: AppTheme.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+                  border: Border.all(
+                      color: AppTheme.warning.withValues(alpha: 0.4),
+                      width: 0.5),
                 ),
                 child: Text(reason,
-                    style: const TextStyle(color: Colors.orange, fontSize: 12)),
+                    style: const TextStyle(
+                        color: AppTheme.warning, fontSize: 12)),
               ),
             );
           }).toList(),
@@ -1303,18 +1575,19 @@ class _FeedbackButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.4)),
+          border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 16),
+            Icon(icon, color: color, size: 14),
             const SizedBox(width: 6),
             Text(label,
                 style: TextStyle(
                     color: color,
                     fontSize: 13,
-                    fontWeight: FontWeight.w600)),
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3)),
           ],
         ),
       ),
@@ -1322,7 +1595,9 @@ class _FeedbackButton extends StatelessWidget {
   }
 }
 
-// ── 제보하기 바운스 버튼 ─────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// 제보하기 플로팅 버튼 (그라데이션 + 바운스)
+// ══════════════════════════════════════════════════════════════
 class _ShareHintBounce extends StatefulWidget {
   final VoidCallback onTap;
   const _ShareHintBounce({required this.onTap});
@@ -1343,8 +1618,7 @@ class _ShareHintBounceState extends State<_ShareHintBounce>
       vsync: this,
       duration: const Duration(milliseconds: 800),
     )..repeat(reverse: true);
-
-    _bounce = Tween<double>(begin: 0, end: -7).animate(
+    _bounce = Tween<double>(begin: 0, end: -6).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }
@@ -1368,24 +1642,27 @@ class _ShareHintBounceState extends State<_ShareHintBounce>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           decoration: BoxDecoration(
-            color: AppTheme.primary,
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(100),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppTheme.primary, AppTheme.primaryDeep],
+            ),
           ),
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.campaign_outlined, color: Colors.white, size: 16),
+              Icon(Icons.campaign_outlined, color: Colors.white, size: 15),
               SizedBox(width: 7),
               Text(
                 '커뮤니티에 제보하기',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 13,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
                 ),
               ),
-              SizedBox(width: 6),
-              Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 16),
             ],
           ),
         ),
@@ -1394,20 +1671,21 @@ class _ShareHintBounceState extends State<_ShareHintBounce>
   }
 }
 
-// ── 카테고리 칩 ──────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// 카테고리 칩
+// ══════════════════════════════════════════════════════════════
 class _CategoryChip extends StatelessWidget {
   final String categoryName;
   const _CategoryChip({required this.categoryName});
 
   static const _style = {
-    '중고거래 사기': {'icon': Icons.storefront_outlined,   'color': Color(0xFF4FC3F7)},
-    '투자 사기':    {'icon': Icons.trending_up,            'color': Color(0xFF81C784)},
-    '게임 사기':    {'icon': Icons.sports_esports_outlined, 'color': Color(0xFFEF9A9A)},
-    '보이스피싱':   {'icon': Icons.phone_outlined,          'color': Color(0xFFCE93D8)},
-    '취업 사기':    {'icon': Icons.work_outline,            'color': Color(0xFFFFB74D)},
-    '기타':         {'icon': Icons.help_outline_rounded,    'color': Color(0xFF90A4AE)},
+    '중고거래 사기': {'icon': Icons.storefront_outlined,    'color': Color(0xFF4FC3F7)},
+    '투자 사기':    {'icon': Icons.trending_up,             'color': Color(0xFF81C784)},
+    '게임 사기':    {'icon': Icons.sports_esports_outlined,  'color': Color(0xFFEF9A9A)},
+    '보이스피싱':   {'icon': Icons.phone_outlined,           'color': Color(0xFFCE93D8)},
+    '취업 사기':    {'icon': Icons.work_outline,             'color': Color(0xFFFFB74D)},
+    '기타':         {'icon': Icons.help_outline_rounded,     'color': Color(0xFF90A4AE)},
   };
-
   static const _default = {
     'icon': Icons.warning_amber_rounded,
     'color': Color(0xFFFF8A65),
@@ -1415,16 +1693,16 @@ class _CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s     = _style[categoryName] ?? _default;
+    final s = _style[categoryName] ?? _default;
     final color = s['color'] as Color;
-    final icon  = s['icon']  as IconData;
+    final icon = s['icon'] as IconData;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

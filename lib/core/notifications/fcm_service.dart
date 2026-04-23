@@ -28,11 +28,14 @@ class FcmService {
   static const String _channelDesc = '사기 분석이 완료되면 알림을 보냅니다.';
 
   Future<void> initialize({
-    // ← 시그니처 변경: imageToken 추가
     required void Function(int sessionId, String? imageToken) onAnalysisComplete,
+    VoidCallback? onInquiryReply,
   }) async {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    await _initLocalNotifications(onAnalysisComplete: onAnalysisComplete);
+    await _initLocalNotifications(
+      onAnalysisComplete: onAnalysisComplete,
+      onInquiryReply: onInquiryReply,
+    );
     await _requestPermission();
     await _registerToken();
     _messaging.onTokenRefresh.listen(_sendTokenToServer);
@@ -42,13 +45,13 @@ class FcmService {
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      _handleNotificationTap(message, onAnalysisComplete);
+      _handleNotificationTap(message, onAnalysisComplete, onInquiryReply);
     });
 
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
       await Future.delayed(const Duration(milliseconds: 500));
-      _handleNotificationTap(initialMessage, onAnalysisComplete);
+      _handleNotificationTap(initialMessage, onAnalysisComplete, onInquiryReply);
     }
   }
 
@@ -83,6 +86,7 @@ class FcmService {
 
   Future<void> _initLocalNotifications({
     required void Function(int sessionId, String? imageToken) onAnalysisComplete,
+    VoidCallback? onInquiryReply,
   }) async {
     const androidChannel = AndroidNotificationChannel(
       _channelId,
@@ -104,12 +108,19 @@ class FcmService {
       ),
     );
 
+
     await _localNotifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (response) {
         if (response.payload != null) {
           try {
             final data = jsonDecode(response.payload!);
+
+            if (data['type'] == 'INQUIRY_REPLY') {
+              onInquiryReply?.call();
+              return;
+            }
+
             final sessionId = int.tryParse(data['sessionId']?.toString() ?? '');
             final imageToken = data['imageToken']?.toString();
             if (sessionId != null) onAnalysisComplete(sessionId, imageToken);
@@ -151,7 +162,14 @@ class FcmService {
   void _handleNotificationTap(
       RemoteMessage message,
       void Function(int sessionId, String? imageToken) onAnalysisComplete,
+      VoidCallback? onInquiryReply,
       ) {
+
+    if (message.data['type'] == 'INQUIRY_REPLY') {
+      onInquiryReply?.call();
+      return;
+    }
+
     final sessionId = int.tryParse(message.data['sessionId']?.toString() ?? '');
     final imageToken = message.data['imageToken']?.toString();
     if (sessionId != null) {

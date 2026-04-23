@@ -35,9 +35,18 @@ class AuthProvider extends ChangeNotifier {
   String? get userEmail => _userEmail;
   String? get accessToken => _accessToken;
   String? get refreshToken => _refreshToken;
+  LoginType _loginType = LoginType.none;
 
   bool _isWithdrawing = false;
   bool get isWithdrawing => _isWithdrawing;
+
+  String? get loginProvider {
+    switch (_loginType) {
+      case LoginType.google: return 'Google';
+      case LoginType.kakao:  return 'Kakao';
+      case LoginType.none:   return null;
+    }
+  }
 
   void setConversationProvider(ConversationProvider provider) {
     _conversationProvider = provider;
@@ -68,6 +77,12 @@ class AuthProvider extends ChangeNotifier {
     _loadingType = type;
     _errorMessage = null;
     notifyListeners();
+    _loginType = type;
+
+    await const FlutterSecureStorage().write(
+      key: 'loginType',
+      value: type == LoginType.google ? 'google' : 'kakao',
+    );
 
     try {
       final result = await loginFn();
@@ -104,8 +119,10 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> checkLoginStatus() async {
     _isLoggedIn = await _authService.isLoggedIn();
+    final storage = const FlutterSecureStorage();
+    final lt = await storage.read(key: 'loginType');
+    _loginType = lt == 'kakao' ? LoginType.kakao : LoginType.google;
     if (_isLoggedIn) {
-      final storage = const FlutterSecureStorage();
       _accessToken     = await storage.read(key: AppConfig.tokenKey);
       _refreshToken    = await storage.read(key: 'refreshToken');
       _profileImageUrl = await storage.read(key: 'profileImageUrl');
@@ -116,6 +133,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _loginType = LoginType.none;
     await _authService.signOut();
     _isLoggedIn      = false;
     _profileImageUrl = null;
