@@ -1,5 +1,6 @@
 // lib/features/home/home_body.dart
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import 'package:miritalk_app/features/community/community_screen.dart';
 import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
 import 'package:miritalk_app/features/home/widgets/scroll_hint_arrow.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 
 class HomeBody extends StatefulWidget {
   final Future<void> Function() onGoToUpload;
@@ -420,7 +422,7 @@ class _HeroStoryCard extends StatelessWidget {
 
                       const SizedBox(height: 10),
                       const Text(
-                        '직접 겪은 수십 건의 사기 경험을 AI에 담았어요.\n대화 캡처 한 장으로 사기 여부를 판단해드립니다.',
+                        '직접 겪은 수백 건의 사기 경험을 AI에 담았어요.\n대화 캡처 한 장으로 사기 여부를 판단해드립니다.',
                         style: TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 13,
@@ -828,13 +830,13 @@ class _StepList extends StatelessWidget {
   static const _steps = [
     (n: 1, icon: Icons.chat_bubble_outline, title: '대화 화면 캡처',
     desc: '의심되는 상대방과의 대화 내용을 캡처해 주세요.',
-    imagePath: 'assets/images/step_capture.jpg'),
+    imagePath: 'assets/images/step_capture.jpg', videoPath: null),
     (n: 2, icon: Icons.upload_outlined, title: '사진 업로드',
     desc: '캡처한 사진을 최대 5장까지 업로드합니다.',
-    imagePath: 'assets/images/step_upload.gif'),
+    imagePath: null, videoPath: 'assets/videos/step_upload.mp4'),
     (n: 3, icon: Icons.analytics_outlined, title: 'AI 분석',
     desc: '미리톡 AI가 사기 패턴을 분석하고 결과를 알려드립니다.',
-    imagePath: 'assets/images/step_result.gif'),
+    imagePath: null, videoPath: 'assets/videos/step_result.mp4'),
   ];
 
   @override
@@ -849,6 +851,7 @@ class _StepList extends StatelessWidget {
             title: s.title,
             desc: s.desc,
             imagePath: s.imagePath,
+            videoPath: s.videoPath,
           ),
         );
       }).toList(),
@@ -861,7 +864,8 @@ class _StepItem extends StatelessWidget {
   final IconData icon;
   final String title;
   final String desc;
-  final String imagePath;
+  final String? imagePath;
+  final String? videoPath;
 
   const _StepItem({
     required this.n,
@@ -869,7 +873,9 @@ class _StepItem extends StatelessWidget {
     required this.title,
     required this.desc,
     required this.imagePath,
-  });
+    required this.videoPath,
+  }) : assert(imagePath != null || videoPath != null,
+            'imagePath 또는 videoPath 중 하나는 반드시 지정해야 한다');
 
   @override
   Widget build(BuildContext context) {
@@ -950,60 +956,278 @@ class _StepItem extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // thumbnail
-          GestureDetector(
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                fullscreenDialog: true,
-                builder: (_) => _AssetFullscreenViewer(
-                  images: [{'path': imagePath, 'label': title}],
-                  initialIndex: 0,
-                  showWatermark: false,
+          // thumbnail (video or image)
+          if (videoPath != null)
+            _StepVideo(videoPath: videoPath!, title: title)
+          else
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => _AssetFullscreenViewer(
+                    images: [{'path': imagePath!, 'label': title}],
+                    initialIndex: 0,
+                    showWatermark: false,
+                  ),
                 ),
               ),
-            ),
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    width: 56, height: 56,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: AppTheme.divider,
-                        width: 0.5,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Image.asset(
-                      imagePath,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
                       width: 56, height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: AppTheme.surfaceDeep,
-                        child: const Icon(Icons.image_outlined,
-                            color: AppTheme.primary, size: 22),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: AppTheme.divider,
+                          width: 0.5,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Image.asset(
+                        imagePath!,
+                        width: 56, height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: AppTheme.surfaceDeep,
+                          child: const Icon(Icons.image_outlined,
+                              color: AppTheme.primary, size: 22),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                Positioned(
-                  top: 3, right: 3,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(4),
+                  Positioned(
+                    top: 3, right: 3,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(Icons.zoom_in,
+                          color: Colors.white70, size: 11),
                     ),
-                    child: const Icon(Icons.zoom_in,
-                        color: Colors.white70, size: 11),
                   ),
-                ),
-              ],
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Step Video (auto-play, loop, mute — GIF 대체)
+// ══════════════════════════════════════════════════════════════
+class _StepVideo extends StatefulWidget {
+  final String videoPath;
+  final String title;
+  const _StepVideo({required this.videoPath, required this.title});
+
+  @override
+  State<_StepVideo> createState() => _StepVideoState();
+}
+
+class _StepVideoState extends State<_StepVideo>
+    with WidgetsBindingObserver {
+  late final VideoPlayerController _controller;
+  bool _ready = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _controller = VideoPlayerController.asset(widget.videoPath)
+      ..setLooping(true)
+      ..setVolume(0)
+      ..addListener(_onControllerChanged);
+    _controller.initialize().then((_) {
+      if (!mounted) return;
+      developer.log(
+        'video initialized: ${widget.videoPath} '
+        'size=${_controller.value.size} '
+        'duration=${_controller.value.duration}',
+        name: 'StepVideo',
+      );
+      _controller.play();
+      setState(() => _ready = true);
+    }).catchError((Object e, StackTrace st) {
+      developer.log(
+        'video init failed: ${widget.videoPath}',
+        name: 'StepVideo',
+        error: e,
+        stackTrace: st,
+      );
+      if (!mounted) return;
+      setState(() => _errorMessage = e.toString());
+    });
+  }
+
+  void _onControllerChanged() {
+    final err = _controller.value.errorDescription;
+    if (err != null && _errorMessage == null) {
+      developer.log('video player error: $err',
+          name: 'StepVideo');
+      if (!mounted) return;
+      setState(() => _errorMessage = err);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_ready || _errorMessage != null) return;
+    if (state == AppLifecycleState.resumed && !_controller.value.isPlaying) {
+      _controller.play();
+    }
+  }
+
+  Future<void> _openFullscreen() async {
+    // 풀스크린이 위에 올라가 있는 동안은 썸네일 정지 (리소스 절약 + 같은 asset 충돌 방지)
+    await _controller.pause();
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _VideoFullscreenViewer(
+          videoPath: widget.videoPath,
+          title: widget.title,
+        ),
+      ),
+    );
+    if (!mounted || _errorMessage != null) return;
+    _controller.play();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = _controller.value.size;
+    final hasValidSize = size.width > 0 && size.height > 0;
+
+    return GestureDetector(
+      onTap: _ready ? _openFullscreen : null,
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceDeep,
+                border: Border.all(color: AppTheme.divider, width: 0.5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: _errorMessage != null
+                  ? const Icon(Icons.videocam_off_outlined,
+                      color: AppTheme.primary, size: 22)
+                  : (_ready && hasValidSize)
+                      ? FittedBox(
+                          fit: BoxFit.cover,
+                          clipBehavior: Clip.hardEdge,
+                          child: SizedBox(
+                            width: size.width,
+                            height: size.height,
+                            child: VideoPlayer(_controller),
+                          ),
+                        )
+                      : const Center(
+                          child: SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.textHint,
+                            ),
+                          ),
+                        ),
+            ),
+          ),
+          Positioned(
+            top: 3, right: 3,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Icon(Icons.zoom_in,
+                  color: Colors.white70, size: 11),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Video Fullscreen Viewer
+// ══════════════════════════════════════════════════════════════
+class _VideoFullscreenViewer extends StatefulWidget {
+  final String videoPath;
+  final String title;
+  const _VideoFullscreenViewer({
+    required this.videoPath,
+    required this.title,
+  });
+
+  @override
+  State<_VideoFullscreenViewer> createState() => _VideoFullscreenViewerState();
+}
+
+class _VideoFullscreenViewerState extends State<_VideoFullscreenViewer> {
+  late final VideoPlayerController _controller;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.asset(widget.videoPath)
+      ..setLooping(true)
+      ..setVolume(0);
+    _controller.initialize().then((_) {
+      if (!mounted) return;
+      _controller.play();
+      setState(() => _ready = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(
+          widget.title,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        elevation: 0,
+      ),
+      body: Center(
+        child: _ready
+            ? AspectRatio(
+                aspectRatio: _controller.value.aspectRatio,
+                child: VideoPlayer(_controller),
+              )
+            : const CircularProgressIndicator(color: Colors.white70),
       ),
     );
   }

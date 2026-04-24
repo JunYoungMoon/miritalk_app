@@ -1,7 +1,9 @@
 // lib/features/auth/login_screen.dart
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 import 'auth_provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/core/tracking/tracking_service.dart';
@@ -191,14 +193,15 @@ class _OnboardingSlider extends StatefulWidget {
   State<_OnboardingSlider> createState() => _OnboardingSliderState();
 }
 
-class _OnboardingSliderState extends State<_OnboardingSlider> {
+class _OnboardingSliderState extends State<_OnboardingSlider>
+    with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
   Timer? _timer;
 
   static const _slides = [
     (
-    imagePath: 'assets/images/onboarding_1.gif',
+    videoPath: 'assets/videos/onboarding_1.mp4',
     icon: Icons.upload_rounded,
     iconColor: Color(0xFF4FC3F7),
     tag: '1단계',
@@ -206,7 +209,7 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
     desc: '카카오톡·당근·문자 등 의심되는 대화를\n캡처해서 최대 5장 업로드하세요.',
     ),
     (
-    imagePath: 'assets/images/onboarding_2.gif',
+    videoPath: 'assets/videos/onboarding_2.mp4',
     icon: Icons.psychology_outlined,
     iconColor: Color(0xFFFFB74D),
     tag: '2단계',
@@ -214,7 +217,7 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
     desc: '긴급함 유도·감정 자극·신뢰 선점 등\n사기범의 심리 전술을 정밀 분석합니다.',
     ),
     (
-    imagePath: 'assets/images/onboarding_3.gif',
+    videoPath: 'assets/videos/onboarding_3.mp4',
     icon: Icons.tips_and_updates_outlined,
     iconColor: Color(0xFF81C784),
     tag: '3단계',
@@ -223,9 +226,43 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
     ),
   ];
 
+  // 슬라이드별 컨트롤러를 부모에서 한 번만 만들어 PageView 재생성과 무관하게 유지한다.
+  late final List<VideoPlayerController> _controllers;
+  late final List<bool> _ready;
+  late final List<bool> _failed;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _controllers = _slides
+        .map((s) => VideoPlayerController.asset(s.videoPath)
+          ..setLooping(true)
+          ..setVolume(0))
+        .toList(growable: false);
+    _ready = List<bool>.filled(_slides.length, false);
+    _failed = List<bool>.filled(_slides.length, false);
+
+    for (var i = 0; i < _controllers.length; i++) {
+      final idx = i;
+      _controllers[idx].initialize().then((_) {
+        if (!mounted) return;
+        if (idx == _currentIndex) {
+          _controllers[idx].play();
+        }
+        setState(() => _ready[idx] = true);
+      }).catchError((Object e, StackTrace st) {
+        developer.log(
+          'onboarding video init failed: ${_slides[idx].videoPath}',
+          name: 'OnboardingVideo',
+          error: e,
+          stackTrace: st,
+        );
+        if (!mounted) return;
+        setState(() => _failed[idx] = true);
+      });
+    }
+
     _timer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!mounted) return;
       final next = (_currentIndex + 1) % _slides.length;
@@ -237,10 +274,38 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
     });
   }
 
+  void _onPageChanged(int i) {
+    if (!mounted) return;
+    setState(() => _currentIndex = i);
+    for (var k = 0; k < _controllers.length; k++) {
+      if (!_ready[k] || _failed[k]) continue;
+      if (k == i) {
+        _controllers[k].seekTo(Duration.zero);
+        _controllers[k].play();
+      } else {
+        _controllers[k].pause();
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    if (_ready.length <= _currentIndex) return;
+    if (!_ready[_currentIndex] || _failed[_currentIndex]) return;
+    if (!_controllers[_currentIndex].value.isPlaying) {
+      _controllers[_currentIndex].play();
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _pageController.dispose();
+    for (final c in _controllers) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -253,11 +318,13 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
           child: PageView.builder(
             controller: _pageController,
             itemCount: _slides.length,
-            onPageChanged: (i) => setState(() => _currentIndex = i),
+            onPageChanged: _onPageChanged,
             itemBuilder: (context, index) {
               final s = _slides[index];
               return _SlideCard(
-                imagePath: s.imagePath,
+                controller: _controllers[index],
+                ready: _ready[index],
+                failed: _failed[index],
                 icon: s.icon,
                 iconColor: s.iconColor,
                 tag: s.tag,
@@ -289,7 +356,9 @@ class _OnboardingSliderState extends State<_OnboardingSlider> {
 }
 
 class _SlideCard extends StatelessWidget {
-  final String imagePath;
+  final VideoPlayerController controller;
+  final bool ready;
+  final bool failed;
   final IconData icon;
   final Color iconColor;
   final String tag;
@@ -297,7 +366,9 @@ class _SlideCard extends StatelessWidget {
   final String desc;
 
   const _SlideCard({
-    required this.imagePath,
+    required this.controller,
+    required this.ready,
+    required this.failed,
     required this.icon,
     required this.iconColor,
     required this.tag,
@@ -325,15 +396,23 @@ class _SlideCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  imagePath.isNotEmpty
-                      ? Image.asset(
-                    imagePath,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                  Builder(builder: (_) {
+                    final fallback = Container(
                       color: iconColor.withValues(alpha: 0.1),
-                    ),
-                  )
-                      : Container(color: iconColor.withValues(alpha: 0.1)),
+                    );
+                    if (failed || !ready) return fallback;
+                    final size = controller.value.size;
+                    if (size.width == 0 || size.height == 0) return fallback;
+                    return FittedBox(
+                      fit: BoxFit.cover,
+                      clipBehavior: Clip.hardEdge,
+                      child: SizedBox(
+                        width: size.width,
+                        height: size.height,
+                        child: VideoPlayer(controller),
+                      ),
+                    );
+                  }),
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -531,3 +610,4 @@ class _KakaoSignInButton extends StatelessWidget {
     );
   }
 }
+

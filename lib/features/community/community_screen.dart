@@ -130,6 +130,24 @@ class _CommunityScreenState extends State<CommunityScreen> {
     });
   }
 
+  // Detail 화면을 열고, 게시글이 삭제됐다면(true 반환) 리스트에서 즉시 제거한다.
+  Future<void> _openDetail(int postId, CommunityPost post) async {
+    final deleted = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CommunityDetailScreen(
+          postId: postId,
+          preloadedPost: post,
+        ),
+      ),
+    );
+    if (!mounted || deleted != true) return;
+    setState(() {
+      _posts.removeWhere((p) => p.id == postId);
+      _rankingPosts.removeWhere((p) => p.id == postId);
+    });
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -241,15 +259,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                     isLoading: _rankingLoading,
                     onTap: (postId) {
                       final post = _rankingPosts.firstWhere((p) => p.id == postId);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CommunityDetailScreen(
-                            postId: postId,
-                            preloadedPost: post,
-                          ),
-                        ),
-                      );
+                      _openDetail(postId, post);
                     },
                   );
                 }
@@ -277,14 +287,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   child: _PostCard(
                     post: _posts[postIndex],
                     onLike: () => _toggleLike(postIndex),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CommunityDetailScreen(
-                          postId: _posts[postIndex].id,
-                          preloadedPost: _posts[postIndex],
-                        ),
-                      ),
+                    onTap: () => _openDetail(
+                      _posts[postIndex].id,
+                      _posts[postIndex],
                     ),
                   ),
                 );

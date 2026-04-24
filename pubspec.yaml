@@ -31,6 +31,7 @@ flutter:
     - assets/images/step_capture.jpg
     - assets/images/step_upload.gif
     - assets/images/step_result.gif
+    - assets/videos/
 
 dependencies:
   flutter:
@@ -54,6 +55,7 @@ dependencies:
   firebase_analytics: ^12.1.3
   mixpanel_flutter: ^2.3.2
   firebase_crashlytics: ^5.1.0
+  video_player: ^2.9.2
 
 flutter_launcher_icons:
   android: true
