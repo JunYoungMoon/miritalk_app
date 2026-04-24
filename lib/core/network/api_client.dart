@@ -67,6 +67,30 @@ class ApiClient {
     );
   }
 
+  Future<http.Response> put(String path,
+      {Map<String, dynamic>? body, bool includeDeviceId = false}) async {
+    final response = await http.put(
+      Uri.parse('${AppConfig.baseUrl}$path'),
+      headers: await _headers(includeDeviceId: includeDeviceId),
+      body: body != null ? jsonEncode(body) : null,
+    );
+    return _handleUnauthorized(
+      response,
+      () => put(path, body: body, includeDeviceId: includeDeviceId),
+    );
+  }
+
+  Future<http.Response> delete(String path, {bool includeDeviceId = false}) async {
+    final response = await http.delete(
+      Uri.parse('${AppConfig.baseUrl}$path'),
+      headers: await _headers(includeDeviceId: includeDeviceId),
+    );
+    return _handleUnauthorized(
+      response,
+      () => delete(path, includeDeviceId: includeDeviceId),
+    );
+  }
+
   Future<http.Response> postMultipart(
       String path, {
         required List<http.MultipartFile> files,

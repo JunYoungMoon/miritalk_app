@@ -12,6 +12,8 @@ import 'package:miritalk_app/core/tracking/tracking_service.dart';
 import 'package:miritalk_app/core/tracking/screen_time_tracker.dart';
 import 'package:http/http.dart' as http;
 import 'package:miritalk_app/features/community/share_bottom_sheet.dart';
+import 'package:miritalk_app/features/community/community_screen.dart';
+import 'package:miritalk_app/features/community/community_detail_screen.dart';
 
 class ChatMessage {
   final String type;
@@ -38,6 +40,7 @@ class AnalysisResultScreen extends StatefulWidget {
   final bool? feedbackHelpful;
   final String? guestImageToken;
   final String? categoryName;
+  final int? communityPostId;
 
   const AnalysisResultScreen({
     super.key,
@@ -47,6 +50,7 @@ class AnalysisResultScreen extends StatefulWidget {
     this.feedbackHelpful,
     this.guestImageToken,
     this.categoryName,
+    this.communityPostId,
   });
 
   @override
@@ -60,6 +64,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   bool _feedbackSubmitted = false;
   bool? _feedbackHelpful;
   String? _categoryName;
+  int? _communityPostId;
   late final ScreenTimeTracker _tracker;
   final ScrollController _scrollController = ScrollController();
 
@@ -74,6 +79,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     _messages = widget.messages;
     _imageUrls = widget.imageUrls;
     _categoryName = widget.categoryName;
+    _communityPostId = widget.communityPostId;
 
     if (widget.feedbackHelpful != null) {
       _feedbackSubmitted = true;
@@ -140,6 +146,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           _feedbackHelpful = json['feedbackHelpful'] as bool;
         }
         _categoryName = json['categoryName'] as String?;
+        _communityPostId = (json['communityPostId'] as num?)?.toInt();
         _isLoading = false;
       });
       _imagesForShareFuture ??= _fetchImagesForShare();
@@ -264,14 +271,26 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
             ],
           ),
 
-          // 플로팅 제보 버튼
+          // 플로팅 제보 / 커뮤니티 이동 버튼
           if (widget.guestImageToken == null && widget.sessionId != null)
             Positioned(
               bottom: 20 + MediaQuery.of(context).padding.bottom,
               left: 0,
               right: 0,
               child: Center(
-                child: _ShareHintBounce(onTap: _shareToCommmunity),
+                child: _communityPostId == null
+                    ? _ShareHintBounce(
+                        onTap: _shareToCommmunity,
+                        icon: Icons.campaign_outlined,
+                        label: '커뮤니티에 제보하기',
+                        animate: true,
+                      )
+                    : _ShareHintBounce(
+                        onTap: _openSharedPost,
+                        icon: Icons.forum_outlined,
+                        label: '커뮤니티에서 확인하기',
+                        animate: false,
+                      ),
               ),
             ),
         ],
@@ -339,7 +358,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           ));
         }
       }
-      await ApiClient().postMultipart(
+      final response = await ApiClient().postMultipart(
         '/api/community/posts',
         files: files,
         fields: {
@@ -352,10 +371,12 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         },
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('커뮤니티에 공유됐어요!'),
-        backgroundColor: AppTheme.success,
-      ));
+
+      final created = CommunityPost.fromJson(
+        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>,
+      );
+      setState(() => _communityPostId = created.id);
+      await _showShareSuccessDialog(created);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -363,6 +384,88 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         backgroundColor: AppTheme.danger,
       ));
     }
+  }
+
+  void _openSharedPost() {
+    final postId = _communityPostId;
+    if (postId == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CommunityDetailScreen(postId: postId),
+      ),
+    );
+  }
+
+  Future<void> _showShareSuccessDialog(CommunityPost post) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: const [
+            Icon(Icons.check_circle, color: AppTheme.success, size: 22),
+            SizedBox(width: 8),
+            Text(
+              '공유 완료',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          '커뮤니티에 공유됐어요!\n등록한 글로 이동하시겠어요?',
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 13,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text(
+              '닫기',
+              style: TextStyle(color: AppTheme.textHint, fontSize: 13),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CommunityDetailScreen(
+                    postId: post.id,
+                    preloadedPost: post,
+                  ),
+                ),
+              );
+            },
+            child: const Text(
+              '이동',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1600,7 +1703,16 @@ class _FeedbackButton extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════
 class _ShareHintBounce extends StatefulWidget {
   final VoidCallback onTap;
-  const _ShareHintBounce({required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool animate;
+
+  const _ShareHintBounce({
+    required this.onTap,
+    required this.icon,
+    required this.label,
+    this.animate = true,
+  });
 
   @override
   State<_ShareHintBounce> createState() => _ShareHintBounceState();
@@ -1608,65 +1720,71 @@ class _ShareHintBounce extends StatefulWidget {
 
 class _ShareHintBounceState extends State<_ShareHintBounce>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _bounce;
+  AnimationController? _controller;
+  Animation<double>? _bounce;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat(reverse: true);
-    _bounce = Tween<double>(begin: 0, end: -6).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    if (widget.animate) {
+      _controller = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 800),
+      )..repeat(reverse: true);
+      _bounce = Tween<double>(begin: 0, end: -6).animate(
+        CurvedAnimation(parent: _controller!, curve: Curves.easeInOut),
+      );
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _bounce,
-      builder: (context, child) => Transform.translate(
-        offset: Offset(0, _bounce.value),
-        child: child,
-      ),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(100),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppTheme.primary, AppTheme.primaryDeep],
-            ),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.campaign_outlined, color: Colors.white, size: 15),
-              SizedBox(width: 7),
-              Text(
-                '커뮤니티에 제보하기',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
-                ),
-              ),
-            ],
+    final button = GestureDetector(
+      onTap: widget.onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(100),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppTheme.primary, AppTheme.primaryDeep],
           ),
         ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(widget.icon, color: Colors.white, size: 15),
+            const SizedBox(width: 7),
+            Text(
+              widget.label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+
+    if (_bounce == null) return button;
+
+    return AnimatedBuilder(
+      animation: _bounce!,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, _bounce!.value),
+        child: child,
+      ),
+      child: button,
     );
   }
 }

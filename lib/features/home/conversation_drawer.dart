@@ -12,6 +12,7 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
+import 'package:miritalk_app/features/community/community_screen.dart';
 import 'package:miritalk_app/features/inquiry/inquiry_list_screen.dart';
 import 'analysis_quota_provider.dart';
 import 'conversation_provider.dart';
@@ -410,7 +411,16 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
             _DrawerBottomLink(
               icon: Icons.people_outline,
               label: '커뮤니티',
-              onTap: () {},
+              onTap: () {
+                Navigator.pop(context);
+                Future.delayed(const Duration(milliseconds: 200), () {
+                  if (!context.mounted) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CommunityScreen()),
+                  );
+                });
+              },
             ),
             // ✅ 문의 버튼 — 메뉴 시트로 연결
             _DrawerBottomLink(
@@ -523,6 +533,7 @@ class _ConversationTile extends StatelessWidget {
           sessionId: conversation.sessionId,
           feedbackHelpful: json['feedbackHelpful'] as bool?,
           categoryName: json['categoryName'] as String?,
+          communityPostId: (json['communityPostId'] as num?)?.toInt(),
         ),
       ));
     } on UnauthorizedException {

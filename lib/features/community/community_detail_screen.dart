@@ -7,7 +7,6 @@ import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'package:miritalk_app/features/community/community_screen.dart';
 import 'package:miritalk_app/core/widgets/app_badge.dart';
 import 'package:miritalk_app/core/widgets/network_image_strip.dart';
-import 'package:miritalk_app/core/widgets/section_card.dart';
 
 class CommunityDetailScreen extends StatefulWidget {
   final int postId;
@@ -28,7 +27,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
   final List<_Comment> _comments = [];
   bool _isLoading = true;
   final TextEditingController _commentCtrl = TextEditingController();
+  final FocusNode _commentFocus = FocusNode();
   bool _isSending = false;
+  bool _showAiSummary = false;
 
   @override
   void initState() {
@@ -45,6 +46,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
   @override
   void dispose() {
     _commentCtrl.dispose();
+    _commentFocus.dispose();
     super.dispose();
   }
 
@@ -70,15 +72,162 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
 
   Future<void> _loadCommentsOnly() async {
     try {
-      final r = await ApiClient().get('/api/community/posts/${widget.postId}');
-      final json = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
-      final comments = (json['comments'] as List<dynamic>? ?? [])
+      // 댓글 전용 엔드포인트 — 상세 조회 5쿼리 대신 댓글 1쿼리만
+      final r = await ApiClient()
+          .get('/api/community/posts/${widget.postId}/comments');
+      final list = jsonDecode(utf8.decode(r.bodyBytes)) as List<dynamic>;
+      final comments = list
           .map((e) => _Comment.fromJson(e as Map<String, dynamic>))
           .toList();
       if (mounted) {
         setState(() => _comments.addAll(comments));
       }
     } catch (_) {}
+  }
+
+  Future<void> _editPost() async {
+    final post = _post;
+    if (post == null) return;
+    final controller = TextEditingController(text: post.content);
+    final edited = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('글 수정',
+            style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: controller,
+          maxLength: 100,
+          maxLines: 3,
+          style: const TextStyle(
+              color: AppTheme.textPrimary, fontSize: 13),
+          decoration: InputDecoration(
+            hintText: '본문을 입력하세요',
+            hintStyle:
+                const TextStyle(color: AppTheme.textHint, fontSize: 13),
+            filled: true,
+            fillColor: AppTheme.surfaceDeep,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            counterStyle:
+                const TextStyle(color: AppTheme.textHint, fontSize: 10),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('취소',
+                style: TextStyle(color: AppTheme.textHint, fontSize: 13)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isEmpty) return;
+              Navigator.pop(dialogCtx, text);
+            },
+            child: const Text('저장',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (edited == null || edited.isEmpty || !mounted) return;
+
+    try {
+      final r = await ApiClient().put(
+        '/api/community/posts/${widget.postId}',
+        body: {'content': edited},
+      );
+      final json =
+          jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+      if (!mounted) return;
+      setState(() => _post = CommunityPost.fromJson(json));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('수정됐어요'),
+        backgroundColor: AppTheme.success,
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('수정 중 오류가 발생했어요'),
+        backgroundColor: AppTheme.danger,
+      ));
+    }
+  }
+
+  Future<void> _deletePost() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('글 삭제',
+            style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold)),
+        content: const Text(
+          '이 글을 삭제할까요? 댓글과 좋아요도 함께 삭제됩니다.',
+          style: TextStyle(
+              color: AppTheme.textSecondary, fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소',
+                style: TextStyle(color: AppTheme.textHint, fontSize: 13)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('삭제',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    try {
+      await ApiClient().delete('/api/community/posts/${widget.postId}');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('삭제됐어요'),
+        backgroundColor: AppTheme.success,
+      ));
+      Navigator.pop(context, true);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('삭제 중 오류가 발생했어요'),
+        backgroundColor: AppTheme.danger,
+      ));
+    }
   }
 
   Future<void> _sendComment() async {
@@ -92,12 +241,14 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
       );
       final json =
       jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+      if (!mounted) return;
       setState(() {
         _comments.add(_Comment.fromJson(json));
         _commentCtrl.clear();
       });
+      _commentFocus.unfocus(); // 키보드 내리기
     } catch (_) {} finally {
-      setState(() => _isSending = false);
+      if (mounted) setState(() => _isSending = false);
     }
   }
 
@@ -105,9 +256,48 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMine = _post?.mine ?? false;
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: const CommonAppBar(title: '제보 상세'),
+      appBar: CommonAppBar(
+        title: '제보 상세',
+        extraActions: [
+          if (isMine)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert,
+                  color: AppTheme.textPrimary, size: 22),
+              color: AppTheme.surface,
+              onSelected: (v) {
+                if (v == 'edit') _editPost();
+                if (v == 'delete') _deletePost();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'edit',
+                  child: Row(children: [
+                    Icon(Icons.edit_outlined,
+                        color: AppTheme.textPrimary, size: 16),
+                    SizedBox(width: 8),
+                    Text('수정',
+                        style: TextStyle(
+                            color: AppTheme.textPrimary, fontSize: 13)),
+                  ]),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(children: [
+                    Icon(Icons.delete_outline,
+                        color: AppTheme.danger, size: 16),
+                    SizedBox(width: 8),
+                    Text('삭제',
+                        style: TextStyle(
+                            color: AppTheme.danger, fontSize: 13)),
+                  ]),
+                ),
+              ],
+            ),
+        ],
+      ),
       body: _isLoading
           ? const Center(
           child: CircularProgressIndicator(color: AppTheme.primary))
@@ -123,7 +313,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
               children: [
                 _buildHeader(),
                 const SizedBox(height: 16),
-                _buildSummary(),
+                _buildContent(),
                 if (_post!.imageUrls.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   _buildImages(),
@@ -181,19 +371,92 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
     );
   }
 
-  Widget _buildSummary() {
-    return SectionCard(
-      icon: Icons.smart_toy_outlined,
-      label: 'AI 분석 요약',
-      color: AppTheme.primary,
-      bottomPadding: 0,
-      child: Text(
-        _post!.summary,
-        style: const TextStyle(
-            color: AppTheme.textPrimary, fontSize: 13, height: 1.6),
+  Widget _buildContent() {
+    final post = _post!;
+    final hasContent = post.content.trim().isNotEmpty;
+    final mainText = hasContent ? post.content : post.summary;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.divider, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  mainText,
+                  style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 14,
+                      height: 1.6),
+                ),
+              ),
+              if (hasContent) ...[
+                const SizedBox(width: 8),
+                _SummaryToggle(
+                  expanded: _showAiSummary,
+                  onTap: () =>
+                      setState(() => _showAiSummary = !_showAiSummary),
+                ),
+              ],
+            ],
+          ),
+          if (hasContent && _showAiSummary) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.25),
+                    width: 0.5),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.smart_toy_outlined,
+                      color: AppTheme.primary, size: 14),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'AI 분석 요약',
+                          style: TextStyle(
+                              color: AppTheme.primary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.3),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          post.summary,
+                          style: const TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 13,
+                              height: 1.6),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
+
 
   Widget _buildImages() {
     return NetworkImageStrip(
@@ -228,57 +491,65 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
   }
 
   Widget _buildCommentInput() {
-    return Container(
+    // Scaffold 의 resizeToAvoidBottomInset 이 이미 키보드만큼 올려주므로
+    // 여기서는 viewInsets 를 더하면 안 됨 (이중 보정 방지).
+    return Material(
       color: AppTheme.surface,
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 10,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _commentCtrl,
-              style: const TextStyle(
-                  color: AppTheme.textPrimary, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: '댓글을 입력하세요...',
-                hintStyle: const TextStyle(
-                    color: AppTheme.textHint, fontSize: 14),
-                filled: true,
-                fillColor: AppTheme.surfaceDeep,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
+      elevation: 8,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _commentCtrl,
+                  focusNode: _commentFocus,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _isSending ? null : _sendComment(),
+                  onTapOutside: (_) => _commentFocus.unfocus(),
+                  style: const TextStyle(
+                      color: AppTheme.textPrimary, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: '댓글을 입력하세요...',
+                    hintStyle: const TextStyle(
+                        color: AppTheme.textHint, fontSize: 14),
+                    filled: true,
+                    fillColor: AppTheme.surfaceDeep,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    isDense: true,
+                  ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: _isSending ? null : _sendComment,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: AppTheme.primary,
-                shape: BoxShape.circle,
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _isSending ? null : _sendComment,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: _isSending
+                      ? const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.send_rounded,
+                          color: Colors.white, size: 18),
+                ),
               ),
-              child: _isSending
-                  ? const Padding(
-                padding: EdgeInsets.all(10),
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              )
-                  : const Icon(Icons.send_rounded,
-                  color: Colors.white, size: 18),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -327,21 +598,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
     if (_post == null) return;
     final liked = !_post!.likedByMe;
     setState(() {
-      _post = CommunityPost(
-        id: _post!.id,
-        category: _post!.category,
-        riskLevel: _post!.riskLevel,
-        riskScore: _post!.riskScore,
-        summary: _post!.summary,
-        verdict: _post!.verdict,
-        imageUrls: _post!.imageUrls,
-        author: _post!.author,
-        anonymous: _post!.anonymous,
+      _post = _post!.copyWith(
         likeCount: _post!.likeCount + (liked ? 1 : -1),
-        commentCount: _post!.commentCount,
         likedByMe: liked,
-        createdAt: _post!.createdAt,
-        content: _post!.content,
       );
     });
     try {
@@ -427,6 +686,57 @@ class _CommentTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SummaryToggle extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onTap;
+
+  const _SummaryToggle({required this.expanded, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: expanded
+              ? AppTheme.primary.withValues(alpha: 0.18)
+              : AppTheme.surfaceDeep,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: expanded
+                ? AppTheme.primary.withValues(alpha: 0.5)
+                : AppTheme.divider,
+            width: 0.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              expanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.smart_toy_outlined,
+              size: 13,
+              color: expanded ? AppTheme.primary : AppTheme.textHint,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              'AI 요약',
+              style: TextStyle(
+                color: expanded ? AppTheme.primary : AppTheme.textHint,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

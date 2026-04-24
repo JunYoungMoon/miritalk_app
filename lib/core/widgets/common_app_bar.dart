@@ -11,12 +11,14 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool showBack;
   final bool showMenu;
+  final List<Widget> extraActions;
 
   const CommonAppBar({
     super.key,
     required this.title,
     this.showBack = true,
     this.showMenu = false,
+    this.extraActions = const [],
   });
 
   @override
@@ -84,6 +86,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       centerTitle: true,
       actions: [
+        ...extraActions,
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: GestureDetector(

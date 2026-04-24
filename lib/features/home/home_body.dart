@@ -32,14 +32,6 @@ class _HomeBodyState extends State<HomeBody> {
   List<Map<String, dynamic>> _rankingPosts = [];
   bool _rankingLoading = true;
 
-  final List<Map<String, dynamic>> _fallbackTickerItems = [
-    {'riskPct': 92, 'isHigh': true,  'text': '입금 먼저 해주시면 바로 보내드려요', 'likes': 128},
-    {'riskPct': 88, 'isHigh': true,  'text': '검찰청입니다. 계좌가 범죄에 연루됐습니다', 'likes': 94},
-    {'riskPct': 67, 'isHigh': false, 'text': '하루 수익률 3% 보장 해드립니다', 'likes': 76},
-    {'riskPct': 95, 'isHigh': true,  'text': '지금 바로 송금하지 않으면 고소합니다', 'likes': 61},
-    {'riskPct': 71, 'isHigh': false, 'text': '해외 직구 대리구매 선불로 부탁드려요', 'likes': 53},
-  ];
-
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _ctaButtonKey = GlobalKey();
   bool _showScrollHint = false;
@@ -83,16 +75,22 @@ class _HomeBodyState extends State<HomeBody> {
   }
 
   Future<void> _loadRanking() async {
+    debugPrint('[Ranking] /api/community/ranking 호출 시작');
     try {
       final response = await ApiClient().get('/api/community/ranking');
+      debugPrint('[Ranking] 응답 status=${response.statusCode} '
+          'body_len=${response.bodyBytes.length}');
       final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      debugPrint('[Ranking] 파싱 결과 ${list.length}건');
       if (mounted) {
         setState(() {
-          _rankingPosts = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _rankingPosts =
+              list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
           _rankingLoading = false;
         });
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[Ranking] 오류: $e\n$st');
       if (mounted) setState(() => _rankingLoading = false);
     }
   }
@@ -220,9 +218,8 @@ class _HomeBodyState extends State<HomeBody> {
     final auth = context.watch<AuthProvider>();
     final quota = context.watch<AnalysisQuotaProvider>();
 
-    final tickerItems = (!_rankingLoading && _rankingPosts.isNotEmpty)
-        ? _rankingPosts
-        : _fallbackTickerItems;
+    // 가짜 fallback 을 쓰지 않고 실제 랭킹이 있을 때만 ticker 렌더 → 커뮤니티 화면과 데이터 일치
+    final tickerItems = _rankingPosts;
     final useApiData = !_rankingLoading && _rankingPosts.isNotEmpty;
 
     final isExhausted = quota.isExhausted;
@@ -248,6 +245,8 @@ class _HomeBodyState extends State<HomeBody> {
                       tickerItems: tickerItems,
                       useApiData: useApiData,
                       rankingPosts: _rankingPosts,
+                      rankingLoading: _rankingLoading,
+                      onReturnFromCommunity: _loadRanking,
                     ),
 
                     const SizedBox(height: 16),
@@ -321,12 +320,16 @@ class _HeroStoryCard extends StatelessWidget {
   final List<Map<String, dynamic>> tickerItems;
   final bool useApiData;
   final List<Map<String, dynamic>> rankingPosts;
+  final bool rankingLoading;
+  final VoidCallback? onReturnFromCommunity;
 
   const _HeroStoryCard({
     required this.evidenceImages,
     required this.tickerItems,
     required this.useApiData,
     required this.rankingPosts,
+    required this.rankingLoading,
+    this.onReturnFromCommunity,
   });
 
   @override
@@ -481,28 +484,55 @@ class _HeroStoryCard extends StatelessWidget {
                   ),
                 ),
 
-                // ── divider ──
-                Container(
-                  height: 0.5,
-                  margin: const EdgeInsets.symmetric(horizontal: 18),
-                  color: AppTheme.divider,
-                ),
-
                 // ── popular ticker ──
-                _FeedTicker(
-                  items: tickerItems,
-                  useApiData: useApiData,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CommunityScreen(
-                        preloadedRanking: rankingPosts.isNotEmpty
-                            ? rankingPosts.map((e) => CommunityPost.fromJson(e)).toList()
-                            : null,
-                      ),
-                    ),
+                // 로딩 중: "준비 중" placeholder. 완료 후 비면 섹션 전체 숨김.
+                if (rankingLoading || tickerItems.isNotEmpty) ...[
+                  Container(
+                    height: 0.5,
+                    margin: const EdgeInsets.symmetric(horizontal: 18),
+                    color: AppTheme.divider,
                   ),
-                ),
+                  if (rankingLoading)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(18, 12, 18, 14),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 10, height: 10,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 1.5, color: AppTheme.primary),
+                          ),
+                          SizedBox(width: 8),
+                          Text('인기 분석 불러오는 중...',
+                              style: TextStyle(
+                                color: AppTheme.textHint,
+                                fontSize: 11,
+                              )),
+                        ],
+                      ),
+                    )
+                  else
+                    _FeedTicker(
+                      items: tickerItems,
+                      useApiData: useApiData,
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CommunityScreen(
+                              preloadedRanking: rankingPosts.isNotEmpty
+                                  ? rankingPosts
+                                      .map((e) => CommunityPost.fromJson(e))
+                                      .toList()
+                                  : null,
+                            ),
+                          ),
+                        );
+                        // 커뮤니티에서 좋아요/새 글이 생겼을 수 있으니 랭킹 재조회
+                        onReturnFromCommunity?.call();
+                      },
+                    ),
+                ],
               ],
             ),
           ],

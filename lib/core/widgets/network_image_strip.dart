@@ -39,29 +39,35 @@ class NetworkImageStrip extends StatelessWidget {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: count,
-        itemBuilder: (context, i) => GestureDetector(
-          onTap: () => _openFullscreen(context, i),
-          child: Container(
-            width: size,
-            height: size,
-            margin: EdgeInsets.only(right: itemSpacing),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceDeep,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                imageUrls[i],
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.image_not_supported_outlined,
-                  color: AppTheme.textHint,
+        itemBuilder: (context, i) {
+          final url = imageUrls[i];
+          return GestureDetector(
+            key: ValueKey(url),
+            onTap: () => _openFullscreen(context, i),
+            child: Container(
+              width: size,
+              height: size,
+              margin: EdgeInsets.only(right: itemSpacing),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceDeep,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  cacheWidth: (size * 2).round(),
+                  gaplessPlayback: true,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.image_not_supported_outlined,
+                    color: AppTheme.textHint,
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

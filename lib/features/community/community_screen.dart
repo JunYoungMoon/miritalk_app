@@ -23,6 +23,7 @@ class CommunityPost {
   final bool likedByMe;
   final DateTime createdAt;
   final String content;
+  final bool mine;
 
   const CommunityPost({
     required this.id,
@@ -39,6 +40,7 @@ class CommunityPost {
     required this.likedByMe,
     required this.createdAt,
     required this.content,
+    this.mine = false,
   });
 
   factory CommunityPost.fromJson(Map<String, dynamic> j) => CommunityPost(
@@ -60,6 +62,30 @@ class CommunityPost {
     createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ??
         DateTime.now(),
     content: j['content'] as String? ?? '',
+    mine: j['mine'] as bool? ?? false,
+  );
+
+  CommunityPost copyWith({
+    int? likeCount,
+    int? commentCount,
+    bool? likedByMe,
+    String? content,
+  }) => CommunityPost(
+    id: id,
+    category: category,
+    riskLevel: riskLevel,
+    riskScore: riskScore,
+    summary: summary,
+    verdict: verdict,
+    imageUrls: imageUrls,
+    author: author,
+    anonymous: anonymous,
+    likeCount: likeCount ?? this.likeCount,
+    commentCount: commentCount ?? this.commentCount,
+    likedByMe: likedByMe ?? this.likedByMe,
+    createdAt: createdAt,
+    content: content ?? this.content,
+    mine: mine,
   );
 }
 
@@ -171,21 +197,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
     final post = _posts[index];
     final liked = !post.likedByMe;
     setState(() {
-      _posts[index] = CommunityPost(
-        id: post.id,
-        category: post.category,
-        riskLevel: post.riskLevel,
-        riskScore: post.riskScore,
-        summary: post.summary,
-        verdict: post.verdict,
-        imageUrls: post.imageUrls,
-        author: post.author,
-        anonymous: post.anonymous,
+      _posts[index] = post.copyWith(
         likeCount: post.likeCount + (liked ? 1 : -1),
-        commentCount: post.commentCount,
         likedByMe: liked,
-        createdAt: post.createdAt,
-        content: post.content,
       );
     });
     try {
@@ -491,7 +505,7 @@ class _CategoryTabBar extends StatelessWidget {
 }
 
 // ── 피드 카드 ────────────────────────────────────────
-class _PostCard extends StatelessWidget {
+class _PostCard extends StatefulWidget {
   final CommunityPost post;
   final VoidCallback onLike;
   final VoidCallback onTap;
@@ -502,9 +516,17 @@ class _PostCard extends StatelessWidget {
     required this.onTap,
   });
 
-  Color get _riskColor => AppTheme.riskLevelColor(post.riskLevel);
+  @override
+  State<_PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends State<_PostCard> {
+  bool _showSummary = false;
+
+  Color get _riskColor => AppTheme.riskLevelColor(widget.post.riskLevel);
 
   String _timeAgo() {
+    final post = widget.post;
     final diff = DateTime.now().difference(post.createdAt);
     if (diff.inMinutes < 1) return '방금 전';
     if (diff.inHours < 1) return '${diff.inMinutes}분 전';
@@ -515,8 +537,10 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final post = widget.post;
+    final hasContent = post.content.trim().isNotEmpty;
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -541,16 +565,69 @@ class _PostCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(
-              post.summary,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  color: AppTheme.textPrimary, fontSize: 13, height: 1.5),
+
+            // 본문(2줄) + AI 요약 토글
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    hasContent ? post.content : post.summary,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 13,
+                        height: 1.5),
+                  ),
+                ),
+                if (hasContent) ...[
+                  const SizedBox(width: 8),
+                  _SummaryToggle(
+                    expanded: _showSummary,
+                    onTap: () =>
+                        setState(() => _showSummary = !_showSummary),
+                  ),
+                ],
+              ],
             ),
+
+            // AI 요약 펼침
+            if (hasContent && _showSummary) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: AppTheme.primary.withValues(alpha: 0.25),
+                      width: 0.5),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.smart_toy_outlined,
+                        color: AppTheme.primary, size: 13),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        post.summary,
+                        style: const TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
+                            height: 1.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             if (post.imageUrls.isNotEmpty) ...[
               const SizedBox(height: 10),
-              NetworkImageStrip(imageUrls: post.imageUrls, size: 56, maxCount: 4),
+              NetworkImageStrip(
+                  imageUrls: post.imageUrls, size: 56, maxCount: 4),
             ],
             const SizedBox(height: 10),
             Row(
@@ -563,7 +640,7 @@ class _PostCard extends StatelessWidget {
                         color: AppTheme.textHint, fontSize: 12)),
                 const Spacer(),
                 GestureDetector(
-                  onTap: onLike,
+                  onTap: widget.onLike,
                   child: Row(
                     children: [
                       Icon(
@@ -597,6 +674,57 @@ class _PostCard extends StatelessWidget {
                   ],
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryToggle extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onTap;
+
+  const _SummaryToggle({required this.expanded, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: expanded
+              ? AppTheme.primary.withValues(alpha: 0.15)
+              : AppTheme.surfaceDeep,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: expanded
+                ? AppTheme.primary.withValues(alpha: 0.5)
+                : AppTheme.divider,
+            width: 0.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              expanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.smart_toy_outlined,
+              size: 12,
+              color: expanded ? AppTheme.primary : AppTheme.textHint,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              'AI 요약',
+              style: TextStyle(
+                color: expanded ? AppTheme.primary : AppTheme.textHint,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),

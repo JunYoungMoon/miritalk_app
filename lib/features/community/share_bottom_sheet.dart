@@ -76,12 +76,17 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   String? _selectedDisplayName;
   bool _autoSelected = false;
   final TextEditingController _contentCtrl = TextEditingController();
+  bool _contentEmpty = true;
 
   @override
   void initState() {
     super.initState();
     _resolveImages();
     _resolveCategories();
+    _contentCtrl.addListener(() {
+      final empty = _contentCtrl.text.trim().isEmpty;
+      if (empty != _contentEmpty) setState(() => _contentEmpty = empty);
+    });
   }
 
   @override
@@ -167,6 +172,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 
   void _submit() {
     if (_selectedDisplayName == null) return;
+    if (_contentCtrl.text.trim().isEmpty) return;
 
     final editedImages = _includeImages
         ? (_editedImageMap?.values.toList() ?? [])
@@ -419,18 +425,28 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 const SizedBox(height: 20),
               ],
 
-              const Text('한 줄 설명',
-                  style: TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600)),
+              Row(
+                children: const [
+                  Text('한 줄 설명',
+                      style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600)),
+                  SizedBox(width: 4),
+                  Text('*',
+                      style: TextStyle(
+                          color: AppTheme.danger,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _contentCtrl,
                 maxLength: 100,
                 style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: '어떤 상황이었는지 간단히 적어주세요 (선택)',
+                  hintText: '어떤 상황이었는지 간단히 적어주세요 (필수)',
                   hintStyle: const TextStyle(color: AppTheme.textHint, fontSize: 13),
                   filled: true,
                   fillColor: AppTheme.surfaceDeep,
@@ -477,6 +493,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 child: ElevatedButton(
                   onPressed: (_isSubmitting ||
                       _selectedDisplayName == null ||
+                      _contentEmpty ||
                       (_includeImages && _imagesLoading))
                       ? null
                       : _submit,
