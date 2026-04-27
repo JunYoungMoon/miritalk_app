@@ -175,34 +175,44 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       final mergedMessages = _buildMessages(json);
 
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AnalysisResultScreen(
-              messages: mergedMessages,
-              imageUrls: imageUrls,
-              sessionId: sessionId,
-              categoryName: json['categoryName'] as String?,
-            ),
-          ),
-          // modalRoute.isFirst가 true가 될 때까지 이전의 모든 화면을 제거합니다.
-              (Route<dynamic> route) => route.isFirst,
+        AdManager.instance.showInterstitial(
+          onClosed: () {
+            if (!mounted) return;
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AnalysisResultScreen(
+                  messages: mergedMessages,
+                  imageUrls: imageUrls,
+                  sessionId: sessionId,
+                  categoryName: json['categoryName'] as String?,
+                ),
+              ),
+              // modalRoute.isFirst가 true가 될 때까지 이전의 모든 화면을 제거합니다.
+                  (Route<dynamic> route) => route.isFirst,
+            );
+          },
         );
       }
     } catch (e) {
       debugPrint('결과 조회 오류: $e');
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AnalysisResultScreen(
-              messages: _messages,
-              imageUrls: const [],
-              sessionId: sessionId,
-            ),
-          ),
-          // modalRoute.isFirst가 true가 될 때까지 이전의 모든 화면을 제거합니다.
-              (Route<dynamic> route) => route.isFirst,
+        AdManager.instance.showInterstitial(
+          onClosed: () {
+            if (!mounted) return;
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AnalysisResultScreen(
+                  messages: _messages,
+                  imageUrls: const [],
+                  sessionId: sessionId,
+                ),
+              ),
+              // modalRoute.isFirst가 true가 될 때까지 이전의 모든 화면을 제거합니다.
+                  (Route<dynamic> route) => route.isFirst,
+            );
+          },
         );
       }
     }
@@ -244,27 +254,27 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
           }
         }
 
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AnalysisResultScreen(
-              messages: _messages,
-              imageUrls: guestImageUrls,
-              sessionId: null,
-              guestImageToken: _guestImageToken,
-              categoryName: categoryName,
-            ),
-          ),
-              (route) => route.isFirst,
+        AdManager.instance.showInterstitial(
+          onClosed: () {
+            if (!mounted) return;
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AnalysisResultScreen(
+                  messages: _messages,
+                  imageUrls: guestImageUrls,
+                  sessionId: null,
+                  guestImageToken: _guestImageToken,
+                  categoryName: categoryName,
+                ),
+              ),
+                  (route) => route.isFirst,
+            );
+          },
         );
       }
       return;
     }
-
-    // 전면광고 로직
-    // AdManager.instance.showInterstitial(
-    //   onClosed: () => _navigateToResult(sessionId),
-    // );
 
     if (sessionId != null) {
       // 분석 내역 갱신

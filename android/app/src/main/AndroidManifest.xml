@@ -51,6 +51,11 @@
         <meta-data android:name="com.kakao.sdk.AppKey"
                    android:value="${kakaoNativeAppKey}" />
 
+        <!-- AdMob 앱 ID (Android) -->
+        <meta-data
+                android:name="com.google.android.gms.ads.APPLICATION_ID"
+                android:value="ca-app-pub-7881277177118813~2267533319" />
+
         <service
                 android:name="com.google.firebase.messaging.FirebaseMessagingService"
                 android:exported="false">

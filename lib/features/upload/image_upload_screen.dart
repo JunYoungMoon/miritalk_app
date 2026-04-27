@@ -268,7 +268,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
         child: Scaffold(
         backgroundColor: AppTheme.background,
         appBar: const CommonAppBar(title: '사진 업로드'),
-        // bottomNavigationBar: const BannerAdWidget(),
+        bottomNavigationBar: const BannerAdWidget(),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

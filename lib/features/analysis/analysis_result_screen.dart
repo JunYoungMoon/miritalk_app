@@ -14,6 +14,7 @@ import 'package:http/http.dart' as http;
 import 'package:miritalk_app/features/community/share_bottom_sheet.dart';
 import 'package:miritalk_app/features/community/community_screen.dart';
 import 'package:miritalk_app/features/community/community_detail_screen.dart';
+import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 
 class ChatMessage {
   final String type;
@@ -206,6 +207,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         appBar: const CommonAppBar(title: '분석 결과'),
         body: const Center(
             child: CircularProgressIndicator(color: AppTheme.primary)),
+        bottomNavigationBar: const BannerAdWidget(),
       );
     }
 
@@ -224,6 +226,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: const CommonAppBar(title: '분석 결과'),
+      bottomNavigationBar: const BannerAdWidget(),
       body: Stack(
         children: [
           ListView(

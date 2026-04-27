@@ -7,6 +7,7 @@ import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'package:miritalk_app/features/community/community_detail_screen.dart';
 import 'package:miritalk_app/core/widgets/app_badge.dart';
 import 'package:miritalk_app/core/widgets/network_image_strip.dart';
+import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 
 class CommunityPost {
   final int id;
@@ -231,6 +232,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: const CommonAppBar(title: '사기 제보 커뮤니티'),
+      bottomNavigationBar: const BannerAdWidget(),
       body: SafeArea(
         top: false,
         child: Column(
