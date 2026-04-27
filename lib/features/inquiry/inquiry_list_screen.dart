@@ -207,7 +207,8 @@ class _InquiryListScreenState extends State<InquiryListScreen> {
       backgroundColor: AppTheme.surface,
       onRefresh: _load,
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        padding: EdgeInsets.fromLTRB(
+            16, 12, 16, 32 + MediaQuery.of(context).padding.bottom),
         itemCount: _items.length,
         itemBuilder: (_, i) => _InquiryTile(
           item: _items[i],

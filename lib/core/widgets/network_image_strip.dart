@@ -142,7 +142,7 @@ class _NetworkFullscreenViewerState extends State<_NetworkFullscreenViewer> {
           ),
           if (widget.imageUrls.length > 1)
             Positioned(
-              bottom: 24,
+              bottom: 24 + MediaQuery.of(context).padding.bottom,
               left: 0,
               right: 0,
               child: Row(

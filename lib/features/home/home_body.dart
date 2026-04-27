@@ -1742,7 +1742,9 @@ class _AssetFullscreenViewerState extends State<_AssetFullscreenViewer> {
             ),
           if (widget.images.length > 1)
             Positioned(
-              bottom: 24, left: 0, right: 0,
+              bottom: 24 + MediaQuery.of(context).padding.bottom,
+              left: 0,
+              right: 0,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: widget.images.asMap().entries.map((entry) {

@@ -31,6 +31,10 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Android 15 SDK 35 강제 edge-to-edge 모드 대비:
+  // 시스템바를 투명 + 라이트 아이콘으로 고정해 첫 프레임부터 일관된 모습.
+  SystemChrome.setSystemUIOverlayStyle(AppTheme.darkOverlay);
+
   // Firebase 초기화
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 

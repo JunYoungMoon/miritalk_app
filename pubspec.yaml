@@ -3,7 +3,7 @@ description: "miritalk project"
 
 publish_to: 'none'
 
-version: 1.0.0+18
+version: 1.0.0+20
 
 environment:
   sdk: ^3.11.1

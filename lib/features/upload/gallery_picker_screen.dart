@@ -211,7 +211,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: SafeArea(top: false, child: _buildBody()),
     );
   }
 

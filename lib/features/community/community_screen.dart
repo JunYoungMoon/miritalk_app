@@ -231,7 +231,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: const CommonAppBar(title: '사기 제보 커뮤니티'),
-      body: Column(
+      body: SafeArea(
+        top: false,
+        child: Column(
         children: [
           // ── 카테고리 탭 ──
           _CategoryTabBar(
@@ -297,6 +299,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

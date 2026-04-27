@@ -1,5 +1,6 @@
 // lib/core/theme/app_theme.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
@@ -80,12 +81,27 @@ class AppTheme {
     end: Alignment.bottomCenter,
   );
 
+  // ── 시스템 오버레이 (다크 테마, edge-to-edge) ──
+  // Android 15 SDK 35의 강제 edge-to-edge 모드에서 시스템바를 투명하게 두고
+  // 아이콘은 라이트(다크 배경 위) 로 고정. 매 화면 전환 시 PlatformPlugin
+  // 이 동일한 값을 반복 적용하지 않도록 AppBarTheme 에 한 번만 지정한다.
+  static const SystemUiOverlayStyle darkOverlay = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.light,
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarContrastEnforced: false,
+  );
+
   // ── ThemeData: dark ────────────────────────────
   static ThemeData get dark => ThemeData.dark().copyWith(
     scaffoldBackgroundColor: background,
     appBarTheme: const AppBarTheme(
       backgroundColor: surface,
       elevation: 0,
+      systemOverlayStyle: darkOverlay,
       iconTheme: IconThemeData(color: textPrimary),
       titleTextStyle: TextStyle(
         color: textPrimary,
