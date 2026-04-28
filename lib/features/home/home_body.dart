@@ -1,6 +1,7 @@
 // lib/features/home/home_body.dart
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:math' show Random;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -13,7 +14,6 @@ import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/features/community/community_screen.dart';
 import 'package:miritalk_app/features/home/analysis_quota_provider.dart';
-import 'package:miritalk_app/features/home/widgets/scroll_hint_arrow.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
@@ -34,10 +34,6 @@ class _HomeBodyState extends State<HomeBody> {
   List<Map<String, dynamic>> _rankingPosts = [];
   bool _rankingLoading = true;
 
-  final ScrollController _scrollController = ScrollController();
-  final GlobalKey _ctaButtonKey = GlobalKey();
-  bool _showScrollHint = false;
-
   final List<Map<String, String>> _evidenceImages = [
     {'path': 'assets/images/evidence_4.jpg', 'label': '사기접수 및 검거'},
     {'path': 'assets/images/evidence_3.jpg', 'label': '사기 피해 대화'},
@@ -50,10 +46,8 @@ class _HomeBodyState extends State<HomeBody> {
     super.initState();
     _tracker = ScreenTimeTracker('home');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkButtonVisibility();
       _refreshQuotaIfLoggedIn();
     });
-    _scrollController.addListener(_checkButtonVisibility);
     _loadRanking();
   }
 
@@ -72,7 +66,6 @@ class _HomeBodyState extends State<HomeBody> {
   void dispose() {
     _tracker.dispose();
     if (_listenerAttached) _authProvider.removeListener(_onAuthChanged);
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -109,19 +102,6 @@ class _HomeBodyState extends State<HomeBody> {
     if (auth.isLoggedIn != _wasLoggedIn) {
       _wasLoggedIn = auth.isLoggedIn;
       _refreshQuotaIfLoggedIn();
-    }
-  }
-
-  void _checkButtonVisibility() {
-    final ctx = _ctaButtonKey.currentContext;
-    if (ctx == null) return;
-    final renderBox = ctx.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-    final offset = renderBox.localToGlobal(Offset.zero);
-    final screenHeight = MediaQuery.of(context).size.height;
-    final isVisible = offset.dy < screenHeight - renderBox.size.height;
-    if (mounted && _showScrollHint != !isVisible) {
-      setState(() => _showScrollHint = !isVisible);
     }
   }
 
@@ -227,97 +207,64 @@ class _HomeBodyState extends State<HomeBody> {
     final isExhausted = quota.isExhausted;
     final isGuest = !auth.isLoggedIn;
 
-    return Column(
-      children: [
-        Expanded(
-          child: Stack(
-            children: [
-              SingleChildScrollView(
-                controller: _scrollController,
-                padding: EdgeInsets.fromLTRB(
-                  16, 14, 16,
-                  MediaQuery.of(context).padding.bottom + 24,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── 1. Hero Story Card ──
-                    _HeroStoryCard(
-                      evidenceImages: _evidenceImages,
-                      tickerItems: tickerItems,
-                      useApiData: useApiData,
-                      rankingPosts: _rankingPosts,
-                      rankingLoading: _rankingLoading,
-                      onReturnFromCommunity: _loadRanking,
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // ── 2. Category row ──
-                    const _SectionTitle(
-                      overline: '카테고리',
-                      title: '이런 사기를 사전에 탐지합니다',
-                    ),
-                    const SizedBox(height: 14),
-                    const _CategoryRow(),
-                    const SizedBox(height: 14),
-
-                    // ── 3. Step list ──
-                    const _SectionTitle(
-                      overline: '사용 방법',
-                      title: '3단계면 충분해요',
-                    ),
-                    const SizedBox(height: 14),
-                    const _StepList(),
-                    const SizedBox(height: 20),
-
-                    // ── 4. Quota Strip ──
-                    _QuotaStrip(
-                      used: quota.usedCount,
-                      max: quota.maxCount,
-                      isGuest: isGuest,
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ── 5. Primary CTA ──
-                    SizedBox(
-                      key: _ctaButtonKey,
-                      child: _PrimaryCTA(
-                        isExhausted: isExhausted,
-                        isGuest: isGuest,
-                        onTap: () => _onAnalysisTap(context),
-                      ),
-                    ),
-
-                  ],
-                ),
-              ),
-
-              if (_showScrollHint)
-                Positioned(
-                  bottom: 16, left: 0, right: 0,
-                  child: Center(
-                    child: ScrollHintArrow(
-                      onTap: () => _scrollController.animateTo(
-                        _scrollController.position.maxScrollExtent,
-                        duration: const Duration(milliseconds: 500),
-                        curve: Curves.easeInOut,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        16, 14, 16,
+        MediaQuery.of(context).padding.bottom + 24,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── 1. Hero Pitch — 헤드라인 + What/How + CTA + 쿼터 (첫 fold 안에 모두) ──
+          _HeroPitchCard(
+            used: quota.usedCount,
+            max: quota.maxCount,
+            isGuest: isGuest,
+            isExhausted: isExhausted,
+            onTap: () => _onAnalysisTap(context),
           ),
-        ),
-      ],
+
+          const SizedBox(height: 24),
+
+          // ── 2. 사용 방법 (사용법 먼저) ──
+          const _SectionTitle(
+            overline: '사용 방법',
+            title: '3단계면 충분해요',
+          ),
+          const SizedBox(height: 14),
+          const _StepList(),
+
+          const SizedBox(height: 24),
+
+          // ── 3. 카테고리 ──
+          const _SectionTitle(
+            overline: '카테고리',
+            title: '이런 사기를 사전에 탐지합니다',
+          ),
+          const SizedBox(height: 14),
+          const _CategoryRow(),
+
+          const SizedBox(height: 24),
+
+          // ── 4. WHY 미리톡 — 운영자 스토리 + 증거 사진 + 인기 분석 ──
+          _WhyMiritalkSection(
+            evidenceImages: _evidenceImages,
+            tickerItems: tickerItems,
+            useApiData: useApiData,
+            rankingPosts: _rankingPosts,
+            rankingLoading: _rankingLoading,
+            onReturnFromCommunity: _loadRanking,
+          ),
+        ],
+      ),
     );
   }
 }
 
 // ══════════════════════════════════════════════════════════════
-// Hero Story Card
+// Why 미리톡 Section — 운영자 스토리 + 증거 사진 + 인기 분석
 // ══════════════════════════════════════════════════════════════
-class _HeroStoryCard extends StatelessWidget {
+class _WhyMiritalkSection extends StatelessWidget {
   final List<Map<String, String>> evidenceImages;
   final List<Map<String, dynamic>> tickerItems;
   final bool useApiData;
@@ -325,7 +272,7 @@ class _HeroStoryCard extends StatelessWidget {
   final bool rankingLoading;
   final VoidCallback? onReturnFromCommunity;
 
-  const _HeroStoryCard({
+  const _WhyMiritalkSection({
     required this.evidenceImages,
     required this.tickerItems,
     required this.useApiData,
@@ -336,103 +283,99 @@ class _HeroStoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.primary.withValues(alpha: 0.08),
-              AppTheme.surface,
-            ],
-          ),
-          border: Border.all(
-            color: AppTheme.primary.withValues(alpha: 0.2),
-            width: 0.5,
-          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(
+          overline: 'WHY 미리톡',
+          title: '실제 피해 경험으로 만들었어요',
         ),
-        child: Stack(
-          children: [
-            // ── ambient glow ──
-            Positioned(
-              top: -60, right: -40,
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-                child: Container(
-                  width: 180, height: 180,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppTheme.primary.withValues(alpha: 0.15),
-                  ),
-                ),
+        const SizedBox(height: 14),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppTheme.primary.withValues(alpha: 0.08),
+                  AppTheme.surface,
+                ],
+              ),
+              border: Border.all(
+                color: AppTheme.primary.withValues(alpha: 0.2),
+                width: 0.5,
               ),
             ),
-
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Stack(
               children: [
-                // ── header text ──
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // badges
-                      Row(children: [
-                        _TagBadge(label: '실제 피해 경험 기반', color: AppTheme.primary),
-                        const SizedBox(width: 6),
-                        _TagBadge(label: '완전 무료', color: AppTheme.success),
-                        const Spacer(),
-                        const _TrustTooltipButton(),
-                      ]),
-
-                      const SizedBox(height: 14),
-
-                      // headline with gradient on last line
-                      const Text(
-                        '사기를 당하다 보니',
-                        style: TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          height: 1.3,
-                          letterSpacing: -0.03 * 22,
-                        ),
+                // ── ambient glow ──
+                Positioned(
+                  top: -60, right: -40,
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                    child: Container(
+                      width: 180, height: 180,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppTheme.primary.withValues(alpha: 0.15),
                       ),
-                      ShaderMask(
-                        shaderCallback: (bounds) => const LinearGradient(
-                          colors: [Color(0xFFBDB0FF), Color(0xFF9B87F5)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ).createShader(bounds),
-                        child: const Text(
-                          '전문가가 됐습니다.',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            height: 1.3,
-                            letterSpacing: -0.03 * 22,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-                      const Text(
-                        '직접 겪은 수백 건의 사기 경험을 AI에 담았어요.\n대화 캡처 한 장으로 사기 여부를 판단해드립니다.',
-                        style: TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 13,
-                          height: 1.7,
-                          letterSpacing: -0.01 * 13,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
+
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── 운영자 스토리 ──
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 헤드라인
+                          const Text(
+                            '사기를 당하다 보니',
+                            style: TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              height: 1.3,
+                              letterSpacing: -0.03 * 22,
+                            ),
+                          ),
+                          ShaderMask(
+                            shaderCallback: (bounds) => const LinearGradient(
+                              colors: [Color(0xFFBDB0FF), Color(0xFF9B87F5)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ).createShader(bounds),
+                            child: const Text(
+                              '전문가가 됐습니다.',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                height: 1.3,
+                                letterSpacing: -0.03 * 22,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            '직접 겪은 수백 건의 사기 경험을 AI 로직에 담았어요.\n실제 사례 패턴 기반으로 분석합니다.',
+                            style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 13,
+                              height: 1.7,
+                              letterSpacing: -0.01 * 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
                 // ── evidence collage ──
                 Padding(
@@ -540,6 +483,8 @@ class _HeroStoryCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
+      ],
     );
   }
 }
@@ -2005,6 +1950,376 @@ class _TrustTooltipButtonState extends State<_TrustTooltipButton> {
         ),
         child: const Icon(Icons.security,
             color: AppTheme.primary, size: 13),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 오늘 분석 모의 카운터 — 날짜 시드로 매일 다른 곡선
+// 오전(0~12시): 1 → morningPeak(4~10) 점진 증가
+// 오후(12~24시): morningPeak → afternoonPeak(15~30) 점진 증가
+// 실제 사용자 늘면 /api/fraud/today-count 같은 엔드포인트로 한 줄만 교체
+// ══════════════════════════════════════════════════════════════
+int _todayMockCount() {
+  final now = DateTime.now();
+  final dateSeed = now.year * 10000 + now.month * 100 + now.day;
+  final rng = Random(dateSeed);
+
+  final morningPeak = 4 + rng.nextInt(7);     // 4 ~ 10
+  final afternoonPeak = 15 + rng.nextInt(16); // 15 ~ 30
+
+  final hour = now.hour;
+  final minute = now.minute;
+
+  if (hour < 12) {
+    final progress = (hour * 60 + minute) / (12 * 60);
+    return (1 + (morningPeak - 1) * progress).round().clamp(1, 10);
+  } else {
+    final progress = ((hour - 12) * 60 + minute) / (12 * 60);
+    return (morningPeak + (afternoonPeak - morningPeak) * progress)
+        .round()
+        .clamp(10, 30);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Live Count Badge — Hero 우측에 붙는 작은 라이브 카운터
+// 표시값 = 시드 기반 베이스(mockCount) + 서버에서 받은 오늘 실제 분석 건수
+// ══════════════════════════════════════════════════════════════
+class _LiveCountBadge extends StatefulWidget {
+  final int mockCount;
+  // quota.usedCount 등 외부 트리거 — 값이 변하면 서버 카운트 재조회
+  final int refetchTrigger;
+  const _LiveCountBadge({
+    required this.mockCount,
+    this.refetchTrigger = 0,
+  });
+
+  @override
+  State<_LiveCountBadge> createState() => _LiveCountBadgeState();
+}
+
+class _LiveCountBadgeState extends State<_LiveCountBadge> {
+  int _serverCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchServerCount();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LiveCountBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 본인이 분석 후 홈 복귀 → quota.usedCount 변경 → 자동 재조회
+    if (oldWidget.refetchTrigger != widget.refetchTrigger) {
+      _fetchServerCount();
+    }
+  }
+
+  Future<void> _fetchServerCount() async {
+    try {
+      final response = await ApiClient().get('/api/fraud/today-count');
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      if (mounted) {
+        setState(() => _serverCount = json['count'] as int? ?? 0);
+      }
+    } catch (_) {
+      // 서버 실패 시 mockCount만 표시 (사용자에겐 보이지 않음)
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.mockCount + _serverCount;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.surface.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.primary.withValues(alpha: 0.28),
+          width: 0.5,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              _PulseDot(color: AppTheme.danger, size: 6),
+              SizedBox(width: 4),
+              Text(
+                '실시간',
+                style: TextStyle(
+                  color: AppTheme.textHint,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$count',
+                style: const TextStyle(
+                  color: Color(0xFFBDB0FF),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                '건',
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          const Text(
+            '오늘 분석',
+            style: TextStyle(
+              color: AppTheme.textHint,
+              fontSize: 9,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Pulse Dot — 천천히 깜빡이는 라이브 인디케이터
+// ══════════════════════════════════════════════════════════════
+class _PulseDot extends StatefulWidget {
+  final Color color;
+  final double size;
+  const _PulseDot({required this.color, required this.size});
+
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+    _opacity = Tween<double>(begin: 1.0, end: 0.35).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: widget.color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withValues(alpha: 0.6),
+              blurRadius: 5,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Hero Pitch Card — 첫 fold 안에 What/How/Action 모두 노출
+// ══════════════════════════════════════════════════════════════
+class _HeroPitchCard extends StatelessWidget {
+  final int used;
+  final int max;
+  final bool isGuest;
+  final bool isExhausted;
+  final VoidCallback onTap;
+
+  const _HeroPitchCard({
+    required this.used,
+    required this.max,
+    required this.isGuest,
+    required this.isExhausted,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppTheme.primary.withValues(alpha: 0.12),
+              AppTheme.surface,
+            ],
+          ),
+          border: Border.all(
+            color: AppTheme.primary.withValues(alpha: 0.25),
+            width: 0.5,
+          ),
+        ),
+        child: Stack(
+          children: [
+            // ambient glow
+            Positioned(
+              top: -60, right: -40,
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                child: Container(
+                  width: 200, height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.primary.withValues(alpha: 0.18),
+                  ),
+                ),
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── 신뢰 배지 ──
+                  Row(
+                    children: [
+                      _TagBadge(
+                          label: '실제 피해 경험 기반',
+                          color: AppTheme.primary),
+                      const SizedBox(width: 6),
+                      _TagBadge(label: '무료', color: AppTheme.success),
+                      const Spacer(),
+                      const _TrustTooltipButton(),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // ── 헤드라인 + 부제 / 우측 라이브 카운터 + 위험도 예시 ──
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '속기 전에,',
+                              style: TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                height: 1.25,
+                                letterSpacing: -0.03 * 24,
+                              ),
+                            ),
+                            ShaderMask(
+                              shaderCallback: (bounds) => const LinearGradient(
+                                colors: [
+                                  Color(0xFFBDB0FF),
+                                  Color(0xFF9B87F5)
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ).createShader(bounds),
+                              child: const Text(
+                                '먼저 확인하세요.',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.25,
+                                  letterSpacing: -0.03 * 24,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              '보이스피싱·중고거래·투자 사기,\n'
+                              '의심되는 대화 캡처 한 장으로\n'
+                              'AI가 30초 만에 판단해드립니다.',
+                              style: TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 13,
+                                height: 1.7,
+                                letterSpacing: -0.01 * 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _LiveCountBadge(
+                        mockCount: _todayMockCount(),
+                        refetchTrigger: used, // quota.usedCount 변화 시 재조회
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // ── CTA ──
+                  _PrimaryCTA(
+                    isExhausted: isExhausted,
+                    isGuest: isGuest,
+                    onTap: onTap,
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // ── 쿼터 (CTA 아래 작게) ──
+                  _QuotaStrip(
+                    used: used,
+                    max: max,
+                    isGuest: isGuest,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

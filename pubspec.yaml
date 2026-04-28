@@ -3,7 +3,7 @@ description: "miritalk project"
 
 publish_to: 'none'
 
-version: 1.0.0+20
+version: 1.0.0+21
 
 environment:
   sdk: ^3.11.1
@@ -23,14 +23,9 @@ flutter:
     - assets/images/evidence_2.jpg
     - assets/images/evidence_3.jpg
     - assets/images/evidence_4.jpg
-    - assets/images/onboarding_1.gif
-    - assets/images/onboarding_2.gif
-    - assets/images/onboarding_3.gif
+    - assets/images/step_capture.jpg
     - assets/icons/
     - assets/splash/
-    - assets/images/step_capture.jpg
-    - assets/images/step_upload.gif
-    - assets/images/step_result.gif
     - assets/videos/
 
 dependencies:
