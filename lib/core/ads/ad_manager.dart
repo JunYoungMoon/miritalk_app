@@ -116,15 +116,16 @@ class AdManager {
         ad.dispose();
         _interstitialAd = null;
         _isLoaded = false;
-        loadInterstitial(); // 다음 노출을 위해 재로드
+        // navigation 먼저, 다음 광고 prefetch 는 그 뒤로 — 결과화면 진입 지연 방지
         onClosed();
+        loadInterstitial();
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
         _interstitialAd = null;
         _isLoaded = false;
-        loadInterstitial();
         onClosed();
+        loadInterstitial();
       },
     );
 

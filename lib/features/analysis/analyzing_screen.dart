@@ -103,10 +103,10 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   }
 
   Future<void> _startAnalysis() async {
-    await TrackingService.instance.logAnalysisRequested(
+    unawaited(TrackingService.instance.logAnalysisRequested(
       imageCount: widget.images.length,
       isGuest: widget.isGuest,
-    );
+    ));
 
     try {
       final endpoint = widget.isGuest
@@ -226,10 +226,10 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       curve: Curves.easeOut,
     );
 
-    await TrackingService.instance.logAnalysisCompleted(
+    unawaited(TrackingService.instance.logAnalysisCompleted(
       riskScore: _riskScore ?? 0,
       riskLevel: _riskLevel ?? 'UNKNOWN',
-    );
+    ));
 
     await Future.delayed(const Duration(milliseconds: 500));
 
