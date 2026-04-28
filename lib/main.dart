@@ -17,6 +17,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:miritalk_app/features/inquiry/inquiry_list_screen.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:miritalk_app/core/ads/ad_manager.dart';
+import 'package:miritalk_app/core/ads/ad_config_provider.dart';
 import 'dart:io' show Platform;
 import 'dart:ui';
 import 'firebase_options.dart';
@@ -56,6 +57,16 @@ void main() async {
   // AdMob 초기화 (Android만 사용)
   if (Platform.isAndroid) {
     await MobileAds.instance.initialize();
+  }
+
+  // 광고 노출 컨피그 — 부트스트랩 초기에 attach 하여 이후 모든 광고 호출이 컨피그를 참조하게 함.
+  // 캐시 즉시 적용 + 서버 새로고침은 비동기로 진행되므로 첫 프레임을 막지 않는다.
+  final adConfigProvider = AdConfigProvider();
+  AdManager.instance.attachConfig(adConfigProvider);
+  // ignore: unawaited_futures
+  adConfigProvider.load();
+
+  if (Platform.isAndroid) {
     AdManager.instance.loadInterstitial(); // 첫 프리로드
   }
 
@@ -70,6 +81,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => authProvider),
         ChangeNotifierProvider(create: (_) => conversationProvider),
         ChangeNotifierProvider(create: (_) => AnalysisQuotaProvider()),
+        ChangeNotifierProvider<AdConfigProvider>.value(value: adConfigProvider),
       ],
       child: const MyApp(),
     ),

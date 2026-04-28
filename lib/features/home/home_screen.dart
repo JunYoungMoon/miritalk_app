@@ -5,6 +5,7 @@ import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'package:miritalk_app/features/upload/image_upload_screen.dart';
 import 'package:miritalk_app/core/update/app_update_service.dart';
 import 'package:miritalk_app/core/update/update_dialog.dart';
+import 'package:miritalk_app/core/ads/ad_manager.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'conversation_drawer.dart';
 import 'home_body.dart';
@@ -75,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: HomeBody(onGoToUpload: _onGoToUpload),
       ),
-      bottomNavigationBar: const BannerAdWidget(),
+      bottomNavigationBar: const BannerAdWidget(placementKey: AdPlacements.homeBanner),
     );
   }
 }

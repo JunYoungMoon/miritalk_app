@@ -9,6 +9,7 @@ import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'package:miritalk_app/features/analysis/analyzing_screen.dart';
 import 'package:miritalk_app/features/analysis/analysis_error.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
+import 'package:miritalk_app/core/ads/ad_manager.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/features/consent/consent_dialog.dart';
 import 'package:provider/provider.dart';
@@ -268,7 +269,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
         child: Scaffold(
         backgroundColor: AppTheme.background,
         appBar: const CommonAppBar(title: '사진 업로드'),
-        bottomNavigationBar: const BannerAdWidget(),
+        bottomNavigationBar: const BannerAdWidget(placementKey: AdPlacements.uploadBanner),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
