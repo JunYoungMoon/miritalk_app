@@ -49,7 +49,15 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
   }
 
   Future<void> _loadAssets() async {
-    final PermissionState ps = await PhotoManager.requestPermissionExtend();
+    // 이미지 권한만 요청 (READ_MEDIA_VIDEO 제거 대응)
+    final PermissionState ps = await PhotoManager.requestPermissionExtend(
+      requestOption: const PermissionRequestOption(
+        androidPermission: AndroidPermission(
+          type: RequestType.image,
+          mediaLocation: false,
+        ),
+      ),
+    );
 
     if (!ps.isAuth && !ps.hasAccess) {
       setState(() {
@@ -164,6 +172,33 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
         _selected.add(asset);
       }
     });
+  }
+
+  Future<void> _openFullscreen(int startIndex) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _FullscreenPreview(
+          assets: _assets,
+          initialIndex: startIndex,
+          isSelected: (a) => _selected.contains(a),
+          selectionNumber: (a) =>
+          _selected.contains(a) ? _selected.indexOf(a) + 1 : null,
+          maxImages: widget.maxImages,
+          currentSelectedCount: () => _selected.length,
+          onToggle: (a) {
+            setState(() {
+              if (_selected.contains(a)) {
+                _selected.remove(a);
+              } else if (_selected.length < widget.maxImages) {
+                _selected.add(a);
+              }
+            });
+          },
+        ),
+      ),
+    );
+    if (mounted) setState(() {}); // 돌아왔을 때 뱃지 동기화
   }
 
   bool _isInDragRange(int index) {
@@ -375,6 +410,35 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
                                   : null,
                             ),
                           ),
+
+                          // 확대 버튼 (탭/롱프레스 모두 흡수해 선택·드래그선택과 충돌 방지)
+                          Positioned(
+                            bottom: 5,
+                            right: 5,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => _openFullscreen(index),
+                              onLongPressStart: (_) {},
+                              child: Container(
+                                width: 26,
+                                height: 26,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.6),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: AppTheme.textPrimary
+                                        .withValues(alpha: 0.4),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.zoom_out_map,
+                                  color: AppTheme.textPrimary,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     );
@@ -385,6 +449,149 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── 풀스크린 미리보기 (확대 + 좌우 스와이프 + 선택 토글) ────────────
+class _FullscreenPreview extends StatefulWidget {
+  final List<AssetEntity> assets;
+  final int initialIndex;
+  final bool Function(AssetEntity) isSelected;
+  final int? Function(AssetEntity) selectionNumber;
+  final int maxImages;
+  final int Function() currentSelectedCount;
+  final void Function(AssetEntity) onToggle;
+
+  const _FullscreenPreview({
+    required this.assets,
+    required this.initialIndex,
+    required this.isSelected,
+    required this.selectionNumber,
+    required this.maxImages,
+    required this.currentSelectedCount,
+    required this.onToggle,
+  });
+
+  @override
+  State<_FullscreenPreview> createState() => _FullscreenPreviewState();
+}
+
+class _FullscreenPreviewState extends State<_FullscreenPreview> {
+  late PageController _controller;
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _controller = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = widget.assets[_index];
+    final selected = widget.isSelected(asset);
+    final number = widget.selectionNumber(asset);
+    final atLimit =
+        !selected && widget.currentSelectedCount() >= widget.maxImages;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          '${_index + 1} / ${widget.assets.length}',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          // 선택 토글 버튼
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton.icon(
+              onPressed: atLimit
+                  ? null
+                  : () => setState(() => widget.onToggle(asset)),
+              icon: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: selected ? AppTheme.primary : Colors.transparent,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: selected
+                        ? AppTheme.primary
+                        : (atLimit ? AppTheme.textHint : Colors.white),
+                    width: 1.6,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: selected
+                    ? Text(
+                        '$number',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
+              ),
+              label: Text(
+                selected ? '선택됨' : (atLimit ? '최대 도달' : '선택'),
+                style: TextStyle(
+                  color: selected
+                      ? AppTheme.primary
+                      : (atLimit ? AppTheme.textHint : Colors.white),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: PageView.builder(
+        controller: _controller,
+        itemCount: widget.assets.length,
+        onPageChanged: (i) => setState(() => _index = i),
+        itemBuilder: (context, index) {
+          return InteractiveViewer(
+            minScale: 1.0,
+            maxScale: 4.0,
+            child: Center(
+              child: FutureBuilder<Uint8List?>(
+                future: widget.assets[index].thumbnailDataWithSize(
+                  const ThumbnailSize.square(1200),
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const CircularProgressIndicator(
+                        color: AppTheme.primary);
+                  }
+                  if (snapshot.data == null) {
+                    return const Icon(Icons.broken_image,
+                        color: Colors.white54, size: 48);
+                  }
+                  return Image.memory(snapshot.data!, fit: BoxFit.contain);
+                },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
