@@ -5,7 +5,7 @@ class AppConfig {
   static const String _env = String.fromEnvironment('ENV', defaultValue: 'dev');
 
   static const String baseUrl = _env == 'prod'
-      ? 'https://miri.sweepfn.org'
+      ? 'https://miritalk.com'
       : 'http://10.0.2.2:8081';
 
   static const String tokenKey = 'access_token';
