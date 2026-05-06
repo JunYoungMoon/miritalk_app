@@ -135,9 +135,12 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
             _showQuotaDialog(result.message);
             break;
           case 'AUTH_ERROR':
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            _showErrorDialog(
+              result.message,
+              onConfirm: () => Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              ),
             );
             break;
           default:
@@ -153,10 +156,11 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
     }
   }
 
-  void _showErrorDialog(String message) {
+  void _showErrorDialog(String message, {VoidCallback? onConfirm}) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      barrierDismissible: onConfirm == null,
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
@@ -179,7 +183,10 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              onConfirm?.call();
+            },
             child: const Text('확인', style: TextStyle(color: AppTheme.primary)),
           ),
         ],

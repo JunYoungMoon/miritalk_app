@@ -151,7 +151,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
     } on QuotaExceededException catch (e) {
       if (mounted) Navigator.pop(context, AnalysisError('QUOTA_ERROR', e.message));
     } on UnauthorizedException {
-      if (mounted) Navigator.pop(context, const AnalysisError('AUTH_ERROR', ''));
+      if (mounted) Navigator.pop(context, const AnalysisError('AUTH_ERROR', '세션이 만료되었습니다. 다시 로그인해주세요.'));
     } catch (e) {
       debugPrint('분석 오류: $e');
       if (mounted) {
