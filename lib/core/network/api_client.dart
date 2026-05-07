@@ -37,6 +37,26 @@ class ApiClient {
     return result != null;
   }
 
+  /// 핵심 액션(분석 시작, 히스토리 진입) 직전에 호출하는 사전 세션 검증.
+  ///
+  /// - 게스트(access 토큰 없음) → 즉시 통과 (게스트 경로는 별도 권한 체크).
+  /// - 로그인 사용자 → `GET /api/me/session` 으로 토큰 유효성 확인.
+  ///   - access 만료 + refresh 살아있음 → `_handleUnauthorized` 가 자동 reissue 후 재시도 → 통과.
+  ///   - access + refresh 모두 만료 → [UnauthorizedException] throw.
+  ///
+  /// 401 외의 네트워크 오류는 던지지 않는다 — 실제 액션 단계에서 자연스럽게 실패하도록 둔다.
+  Future<void> ensureSession() async {
+    final token = await _storage.read(key: AppConfig.tokenKey);
+    if (token == null) return; // 게스트
+    try {
+      await get('/api/me/session');
+    } on UnauthorizedException {
+      rethrow;
+    } catch (_) {
+      // 네트워크/서버 일시 오류 — 후속 실액션이 원래 가지고 있던 오류 처리에 맡긴다.
+    }
+  }
+
   Future<http.Response> get(String path, {bool includeDeviceId = false}) async {
     final response = await http.get(
       Uri.parse('${AppConfig.baseUrl}$path'),

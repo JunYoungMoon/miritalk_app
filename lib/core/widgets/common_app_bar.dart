@@ -2,9 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
+import 'package:miritalk_app/core/network/session_guard.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
-import 'package:miritalk_app/features/home/conversation_provider.dart';
 import 'package:miritalk_app/features/settings/settings_bottom_sheet.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -24,7 +24,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
-  void _showProfileMenu(BuildContext context) {
+  Future<void> _showProfileMenu(BuildContext context) async {
     final auth = context.read<AuthProvider>();
 
     // 비로그인 → 로그인 화면으로
@@ -35,6 +35,10 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       );
       return;
     }
+
+    // 내정보(설정) 진입 전 세션 체크 — 만료 시 안내 + 로그인 화면.
+    if (!await ensureSessionOrPrompt(context)) return;
+    if (!context.mounted) return;
 
     SettingsBottomSheet.show(context);
   }

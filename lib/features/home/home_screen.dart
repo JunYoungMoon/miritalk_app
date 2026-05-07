@@ -7,6 +7,7 @@ import 'package:miritalk_app/core/update/app_update_service.dart';
 import 'package:miritalk_app/core/update/update_dialog.dart';
 import 'package:miritalk_app/core/ads/ad_manager.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
+import 'package:miritalk_app/core/network/session_guard.dart';
 import 'conversation_drawer.dart';
 import 'home_body.dart';
 import 'package:provider/provider.dart';
@@ -43,13 +44,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _onGoToUpload() async {
+    // 업로드 화면 진입 전 사전 세션 체크 — 만료된 상태로 이미지 선택까지 진행하는
+    // 시간 낭비를 차단. 게스트는 이 가드를 그대로 통과해 기존 흐름 유지.
+    final auth = context.read<AuthProvider>();
+    if (auth.isLoggedIn) {
+      final ok = await ensureSessionOrPrompt(context);
+      if (!ok || !mounted) return;
+    }
+
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ImageUploadScreen()),
     );
     if (!mounted) return;
-    final auth = context.read<AuthProvider>();
-    // 로그인/게스트 구분 없이 항상 갱신
+    // 로그인/게스트 구분 없이 항상 갱신 — auth 는 위에서 이미 읽음
     context.read<AnalysisQuotaProvider>().loadQuota(isLoggedIn: auth.isLoggedIn);
   }
 
@@ -63,14 +71,16 @@ class _HomeScreenState extends State<HomeScreen> {
         showBack: false,
       ),
       drawer: ConversationDrawer(onGoToUpload: _onGoToUpload),
-      onDrawerChanged: (isOpened) {
+      onDrawerChanged: (isOpened) async {
         if (!isOpened) return;
         final auth = context.read<AuthProvider>();
-        final conv = context.read<ConversationProvider>();
         if (auth.isLoggedIn) {
-          conv.loadConversations();
+          // 히스토리 진입 전 세션 검증 — 만료 시 다이얼로그 + 로그인 화면.
+          if (!await ensureSessionOrPrompt(context)) return;
+          if (!mounted) return;
+          context.read<ConversationProvider>().loadConversations();
         } else {
-          conv.loadGuestConversations();
+          context.read<ConversationProvider>().loadGuestConversations();
         }
       },
       body: SafeArea(

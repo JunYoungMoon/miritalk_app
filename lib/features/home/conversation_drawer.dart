@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:miritalk_app/core/cache/app_image_cache.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
 import 'package:miritalk_app/core/network/api_client.dart';
+import 'package:miritalk_app/core/network/session_guard.dart';
 import 'package:miritalk_app/core/storage/guest_token_storage.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/analysis/analysis_result_screen.dart';
@@ -122,10 +123,16 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                   icon: Icons.inbox_outlined,
                   label: '문의 내역',
                   subtitle: '답변을 확인하세요',
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(sheetContext);
+                    // 문의 내역은 로그인 사용자 데이터 — 진입 전 세션 체크.
+                    final auth = context.read<AuthProvider>();
+                    if (auth.isLoggedIn) {
+                      if (!await ensureSessionOrPrompt(context)) return;
+                      if (!context.mounted) return;
+                    }
                     Navigator.push(
-                      sheetContext,
+                      context,
                       MaterialPageRoute(
                           builder: (_) => const InquiryListScreen()),
                     );
@@ -494,6 +501,10 @@ class _ConversationTile extends StatelessWidget {
   }
 
   Future<void> _openResult(BuildContext context) async {
+    // 결과 화면 진입 전 사전 세션 체크 — 만료 시 다이얼로그 + 로그인 화면.
+    if (!await ensureSessionOrPrompt(context)) return;
+    if (!context.mounted) return;
+
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
@@ -1065,9 +1076,14 @@ class _InquirySheetState extends State<_InquirySheet> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // 바로 문의 내역 화면으로 이동
+              // 문의 내역 진입 전 세션 체크 — 로그인 사용자 데이터.
+              final auth = context.read<AuthProvider>();
+              if (auth.isLoggedIn) {
+                if (!await ensureSessionOrPrompt(context)) return;
+                if (!context.mounted) return;
+              }
               Navigator.push(
                 context,
                 MaterialPageRoute(

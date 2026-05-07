@@ -9,6 +9,7 @@ import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'package:miritalk_app/features/analysis/analyzing_screen.dart';
 import 'package:miritalk_app/features/analysis/analysis_error.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
+import 'package:miritalk_app/core/network/session_guard.dart';
 import 'package:miritalk_app/core/ads/ad_manager.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/features/consent/consent_dialog.dart';
@@ -79,6 +80,16 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
 
     final isValid = await _validateImages();
     if (!isValid) return;
+    if (!mounted) return;
+
+    // 분석 진입 전 사전 세션 체크 — 로그인 사용자가 토큰 만료 상태이면
+    // SSE 화면까지 끌고 가지 않고 즉시 안내 + 로그인 화면 라우팅.
+    // 게스트는 access 토큰이 없어 자동으로 통과 → 분기 호출 자체를 스킵.
+    final auth = context.read<AuthProvider>();
+    if (auth.isLoggedIn) {
+      final ok = await ensureSessionOrPrompt(context);
+      if (!ok || !mounted) return;
+    }
 
     setState(() => _isUploading = true);
     try {
@@ -92,9 +103,7 @@ class _ImageUploadScreenState extends State<ImageUploadScreen> {
 
       setState(() => _isUploading = false);
 
-      final auth = context.read<AuthProvider>();
-
-      // 게스트일 때 미리 바이트 수집
+      // 게스트일 때 미리 바이트 수집 — auth 는 위 세션 체크 블록에서 이미 읽음
       List<Uint8List>? guestImageBytes;
       String? guestFcmToken;
       if (!auth.isLoggedIn) {
