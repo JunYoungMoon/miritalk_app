@@ -124,18 +124,19 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                   label: '문의 내역',
                   subtitle: '답변을 확인하세요',
                   onTap: () async {
-                    Navigator.pop(sheetContext);
-                    // 문의 내역은 로그인 사용자 데이터 — 진입 전 세션 체크.
-                    final auth = context.read<AuthProvider>();
+                    // sheetContext 를 사용 — 외부 _ConversationDrawerState 의 context 는
+                    // 시트가 뜨는 동안 dispose race 가 일어나 unmounted 될 수 있다.
+                    // 시트 닫기 전에 의존성을 미리 캡처.
+                    final auth = sheetContext.read<AuthProvider>();
+                    final rootNavigator =
+                        Navigator.of(sheetContext, rootNavigator: true);
                     if (auth.isLoggedIn) {
-                      if (!await ensureSessionOrPrompt(context)) return;
-                      if (!context.mounted) return;
+                      if (!await ensureSessionOrPrompt(sheetContext)) return;
+                      if (!sheetContext.mounted) return;
                     }
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const InquiryListScreen()),
-                    );
+                    Navigator.pop(sheetContext);
+                    rootNavigator.push(MaterialPageRoute(
+                        builder: (_) => const InquiryListScreen()));
                   },
                 ),
                 _InquiryMenuTile(
@@ -1077,18 +1078,16 @@ class _InquirySheetState extends State<_InquirySheet> {
           width: double.infinity,
           child: ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
-              // 문의 내역 진입 전 세션 체크 — 로그인 사용자 데이터.
+              // 의존성을 시트 닫기 전에 미리 캡처 — pop 후 context 사용 시 unmounted race 회피.
               final auth = context.read<AuthProvider>();
+              final rootNavigator = Navigator.of(context, rootNavigator: true);
               if (auth.isLoggedIn) {
                 if (!await ensureSessionOrPrompt(context)) return;
                 if (!context.mounted) return;
               }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const InquiryListScreen()),
-              );
+              Navigator.pop(context);
+              rootNavigator.push(MaterialPageRoute(
+                  builder: (_) => const InquiryListScreen()));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primary,

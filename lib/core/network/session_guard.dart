@@ -67,11 +67,10 @@ Future<bool> ensureSessionOrPrompt(BuildContext context) async {
       ),
     );
     if (!context.mounted) return false;
-    // LoginScreen 을 push 하고 닫힐 때까지 await — pushReplacement 가 아니라 push 인 이유는
-    // 가드가 보통 HomeScreen 컨텍스트에서 발동하므로 교체하면 루트가 사라지기 때문.
-    // 닫힌 직후의 AuthProvider.isLoggedIn 으로 로그인 성공 여부를 판정.
-    await Navigator.push<void>(
-      context,
+    // LoginScreen 은 root navigator 에 push — 모달/시트 위에서 가드가 발동해도
+    // 루트 라우트로 띄워져 시트 dispose 와 무관하게 동작한다. 닫힐 때까지 await.
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    await rootNavigator.push<void>(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
     if (!context.mounted) return false;
