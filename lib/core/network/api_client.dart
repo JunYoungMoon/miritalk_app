@@ -14,6 +14,11 @@ class ApiClient {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final AuthService _authService = AuthService();
 
+  // 동시에 여러 401 이 떨어졌을 때 reissue 요청을 1개로 합치기 위한 in-flight Future.
+  // 회전식 refresh 토큰이라 두 번째 이후의 reissue 는 어차피 서버에서 거절되므로,
+  // 첫 reissue 의 결과를 모든 호출자가 공유하게 만든다. 완료 후 null 로 되돌려놓음.
+  Future<bool>? _reissueInFlight;
+
   Future<Map<String, String>> _headers({bool includeDeviceId = false}) async {
     final token = await _storage.read(key: AppConfig.tokenKey);
     final headers = <String, String>{
@@ -31,6 +36,20 @@ class ApiClient {
   }
 
   Future<bool> _reissue() async {
+    // 이미 진행 중인 reissue 가 있으면 같은 Future 를 공유해서 받아간다 — single-flight.
+    final inFlight = _reissueInFlight;
+    if (inFlight != null) return inFlight;
+
+    final fresh = _doReissue();
+    _reissueInFlight = fresh;
+    try {
+      return await fresh;
+    } finally {
+      _reissueInFlight = null;
+    }
+  }
+
+  Future<bool> _doReissue() async {
     final refreshToken = await _storage.read(key: 'refreshToken');
     if (refreshToken == null) return false;
     final result = await _authService.reissue(refreshToken);
