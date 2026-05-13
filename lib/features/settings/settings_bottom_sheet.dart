@@ -2,9 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
+import 'dart:io' show Platform;
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/auth_service.dart';
 import 'package:miritalk_app/features/home/conversation_provider.dart';
+import 'package:miritalk_app/features/notification_guard/screens/notification_guard_settings_screen.dart';
 
 class SettingsBottomSheet extends StatelessWidget {
   const SettingsBottomSheet({super.key});
@@ -163,6 +165,18 @@ class SettingsBottomSheet extends StatelessWidget {
             const SizedBox(height: 24),
             const Divider(color: AppTheme.divider),
             const SizedBox(height: 8),
+            if (Platform.isAndroid)
+              _SettingsTile(
+                icon: Icons.shield_outlined,
+                iconColor: AppTheme.primary,
+                label: '사기 알림 사전 차단',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const NotificationGuardSettingsScreen(),
+                  ));
+                },
+              ),
             _SettingsTile(
               icon: Icons.logout,
               iconColor: AppTheme.textSecondary,

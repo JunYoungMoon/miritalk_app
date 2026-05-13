@@ -52,6 +52,10 @@ dependencies:
   firebase_crashlytics: ^5.1.0
   video_player: ^2.9.2
   google_mobile_ads: ^5.3.1
+  # 알림 사전 차단 — Android 전용. NotificationListenerService 바인딩.
+  # iOS 에서는 빈 구현으로 떨어지므로 Platform.isAndroid 가드 필수.
+  notification_listener_service: ^0.3.4
+  shared_preferences: ^2.3.2
 
 flutter_launcher_icons:
   android: true

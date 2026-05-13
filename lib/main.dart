@@ -18,6 +18,9 @@ import 'package:miritalk_app/features/inquiry/inquiry_list_screen.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:miritalk_app/core/ads/ad_manager.dart';
 import 'package:miritalk_app/core/ads/ad_config_provider.dart';
+import 'package:miritalk_app/features/notification_guard/notification_guard_provider.dart';
+import 'package:miritalk_app/features/notification_guard/services/notification_guard_service.dart';
+import 'package:miritalk_app/features/notification_guard/services/risk_keyword_repository.dart';
 import 'dart:io' show Platform;
 import 'dart:ui';
 import 'firebase_options.dart';
@@ -75,6 +78,11 @@ void main() async {
     ..checkLoginStatus()
     ..setConversationProvider(conversationProvider);
 
+  // 알림 사전 차단 — Android 전용. 권한·기능이 모두 ON 일 때만 리스너 바인딩.
+  // 부팅 첫 프레임 차단하지 않도록 await 없이 백그라운드 실행.
+  // ignore: unawaited_futures
+  NotificationGuardService.instance.bootstrap();
+
   runApp(
     MultiProvider(
       providers: [
@@ -82,6 +90,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => conversationProvider),
         ChangeNotifierProvider(create: (_) => AnalysisQuotaProvider()),
         ChangeNotifierProvider<AdConfigProvider>.value(value: adConfigProvider),
+        ChangeNotifierProvider(create: (_) => NotificationGuardProvider()),
       ],
       child: const MyApp(),
     ),
@@ -120,6 +129,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       TrackingService.instance.logAppResumed();
       // 푸시 탭 복귀 시 전면 광고 재고 확보
       AdManager.instance.preload();
+      // 위험 키워드 사전 갱신 — 1시간 stale 이면 ETag 조건부 GET, 변경 없으면 304 로 0 트래픽.
+      // 어드민이 키워드 수정해도 다음 resume 에 자동 반영.
+      // ignore: unawaited_futures
+      RiskKeywordRepository.instance.refreshIfStale();
     }
   }
 

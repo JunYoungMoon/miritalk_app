@@ -63,6 +63,19 @@
             </intent-filter>
         </service>
 
+        <!-- 알림 사기 사전 차단 — notification_listener_service 플러그인.
+             OS 가 BIND_NOTIFICATION_LISTENER_SERVICE 권한으로만 바인딩하므로
+             exported=true 가 필수. 사용자 동의는 설정의 '알림 접근' 화면에서 별도. -->
+        <service
+                android:name="notification.listener.service.NotificationListener"
+                android:label="미리톡 사기 알림 사전 차단"
+                android:exported="true"
+                android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService"/>
+            </intent-filter>
+        </service>
+
         <meta-data
                 android:name="com.google.firebase.messaging.default_notification_icon"
                 android:resource="@drawable/ic_notification" />

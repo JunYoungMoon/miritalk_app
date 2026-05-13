@@ -5,6 +5,7 @@ import 'package:miritalk_app/core/widgets/common_app_bar.dart';
 import 'package:miritalk_app/features/upload/image_upload_screen.dart';
 import 'package:miritalk_app/core/update/app_update_service.dart';
 import 'package:miritalk_app/core/update/update_dialog.dart';
+import 'package:miritalk_app/features/notification_guard/screens/notification_guard_intro_sheet.dart';
 import 'package:miritalk_app/core/ads/ad_manager.dart';
 import 'package:miritalk_app/core/ads/banner_ad_widget.dart';
 import 'package:miritalk_app/core/network/session_guard.dart';
@@ -26,7 +27,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkUpdate());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _runStartupFlow());
+  }
+
+  /// 홈 진입 직후 순차 실행되는 시작 흐름.
+  /// 1) 업데이트 다이얼로그 (강제/선택)
+  /// 2) 사기 알림 사전 차단 안내 시트 (Android · 첫 1회만)
+  ///
+  /// 둘이 동시에 뜨지 않도록 sequential. 업데이트가 forceUpdate 면 어차피
+  /// 화면 막혀서 그 뒤로 안 넘어가니 intro 도 안 뜸.
+  Future<void> _runStartupFlow() async {
+    await _checkUpdate();
+    if (!mounted || !context.mounted) return;
+    await NotificationGuardIntroSheet.maybeShow(context);
   }
 
   Future<void> _checkUpdate() async {

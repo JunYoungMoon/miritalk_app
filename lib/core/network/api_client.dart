@@ -76,14 +76,20 @@ class ApiClient {
     }
   }
 
-  Future<http.Response> get(String path, {bool includeDeviceId = false}) async {
+  Future<http.Response> get(
+    String path, {
+    bool includeDeviceId = false,
+    Map<String, String>? extraHeaders,
+  }) async {
+    final headers = await _headers(includeDeviceId: includeDeviceId);
+    if (extraHeaders != null) headers.addAll(extraHeaders);
     final response = await http.get(
       Uri.parse('${AppConfig.baseUrl}$path'),
-      headers: await _headers(includeDeviceId: includeDeviceId),
+      headers: headers,
     );
     return _handleUnauthorized(
       response,
-          () => get(path, includeDeviceId: includeDeviceId),
+          () => get(path, includeDeviceId: includeDeviceId, extraHeaders: extraHeaders),
     );
   }
 
