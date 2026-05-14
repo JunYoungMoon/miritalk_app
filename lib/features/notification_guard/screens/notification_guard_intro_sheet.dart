@@ -1,3 +1,4 @@
+// lib/features/notification_guard/screens/notification_guard_intro_sheet.dart
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -116,7 +117,7 @@ class NotificationGuardIntroSheet extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            _bullet('의심 알림은 AI 가 한 번 더 검증 — 오발화 최소화'),
+            _bullet('오발화를 줄이기 위해 여러 단계로 검증해요'),
             _bullet('학습용으로 사용하지 않음 · 개인정보는 마스킹'),
             _bullet('언제든 설정에서 끌 수 있어요'),
 

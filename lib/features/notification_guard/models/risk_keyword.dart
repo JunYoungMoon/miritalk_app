@@ -1,3 +1,4 @@
+// lib/features/notification_guard/models/risk_keyword.dart
 // 서버 GET /api/risk/keywords 응답의 keywords[] 1건.
 // 클라이언트가 NotificationScorer 로 알림 텍스트와 매칭.
 class RiskKeyword {

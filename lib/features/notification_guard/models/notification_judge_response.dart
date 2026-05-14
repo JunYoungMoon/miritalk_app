@@ -1,3 +1,4 @@
+// lib/features/notification_guard/models/notification_judge_response.dart
 // 서버 POST /api/risk/judge[/guest] 응답.
 class NotificationJudgeResponse {
   final String verdict;        // "SAFE" | "SUSPICIOUS"

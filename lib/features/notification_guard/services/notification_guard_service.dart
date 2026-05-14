@@ -1,3 +1,4 @@
+// lib/features/notification_guard/services/notification_guard_service.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
@@ -16,20 +17,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 알림 사기 사전 차단 — 진입점.
 ///
 /// 라이프사이클:
-///   1) `bootstrap()` — main.dart 에서 한 번 호출. 권한·기능 ON 이면 리스너 바인딩.
+///   1) `bootstrap()` — main.dart 에서 한 번 호출. 권한이 있으면 자동 활성화 + 리스너 바인딩.
 ///   2) `enable()` / `disable()` — 설정 화면 토글에서 호출.
 ///   3) `isPermissionGranted()` / `requestPermission()` — 권한 흐름 위임.
+///
+/// 자동 활성화 정책: 사용자가 한 번도 명시적으로 토글한 적이 없으면(`_kEnabledKey`
+/// 미설정) OS 알림 접근 권한 ON 만으로 enabled=true 로 자동 승격. 한 번이라도
+/// 명시적 OFF (`disable()`) 한 적이 있으면 그 의도를 존중해 자동 활성화하지 않는다.
 ///
 /// 자기 자신의 패키지(미리톡)에서 발생한 알림은 무시 — 무한 루프 방지
 /// (이 서비스가 SUSPICIOUS 시 띄우는 로컬 알림까지 다시 잡으면 안 됨).
 class NotificationGuardService {
   NotificationGuardService._();
   static final NotificationGuardService instance = NotificationGuardService._();
-
-  /// OpenAI 호출 임계 점수. V27 점수 가이드 기준 50 이 표준.
-  /// 테스트할 때만 30 정도로 낮춰서 흐름 확인, 출시 시점에 50 복귀.
-  /// 운영 데이터 보고 false positive 가 많으면 60~70 으로 보수화.
-  static const int kThresholdScore = 50;
 
   // SharedPreferences 키
   static const String _kEnabledKey = 'notification_guard_enabled';
@@ -59,7 +59,8 @@ class NotificationGuardService {
 
   // ── public API ────────────────────────────────────────────────
 
-  /// 앱 부팅 시 main.dart 에서 호출. iOS 면 no-op.
+  /// 앱 부팅 시 main.dart 에서 한 번 호출. iOS 면 no-op.
+  /// 권한이 있는데 사용자가 한 번도 토글한 적 없으면 자동 활성화.
   Future<void> bootstrap() async {
     if (!Platform.isAndroid) return;
     if (_initialized) return;
@@ -67,14 +68,17 @@ class NotificationGuardService {
 
     await _ensureChannel();
 
-    final enabled = await isEnabled();
-    if (!enabled) return;
     final granted = await NotificationListenerService.isPermissionGranted();
     if (!granted) return;
 
-    // 사전 갱신은 비동기 — 첫 매칭에 사전이 없으면 매칭 0건으로 떨어질 뿐, 부팅을 막지 않음.
-    // ignore: unawaited_futures
-    RiskKeywordRepository.instance.refreshIfStale();
+    final prefs = await SharedPreferences.getInstance();
+    final explicit = prefs.getBool(_kEnabledKey);
+    final enabled = explicit ?? true; // 명시적 토글 없으면 권한 ON 시 자동 ON
+    if (explicit == null) {
+      await prefs.setBool(_kEnabledKey, true);
+    }
+    if (!enabled) return;
+
     await _start();
   }
 
@@ -88,8 +92,6 @@ class NotificationGuardService {
     if (!Platform.isAndroid) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kEnabledKey, true);
-    // ignore: unawaited_futures
-    RiskKeywordRepository.instance.refreshIfStale();
     await _start();
   }
 
@@ -115,12 +117,21 @@ class NotificationGuardService {
 
   Future<void> _start() async {
     if (_running) return;
-    final keywords = await RiskKeywordRepository.instance.getKeywords();
+    var keywords = await RiskKeywordRepository.instance.getKeywords();
+
+    // 디스크 캐시가 비어 있으면 동기 fetch 한 번 시도. RiskKeywordRepository 의
+    // in-flight 가드가 bootstrap 의 비동기 refreshIfStale 와 중복 호출되지 않게 해준다.
+    if (keywords.isEmpty) {
+      try {
+        await RiskKeywordRepository.instance.forceRefresh();
+      } catch (e) {
+        debugPrint('NotificationGuard 초기 사전 fetch 실패: $e');
+      }
+      keywords = await RiskKeywordRepository.instance.getKeywords();
+    }
+
     _scorer = NotificationScorer(keywords);
-    _buffer = NotificationBuffer(
-      onFlush: _onBufferFlush,
-      thresholdScore: kThresholdScore,
-    );
+    _buffer = NotificationBuffer(onFlush: _onBufferFlush);
 
     _subscription = NotificationListenerService
         .notificationsStream
@@ -128,7 +139,25 @@ class NotificationGuardService {
       debugPrint('NotificationListener 스트림 오류: $e');
     });
     _running = true;
-    debugPrint('NotificationGuard 시작 — 사전 ${keywords.length}건');
+
+    // 디스크 캐시로 일단 시작했더라도 서버에 새 사전이 있으면 백그라운드로 받아
+    // scorer 를 교체. (in-flight 가드로 위 forceRefresh 와 중복 호출되지 않음)
+    // ignore: unawaited_futures
+    _refreshDictAndRebuildScorer();
+  }
+
+  /// 백그라운드 사전 갱신 → 성공 시 scorer 를 새 사전으로 교체.
+  /// stale 디스크 캐시로 시작했어도 이 호출이 끝나면 다음 알림부터 최신 사전 반영.
+  Future<void> _refreshDictAndRebuildScorer() async {
+    try {
+      await RiskKeywordRepository.instance.refreshIfStale();
+    } catch (_) {
+      return;
+    }
+    if (!_running || _scorer == null) return;
+    final fresh = await RiskKeywordRepository.instance.getKeywords();
+    if (fresh.isEmpty) return;
+    _scorer = NotificationScorer(fresh);
   }
 
   Future<void> _stop() async {
@@ -138,7 +167,6 @@ class NotificationGuardService {
     _buffer = null;
     _scorer = null;
     _running = false;
-    debugPrint('NotificationGuard 중지');
   }
 
   void _onNotificationEvent(ServiceNotificationEvent event) {

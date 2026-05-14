@@ -1,3 +1,4 @@
+// lib/features/notification_guard/screens/notification_guard_settings_screen.dart
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -8,7 +9,7 @@ import 'package:provider/provider.dart';
 /// 알림 사기 사전 차단 설정 화면.
 ///
 /// - Android 전용. iOS 진입 시엔 안내 메시지만 노출.
-/// - 권한 + 기능 토글, 작동 원리/프라이버시 안내.
+/// - 권한 + 기능 토글만 노출.
 /// - 권한 페이지에서 돌아왔을 때 권한 상태 재확인을 위해 lifecycle 옵저버 사용.
 class NotificationGuardSettingsScreen extends StatefulWidget {
   const NotificationGuardSettingsScreen({super.key});
@@ -62,10 +63,6 @@ class _NotificationGuardSettingsScreenState
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           children: [
             _heroCard(p),
-            const SizedBox(height: 24),
-            _howItWorksCard(),
-            const SizedBox(height: 16),
-            _privacyCard(),
           ],
         );
       },
@@ -107,8 +104,8 @@ class _NotificationGuardSettingsScreenState
           ),
           const SizedBox(height: 8),
           const Text(
-            '카카오톡·문자 등의 알림 텍스트를 위험 키워드 사전과 매칭해, '
-            '의심 신호가 누적되면 AI 가 판정한 뒤 경고 알림을 보냅니다.',
+            '카카오톡·문자 등 들어오는 알림에서 사기 의심 신호가 발견되면 '
+            '즉시 경고해드립니다.',
             style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, height: 1.5),
           ),
           const SizedBox(height: 20),
@@ -171,75 +168,4 @@ class _NotificationGuardSettingsScreenState
     );
   }
 
-  Widget _howItWorksCard() {
-    return _infoCard(
-      title: '어떻게 동작하나요',
-      bullets: const [
-        '서버에서 받은 위험 키워드 사전을 기기에 저장해, 알림이 올 때마다 로컬에서 먼저 점수를 매깁니다.',
-        '점수가 임계값을 넘은 알림만 서버로 전송해 AI 가 한 번 더 판정합니다.',
-        '여러 알림으로 쪼개져 오는 메시지도 같은 대화방 기준으로 모아서 평가합니다.',
-        '의심으로 판정되면 휴대폰에 경고 알림이 즉시 뜹니다.',
-      ],
-    );
-  }
-
-  Widget _privacyCard() {
-    return _infoCard(
-      title: '프라이버시',
-      bullets: const [
-        '알림 텍스트는 임계값을 넘은 경우에만 서버로 전송됩니다.',
-        '서버는 전송된 텍스트에서 전화번호·계좌·주민번호 패턴을 마스킹한 뒤 분석에만 사용합니다.',
-        '발신자/대화방 이름은 SHA-256 해시로만 저장됩니다.',
-        '학습용으로 사용하지 않습니다. SAFE 로 판정된 알림은 저장되지 않습니다.',
-      ],
-    );
-  }
-
-  Widget _infoCard({required String title, required List<String> bullets}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 10),
-          for (final b in bullets)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6, right: 8),
-                    child: Icon(Icons.circle, color: AppTheme.primary, size: 5),
-                  ),
-                  Expanded(
-                    child: Text(
-                      b,
-                      style: const TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 13,
-                        height: 1.55,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 }

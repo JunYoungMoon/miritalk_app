@@ -1,6 +1,8 @@
+// lib/features/notification_guard/services/notification_buffer.dart
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:miritalk_app/features/notification_guard/notification_guard_constants.dart';
 
 /// 같은 대화방/발신자에서 조각으로 쪼개져 들어오는 알림을 모아 평가.
 ///
@@ -38,12 +40,12 @@ class NotificationBuffer {
 
   NotificationBuffer({
     required this.onFlush,
-    this.dedupWindow   = const Duration(seconds: 2),
-    this.quietGap      = const Duration(seconds: 5),
-    this.maxWindow     = const Duration(seconds: 60),
-    this.cooldown      = const Duration(seconds: 60),
-    this.thresholdScore = 50,
-    this.maxBufferChars = 2000,
+    this.dedupWindow    = kNotificationGuardDedupWindow,
+    this.quietGap       = kNotificationGuardQuietGap,
+    this.maxWindow      = kNotificationGuardMaxWindow,
+    this.cooldown       = kNotificationGuardCooldown,
+    this.thresholdScore = kNotificationGuardThresholdScore,
+    this.maxBufferChars = kNotificationGuardMaxBufferChars,
   });
 
   final Map<String, _Entry> _byKey = {};

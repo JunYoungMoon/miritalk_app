@@ -1,5 +1,7 @@
+// lib/features/notification_guard/notification_guard_provider.dart
 import 'package:flutter/foundation.dart';
 import 'package:miritalk_app/features/notification_guard/services/notification_guard_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 알림 사전 차단 설정 화면용 ChangeNotifier.
 ///
@@ -22,6 +24,18 @@ class NotificationGuardProvider extends ChangeNotifier {
   Future<void> refresh() async {
     _enabled = await NotificationGuardService.instance.isEnabled();
     _permissionGranted = await NotificationGuardService.instance.isPermissionGranted();
+
+    // 권한이 ON 인데 사용자가 한 번도 명시적으로 토글한 적 없으면 자동 활성화.
+    // (OS 설정에서 사용자가 직접 권한 ON 한 경우도 커버) 명시적 disable() 한
+    // 적이 있으면 SharedPreferences 에 false 가 저장돼 있으니 이 분기는 안 탄다.
+    if (_permissionGranted && !_enabled) {
+      final prefs = await SharedPreferences.getInstance();
+      final everToggled = prefs.containsKey('notification_guard_enabled');
+      if (!everToggled) {
+        await NotificationGuardService.instance.enable();
+        _enabled = true;
+      }
+    }
     notifyListeners();
   }
 
