@@ -7,7 +7,7 @@ import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 import 'package:miritalk_app/features/settings/settings_bottom_sheet.dart';
 
-class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
+class CommonAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
   final bool showBack;
   final bool showMenu;
@@ -24,23 +24,37 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
+  @override
+  State<CommonAppBar> createState() => _CommonAppBarState();
+}
+
+class _CommonAppBarState extends State<CommonAppBar> {
+  // 빠른 다중 탭으로 세션가드/시트가 중첩 호출되지 않도록 진입 가드.
+  bool _navigating = false;
+
   Future<void> _showProfileMenu(BuildContext context) async {
-    final auth = context.read<AuthProvider>();
+    if (_navigating) return;
+    _navigating = true;
+    try {
+      final auth = context.read<AuthProvider>();
 
-    // 비로그인 → 로그인 화면으로
-    if (!auth.isLoggedIn) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-      return;
+      // 비로그인 → 로그인 화면으로
+      if (!auth.isLoggedIn) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+        return;
+      }
+
+      // 내정보(설정) 진입 전 세션 체크 — 만료 시 안내 + 로그인 화면.
+      if (!await ensureSessionOrPrompt(context)) return;
+      if (!context.mounted) return;
+
+      await SettingsBottomSheet.show(context);
+    } finally {
+      if (mounted) _navigating = false;
     }
-
-    // 내정보(설정) 진입 전 세션 체크 — 만료 시 안내 + 로그인 화면.
-    if (!await ensureSessionOrPrompt(context)) return;
-    if (!context.mounted) return;
-
-    SettingsBottomSheet.show(context);
   }
 
   @override
@@ -51,14 +65,14 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: AppTheme.surface,
       elevation: 0,
       automaticallyImplyLeading: false,
-      leading: showMenu
+      leading: widget.showMenu
           ? Builder(
         builder: (ctx) => IconButton(
           icon: const Icon(Icons.menu, color: AppTheme.textPrimary),
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         ),
       )
-          : showBack
+          : widget.showBack
           ? IconButton(
         icon: const Icon(Icons.chevron_left,
             color: AppTheme.textPrimary, size: 28),
@@ -79,7 +93,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            title,
+            widget.title,
             style: const TextStyle(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
@@ -90,7 +104,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       centerTitle: true,
       actions: [
-        ...extraActions,
+        ...widget.extraActions,
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: GestureDetector(
@@ -101,7 +115,8 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               radius: 18,
               backgroundColor: AppTheme.surfaceDeep,
               backgroundImage: auth.profileImageUrl != null
-                  ? NetworkImage(auth.profileImageUrl!)
+                  ? ResizeImage(NetworkImage(auth.profileImageUrl!),
+                      width: 96)
                   : null,
               child: auth.profileImageUrl == null
                   ? const Icon(Icons.person,

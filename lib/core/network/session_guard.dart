@@ -28,7 +28,28 @@ import 'package:miritalk_app/core/theme/app_theme.dart';
 import 'package:miritalk_app/features/auth/auth_provider.dart';
 import 'package:miritalk_app/features/auth/login_screen.dart';
 
+// 진행 중인 가드의 Future. 여러 진입점이 동시에 호출돼도 다이얼로그/로그인 화면이
+// 한 번만 뜨도록 single-flight 로 합친다. 동일 흐름의 다중 탭(프로필 아바타 빠른 연타 등)에서
+// "세션 만료" 다이얼로그가 중첩 출현하거나 LoginScreen 이 여러 장 stack 되는 현상을 막는다.
+Future<bool>? _inFlight;
+
 Future<bool> ensureSessionOrPrompt(BuildContext context) async {
+  final existing = _inFlight;
+  if (existing != null) {
+    final result = await existing;
+    if (!context.mounted) return false;
+    return result;
+  }
+  final task = _runEnsure(context);
+  _inFlight = task;
+  try {
+    return await task;
+  } finally {
+    _inFlight = null;
+  }
+}
+
+Future<bool> _runEnsure(BuildContext context) async {
   try {
     await ApiClient().ensureSession();
     return true;

@@ -60,7 +60,20 @@ class ConversationDrawer extends StatefulWidget {
 }
 
 class _ConversationDrawerState extends State<ConversationDrawer> {
+  // 빠른 다중 탭 가드. 로그인 화면 push / 쿼터 조회가 동시에 여러 번 시작되지 않도록.
+  bool _newAnalysisBusy = false;
+
   Future<void> _onNewAnalysisTap() async {
+    if (_newAnalysisBusy) return;
+    _newAnalysisBusy = true;
+    try {
+      await _runNewAnalysisTap();
+    } finally {
+      if (mounted) _newAnalysisBusy = false;
+    }
+  }
+
+  Future<void> _runNewAnalysisTap() async {
     final auth = context.read<AuthProvider>();
     final quota = context.read<AnalysisQuotaProvider>();
 
@@ -70,6 +83,11 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
           context, MaterialPageRoute(builder: (_) => const LoginScreen()));
       return;
     }
+
+    // 로그인 후 쿼터 조회 직전 세션 사전 검증 — 만료된 access 토큰 상태로 곧장
+    // /api/fraud/quota/daily 를 때리면 401 → 가드 다이얼로그 → LoginScreen 가 재발화하는 루프 가능.
+    if (!await ensureSessionOrPrompt(context)) return;
+    if (!mounted) return;
 
     await quota.loadQuota(isLoggedIn: true);
     if (!mounted) return;
@@ -91,11 +109,19 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
     widget.onGoToUpload();
   }
 
+  // 문의 메뉴 시트가 200ms 지연 중 다시 호출되어 시트 2장이 뜨는 것을 막는다.
+  bool _showingInquiryMenu = false;
+
   // ── 문의 메뉴 바텀시트 ──────────────────────────────────────
   void _showInquiryMenu() {
+    if (_showingInquiryMenu) return;
+    _showingInquiryMenu = true;
     Navigator.pop(context);
     Future.delayed(const Duration(milliseconds: 200), () {
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        _showingInquiryMenu = false;
+        return;
+      }
       showModalBottomSheet(
         context: context,
         backgroundColor: Colors.transparent,
@@ -158,7 +184,10 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
             ),
           ),
         ),
-      );
+      ).whenComplete(() {
+        // 시트 닫힘 후 다시 탭할 수 있도록 가드 복구.
+        if (mounted) _showingInquiryMenu = false;
+      });
     });
   }
 
@@ -185,7 +214,8 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                     radius: 20,
                     backgroundColor: AppTheme.surface,
                     backgroundImage: auth.profileImageUrl != null
-                        ? NetworkImage(auth.profileImageUrl!)
+                        ? ResizeImage(NetworkImage(auth.profileImageUrl!),
+                            width: 80)
                         : null,
                     child: auth.profileImageUrl == null
                         ? const Icon(Icons.person,
@@ -406,10 +436,15 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
                 itemBuilder: (context, index) {
                   final conv =
                   convProvider.conversations[index];
+                  // sessionId 기반 key — 리스트 재정렬/삭제 시 타일 State(_busy)가
+                  // 다른 conversation 으로 잘못 매핑되는 것을 방지.
                   return conv.isGuest
                       ? _GuestConversationTile(
+                      key: ValueKey('guest_${conv.sessionId}'),
                       conversation: conv)
-                      : _ConversationTile(conversation: conv);
+                      : _ConversationTile(
+                      key: ValueKey('user_${conv.sessionId}'),
+                      conversation: conv);
                 },
               ),
             ),
@@ -447,12 +482,20 @@ class _ConversationDrawerState extends State<ConversationDrawer> {
 // ══════════════════════════════════════════════════════════════
 // 로그인 유저 타일
 // ══════════════════════════════════════════════════════════════
-class _ConversationTile extends StatelessWidget {
+class _ConversationTile extends StatefulWidget {
   final ConversationItem conversation;
-  const _ConversationTile({required this.conversation});
+  const _ConversationTile({super.key, required this.conversation});
+
+  @override
+  State<_ConversationTile> createState() => _ConversationTileState();
+}
+
+class _ConversationTileState extends State<_ConversationTile> {
+  // 빠른 다중 탭으로 동일 결과 화면이 stack 되지 않게 진입 가드.
+  bool _busy = false;
 
   Color get _riskColor =>
-      AppTheme.riskLevelColor(conversation.effectiveRiskLevel);
+      AppTheme.riskLevelColor(widget.conversation.effectiveRiskLevel);
 
   @override
   Widget build(BuildContext context) {
@@ -467,9 +510,9 @@ class _ConversationTile extends StatelessWidget {
         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         minVerticalPadding: 8,
         dense: false,
-        leading: _Thumbnail(url: conversation.thumbnailUrl),
+        leading: _Thumbnail(url: widget.conversation.thumbnailUrl),
         title: Text(
-          conversation.title,
+          widget.conversation.title,
           style: const TextStyle(color: AppTheme.textPrimary, fontSize: 12),
           overflow: TextOverflow.ellipsis,
           maxLines: 2,
@@ -477,7 +520,7 @@ class _ConversationTile extends StatelessWidget {
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 3),
           child: Text(
-            _formatRelativeDate(conversation.createdAt),
+            _formatRelativeDate(widget.conversation.createdAt),
             style: const TextStyle(color: AppTheme.textHint, fontSize: 10),
           ),
         ),
@@ -488,7 +531,7 @@ class _ConversationTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
-            '${conversation.riskLevel}%',
+            '${widget.conversation.riskLevel}%',
             style: TextStyle(
               color: _riskColor,
               fontSize: 11,
@@ -502,16 +545,20 @@ class _ConversationTile extends StatelessWidget {
   }
 
   Future<void> _openResult(BuildContext context) async {
-    // 결과 화면 진입 전 사전 세션 체크 — 만료 시 다이얼로그 + 로그인 화면.
-    if (!await ensureSessionOrPrompt(context)) return;
-    if (!context.mounted) return;
+    if (_busy) return;
+    _busy = true;
 
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
     try {
+      // 결과 화면 진입 전 사전 세션 체크 — 만료 시 다이얼로그 + 로그인 화면.
+      if (!await ensureSessionOrPrompt(context)) return;
+      if (!context.mounted) return;
+
       final response = await ApiClient()
-          .get('/api/fraud/result/${conversation.sessionId}');
+          .get('/api/fraud/result/${widget.conversation.sessionId}');
+      if (!context.mounted) return;
 
       if (response.statusCode != 200) {
         messenger.showSnackBar(
@@ -542,7 +589,7 @@ class _ConversationTile extends StatelessWidget {
         builder: (_) => AnalysisResultScreen(
           messages: messages,
           imageUrls: imageUrls,
-          sessionId: conversation.sessionId,
+          sessionId: widget.conversation.sessionId,
           feedbackHelpful: json['feedbackHelpful'] as bool?,
           categoryName: json['categoryName'] as String?,
           communityPostId: (json['communityPostId'] as num?)?.toInt(),
@@ -553,6 +600,8 @@ class _ConversationTile extends StatelessWidget {
           const SnackBar(content: Text('로그인이 필요합니다.')));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('오류가 발생했습니다: $e')));
+    } finally {
+      if (mounted) _busy = false;
     }
   }
 }
@@ -560,12 +609,20 @@ class _ConversationTile extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════
 // 게스트 타일
 // ══════════════════════════════════════════════════════════════
-class _GuestConversationTile extends StatelessWidget {
+class _GuestConversationTile extends StatefulWidget {
   final ConversationItem conversation;
-  const _GuestConversationTile({required this.conversation});
+  const _GuestConversationTile({super.key, required this.conversation});
+
+  @override
+  State<_GuestConversationTile> createState() => _GuestConversationTileState();
+}
+
+class _GuestConversationTileState extends State<_GuestConversationTile> {
+  // 빠른 다중 탭으로 게스트 결과 화면이 stack 되지 않게 진입 가드.
+  bool _busy = false;
 
   Color get _riskColor =>
-      AppTheme.riskLevelColor(conversation.effectiveRiskLevel);
+      AppTheme.riskLevelColor(widget.conversation.effectiveRiskLevel);
 
   @override
   Widget build(BuildContext context) {
@@ -580,8 +637,8 @@ class _GuestConversationTile extends StatelessWidget {
         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         minVerticalPadding: 8,
         dense: false,
-        leading: conversation.thumbnailUrl != null
-            ? _Thumbnail(url: conversation.thumbnailUrl)
+        leading: widget.conversation.thumbnailUrl != null
+            ? _Thumbnail(url: widget.conversation.thumbnailUrl)
             : ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: Container(
@@ -593,7 +650,7 @@ class _GuestConversationTile extends StatelessWidget {
           ),
         ),
         title: Text(
-          conversation.title,
+          widget.conversation.title,
           style: const TextStyle(color: AppTheme.textPrimary, fontSize: 12),
           overflow: TextOverflow.ellipsis,
           maxLines: 2,
@@ -601,7 +658,7 @@ class _GuestConversationTile extends StatelessWidget {
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 3),
           child: Text(
-            _formatRelativeDate(conversation.createdAt),
+            _formatRelativeDate(widget.conversation.createdAt),
             style: const TextStyle(color: AppTheme.textHint, fontSize: 10),
           ),
         ),
@@ -612,7 +669,7 @@ class _GuestConversationTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
-            '${conversation.riskLevel}%',
+            '${widget.conversation.riskLevel}%',
             style: TextStyle(
               color: _riskColor,
               fontSize: 11,
@@ -626,18 +683,22 @@ class _GuestConversationTile extends StatelessWidget {
   }
 
   Future<void> _openGuestResult(BuildContext context) async {
+    if (_busy) return;
+    _busy = true;
+
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      String? token = conversation.imageToken ??
-          await GuestTokenStorage.get(conversation.sessionId);
+      String? token = widget.conversation.imageToken ??
+          await GuestTokenStorage.get(widget.conversation.sessionId);
 
       if (token == null) {
         final tokenResp = await ApiClient().get(
-          '/api/fraud/guest/token/${conversation.sessionId}',
+          '/api/fraud/guest/token/${widget.conversation.sessionId}',
           includeDeviceId: true,
         );
+        if (!context.mounted) return;
         if (tokenResp.statusCode != 200) {
           messenger.showSnackBar(SnackBar(
               content: Text('결과 조회 실패: ${tokenResp.statusCode}')));
@@ -646,12 +707,13 @@ class _GuestConversationTile extends StatelessWidget {
         final tokenData =
         jsonDecode(utf8.decode(tokenResp.bodyBytes)) as Map<String, dynamic>;
         token = tokenData['imageToken'] as String;
-        await GuestTokenStorage.save(conversation.sessionId, token);
+        await GuestTokenStorage.save(widget.conversation.sessionId, token);
       }
 
       final response = await ApiClient().get(
-        '/api/fraud/result/guest/${conversation.sessionId}?token=$token',
+        '/api/fraud/result/guest/${widget.conversation.sessionId}?token=$token',
       );
+      if (!context.mounted) return;
       if (response.statusCode != 200) {
         messenger.showSnackBar(SnackBar(
             content: Text('결과 조회 실패: ${response.statusCode}')));
@@ -681,7 +743,7 @@ class _GuestConversationTile extends StatelessWidget {
         builder: (_) => AnalysisResultScreen(
           messages: messages,
           imageUrls: imageUrls,
-          sessionId: conversation.sessionId,
+          sessionId: widget.conversation.sessionId,
           feedbackHelpful: null,
           guestImageToken: token,
           categoryName: json['categoryName'] as String?,
@@ -689,6 +751,8 @@ class _GuestConversationTile extends StatelessWidget {
       ));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('오류: $e')));
+    } finally {
+      if (mounted) _busy = false;
     }
   }
 }

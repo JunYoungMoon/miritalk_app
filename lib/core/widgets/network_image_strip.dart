@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:miritalk_app/core/theme/app_theme.dart';
 
-class NetworkImageStrip extends StatelessWidget {
+class NetworkImageStrip extends StatefulWidget {
   final List<String> imageUrls;
   final double size;
   final int? maxCount;
@@ -16,39 +16,53 @@ class NetworkImageStrip extends StatelessWidget {
     this.itemSpacing = 6,
   });
 
-  void _openFullscreen(BuildContext context, int initialIndex) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => _NetworkFullscreenViewer(
-          imageUrls: imageUrls,
-          initialIndex: initialIndex,
+  @override
+  State<NetworkImageStrip> createState() => _NetworkImageStripState();
+}
+
+class _NetworkImageStripState extends State<NetworkImageStrip> {
+  // 빠른 다중 탭으로 동일 풀스크린 뷰어가 stack 되는 것을 막는다.
+  bool _navigating = false;
+
+  Future<void> _openFullscreen(int initialIndex) async {
+    if (_navigating) return;
+    _navigating = true;
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => _NetworkFullscreenViewer(
+            imageUrls: widget.imageUrls,
+            initialIndex: initialIndex,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      if (mounted) _navigating = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final count = maxCount != null
-        ? imageUrls.length.clamp(0, maxCount!)
-        : imageUrls.length;
+    final count = widget.maxCount != null
+        ? widget.imageUrls.length.clamp(0, widget.maxCount!)
+        : widget.imageUrls.length;
 
     return SizedBox(
-      height: size,
+      height: widget.size,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: count,
         itemBuilder: (context, i) {
-          final url = imageUrls[i];
+          final url = widget.imageUrls[i];
           return GestureDetector(
             key: ValueKey(url),
-            onTap: () => _openFullscreen(context, i),
+            onTap: () => _openFullscreen(i),
             child: Container(
-              width: size,
-              height: size,
-              margin: EdgeInsets.only(right: itemSpacing),
+              width: widget.size,
+              height: widget.size,
+              margin: EdgeInsets.only(right: widget.itemSpacing),
               decoration: BoxDecoration(
                 color: AppTheme.surfaceDeep,
                 borderRadius: BorderRadius.circular(8),
@@ -58,7 +72,7 @@ class NetworkImageStrip extends StatelessWidget {
                 child: Image.network(
                   url,
                   fit: BoxFit.cover,
-                  cacheWidth: (size * 2).round(),
+                  cacheWidth: (widget.size * 2).round(),
                   gaplessPlayback: true,
                   errorBuilder: (_, __, ___) => const Icon(
                     Icons.image_not_supported_outlined,

@@ -390,15 +390,24 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     }
   }
 
-  void _openSharedPost() {
+  // 빠른 다중 탭으로 동일 커뮤니티 상세 화면이 stack 되지 않게 가드.
+  bool _openingSharedPost = false;
+
+  Future<void> _openSharedPost() async {
+    if (_openingSharedPost) return;
     final postId = _communityPostId;
     if (postId == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CommunityDetailScreen(postId: postId),
-      ),
-    );
+    _openingSharedPost = true;
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CommunityDetailScreen(postId: postId),
+        ),
+      );
+    } finally {
+      if (mounted) _openingSharedPost = false;
+    }
   }
 
   Future<void> _showShareSuccessDialog(CommunityPost post) async {
@@ -1204,7 +1213,7 @@ class _QuestionsCard extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════
 // 썸네일 스트립
 // ══════════════════════════════════════════════════════════════
-class _ThumbnailStrip extends StatelessWidget {
+class _ThumbnailStrip extends StatefulWidget {
   final List<String> imageUrls;
   final bool isGuest;
   final String? categoryName;
@@ -1215,18 +1224,32 @@ class _ThumbnailStrip extends StatelessWidget {
     this.categoryName,
   });
 
-  void _openFullscreen(BuildContext context, int initialIndex) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => _FullscreenImageViewer(
-          imageUrls: imageUrls,
-          initialIndex: initialIndex,
-          isGuest: isGuest,
+  @override
+  State<_ThumbnailStrip> createState() => _ThumbnailStripState();
+}
+
+class _ThumbnailStripState extends State<_ThumbnailStrip> {
+  // 다중 탭으로 동일 풀스크린 뷰어가 stack 되는 것을 막는다.
+  bool _navigating = false;
+
+  Future<void> _openFullscreen(BuildContext context, int initialIndex) async {
+    if (_navigating) return;
+    _navigating = true;
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => _FullscreenImageViewer(
+            imageUrls: widget.imageUrls,
+            initialIndex: initialIndex,
+            isGuest: widget.isGuest,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      if (mounted) _navigating = false;
+    }
   }
 
   @override
@@ -1254,12 +1277,12 @@ class _ThumbnailStrip extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w700)),
               const SizedBox(width: 6),
-              Text('${imageUrls.length}장',
+              Text('${widget.imageUrls.length}장',
                   style: const TextStyle(
                       color: AppTheme.textHint, fontSize: 11)),
               const Spacer(),
-              if (categoryName != null && categoryName!.isNotEmpty)
-                _CategoryChip(categoryName: categoryName!),
+              if (widget.categoryName != null && widget.categoryName!.isNotEmpty)
+                _CategoryChip(categoryName: widget.categoryName!),
             ],
           ),
           const SizedBox(height: 10),
@@ -1268,7 +1291,7 @@ class _ThumbnailStrip extends StatelessWidget {
             height: 72,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: imageUrls.length,
+              itemCount: widget.imageUrls.length,
               itemBuilder: (context, index) {
                 final isFirst = index == 0;
                 return GestureDetector(
@@ -1291,9 +1314,9 @@ class _ThumbnailStrip extends StatelessWidget {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(9),
                           child: _AuthImage(
-                            url: imageUrls[index],
+                            url: widget.imageUrls[index],
                             fit: BoxFit.cover,
-                            isGuest: isGuest,
+                            isGuest: widget.isGuest,
                           ),
                         ),
                         // 번호 뱃지

@@ -11,8 +11,15 @@ import 'package:miritalk_app/features/notification_guard/screens/notification_gu
 class SettingsBottomSheet extends StatelessWidget {
   const SettingsBottomSheet({super.key});
 
+  // 시트가 이미 떠 있는 동안 show() 가 다시 호출돼도 한 장만 띄운다.
+  // 호출자(프로필 아바타 탭 등)의 다중 진입을 시트 레이어에서 한 번 더 방어.
+  static Future<void>? _inFlight;
+
   static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
+    final existing = _inFlight;
+    if (existing != null) return existing;
+
+    final future = showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppTheme.surface,
       shape: const RoundedRectangleBorder(
@@ -21,6 +28,10 @@ class SettingsBottomSheet extends StatelessWidget {
       isScrollControlled: true,
       builder: (_) => const SettingsBottomSheet(),
     );
+    _inFlight = future;
+    return future.whenComplete(() {
+      _inFlight = null;
+    });
   }
 
   Future<void> _onWithdraw(BuildContext context) async {
@@ -138,7 +149,8 @@ class SettingsBottomSheet extends StatelessWidget {
                     radius: 24,
                     backgroundColor: AppTheme.surface,
                     backgroundImage: auth.profileImageUrl != null
-                        ? NetworkImage(auth.profileImageUrl!)
+                        ? ResizeImage(NetworkImage(auth.profileImageUrl!),
+                            width: 96)
                         : null,
                     child: auth.profileImageUrl == null
                         ? const Icon(Icons.person,
@@ -170,9 +182,9 @@ class SettingsBottomSheet extends StatelessWidget {
                 icon: Icons.shield_outlined,
                 iconColor: AppTheme.primary,
                 label: '사기 알림 사전 차단',
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  Navigator.of(context).push(MaterialPageRoute(
+                  await Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const NotificationGuardSettingsScreen(),
                   ));
                 },
@@ -182,8 +194,10 @@ class SettingsBottomSheet extends StatelessWidget {
               iconColor: AppTheme.textSecondary,
               label: '로그아웃',
               onTap: () async {
+                // 시트 pop 으로 context 가 dispose 되기 전에 provider 를 미리 캡처.
+                final auth = context.read<AuthProvider>();
                 Navigator.pop(context);
-                await context.read<AuthProvider>().logout();
+                await auth.logout();
               },
             ),
             const SizedBox(height: 32),
@@ -215,11 +229,13 @@ class SettingsBottomSheet extends StatelessWidget {
   }
 }
 
-class _SettingsTile extends StatelessWidget {
+class _SettingsTile extends StatefulWidget {
   final IconData icon;
   final Color iconColor;
   final String label;
-  final VoidCallback onTap;
+  // 시그니처를 `Future<void> Function()` 으로 받아 await + try/finally 로
+  // 빠른 다중 탭을 안전하게 가드한다. 호출자는 sync 함수도 그대로 넘길 수 있다(async 래핑 시).
+  final Future<void> Function() onTap;
 
   const _SettingsTile({
     required this.icon,
@@ -229,15 +245,33 @@ class _SettingsTile extends StatelessWidget {
   });
 
   @override
+  State<_SettingsTile> createState() => _SettingsTileState();
+}
+
+class _SettingsTileState extends State<_SettingsTile> {
+  // 빠른 다중 탭 시 onTap 안의 Navigator.pop + push 가 N번 실행되어
+  // 같은 화면이 stack 되는 현상을 막는다. 회원 탈퇴 다이얼로그 취소처럼
+  // 시트가 닫히지 않는 경로가 있어 try/finally + setState 로 안전하게 복구한다.
+  bool _busy = false;
+
+  @override
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Icon(icon, color: iconColor, size: 20),
-      title: Text(label,
+      leading: Icon(widget.icon, color: widget.iconColor, size: 20),
+      title: Text(widget.label,
           style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14)),
       trailing:
       const Icon(Icons.chevron_right, color: AppTheme.textHint, size: 18),
-      onTap: onTap,
+      onTap: () async {
+        if (_busy) return;
+        setState(() => _busy = true);
+        try {
+          await widget.onTap();
+        } finally {
+          if (mounted) setState(() => _busy = false);
+        }
+      },
     );
   }
 }

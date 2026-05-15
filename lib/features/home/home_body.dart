@@ -905,18 +905,9 @@ class _StepItem extends StatelessWidget {
           if (videoPath != null)
             _StepVideo(videoPath: videoPath!, title: title)
           else
-            GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  fullscreenDialog: true,
-                  builder: (_) => _AssetFullscreenViewer(
-                    images: [{'path': imagePath!, 'label': title}],
-                    initialIndex: 0,
-                    showWatermark: false,
-                  ),
-                ),
-              ),
+            _StepImageTap(
+              imagePath: imagePath!,
+              title: title,
               child: Stack(
                 children: [
                   ClipRRect(
@@ -1518,9 +1509,60 @@ class _TagBadge extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════
+// _StepItem 의 image 케이스 GestureDetector 를 감싸는 가드.
+// 다중 탭 시 동일 풀스크린 뷰어가 stack 되는 것을 막는다.
+// ══════════════════════════════════════════════════════════════
+class _StepImageTap extends StatefulWidget {
+  final String imagePath;
+  final String title;
+  final Widget child;
+
+  const _StepImageTap({
+    required this.imagePath,
+    required this.title,
+    required this.child,
+  });
+
+  @override
+  State<_StepImageTap> createState() => _StepImageTapState();
+}
+
+class _StepImageTapState extends State<_StepImageTap> {
+  bool _navigating = false;
+
+  Future<void> _open() async {
+    if (_navigating) return;
+    _navigating = true;
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => _AssetFullscreenViewer(
+            images: [{'path': widget.imagePath, 'label': widget.title}],
+            initialIndex: 0,
+            showWatermark: false,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) _navigating = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _open,
+      child: widget.child,
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 // Evidence Photo Thumbnail
 // ══════════════════════════════════════════════════════════════
-class _EvidencePhoto extends StatelessWidget {
+class _EvidencePhoto extends StatefulWidget {
   final String imagePath;
   final String label;
   final List<Map<String, String>> allImages;
@@ -1536,24 +1578,42 @@ class _EvidencePhoto extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
+  State<_EvidencePhoto> createState() => _EvidencePhotoState();
+}
+
+class _EvidencePhotoState extends State<_EvidencePhoto> {
+  // 빠른 다중 탭으로 동일 풀스크린 뷰어가 stack 되지 않도록 가드.
+  bool _navigating = false;
+
+  Future<void> _open() async {
+    if (_navigating) return;
+    _navigating = true;
+    try {
+      await Navigator.push(
         context,
         MaterialPageRoute(
           fullscreenDialog: true,
           builder: (_) => _AssetFullscreenViewer(
-            images: allImages,
-            initialIndex: initialIndex,
+            images: widget.allImages,
+            initialIndex: widget.initialIndex,
           ),
         ),
-      ),
+      );
+    } finally {
+      if (mounted) _navigating = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _open,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(imagePath,
+            Image.asset(widget.imagePath,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Container(
                     color: AppTheme.surfaceDeep,
@@ -1572,12 +1632,12 @@ class _EvidencePhoto extends StatelessWidget {
                   borderRadius:
                   BorderRadius.vertical(bottom: Radius.circular(10)),
                 ),
-                child: Text(label,
+                child: Text(widget.label,
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.white, fontSize: 9)),
               ),
             ),
-            if (showZoom)
+            if (widget.showZoom)
               Positioned(
                 top: 6, right: 6,
                 child: Container(
