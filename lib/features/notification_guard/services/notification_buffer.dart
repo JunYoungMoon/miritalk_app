@@ -4,9 +4,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:miritalk_app/features/notification_guard/notification_guard_constants.dart';
 
-/// 같은 대화방/발신자에서 조각으로 쪼개져 들어오는 알림을 모아 평가.
+/// 같은 앱에서 조각으로 쪼개져 들어오는 알림을 모아 평가.
 ///
-/// 키 = `packageName + sender` (sender 는 알림의 title — 카톡은 대화방 이름).
+/// 키 = `packageName` 만 사용한다 (sender 미포함).
+/// 이유: 카톡/SNS 는 한 대화의 연속 메시지를 매번 다른/빈 title(=sender)로
+/// 내보내는 경우가 있어, sender 를 키에 넣으면 토막마다 버퍼가 쪼개져
+/// 각 조각이 임계값 미달 → 사기 메시지를 통째로 놓친다(실측 확인된 미탐).
+/// 발신자 무관하게 같은 앱 알림을 한 버퍼에 누적해 미탐을 막는다.
+/// 트레이드오프: 같은 앱의 서로 다른 대화가 한 버퍼에 섞일 수 있으나,
+/// maxWindow/quietGap 시간 윈도우로 제한되고 사기 미탐 회피가 우선이다.
 ///
 /// 트리거:
 ///   - 동일 (text, lastSeen) 가 dedupWindow 내 들어오면 무시 (안드로이드 갱신)
@@ -60,7 +66,7 @@ class NotificationBuffer {
   }) {
     if (text.trim().isEmpty) return;
 
-    final key = _makeKey(packageName, sender);
+    final key = _makeKey(packageName);
     final now = DateTime.now();
     final entry = _byKey[key];
 
@@ -156,7 +162,8 @@ class NotificationBuffer {
     _byKey.clear();
   }
 
-  static String _makeKey(String pkg, String sender) => '$pkg::$sender';
+  // 발신자(sender) 무관 — 같은 앱의 토막 알림이 한 버퍼로 모이게 한다.
+  static String _makeKey(String pkg) => pkg;
 }
 
 typedef ScoreCallback = int Function(String text);
@@ -172,7 +179,7 @@ class _Entry {
   Timer? quietTimer;
   DateTime? cooldownUntil;
 
-  String get key => '$packageName::$sender';
+  String get key => packageName;
 
   _Entry({
     required this.packageName,
