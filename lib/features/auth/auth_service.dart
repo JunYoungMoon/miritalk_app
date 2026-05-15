@@ -1,5 +1,6 @@
 // lib/features/auth/auth_service.dart — 전체
 
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -7,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:miritalk_app/core/config/app_config.dart';
+import 'package:miritalk_app/core/network/api_client.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:io';
 
@@ -88,6 +90,7 @@ class AuthService {
         final data = jsonDecode(response.body);
         await _storage.write(key: AppConfig.tokenKey, value: data['accessToken']);
         await _storage.write(key: 'refreshToken', value: data['refreshToken']);
+        ApiClient().invalidateTokenCache(); // 재발급 토큰 반영
         return {
           'accessToken': data['accessToken'],
           'refreshToken': data['refreshToken'],
@@ -129,6 +132,7 @@ class AuthService {
     try { await _googleSignIn.signOut(); } catch (_) {}
     try { await UserApi.instance.logout(); } catch (_) {}
     await _storage.deleteAll();
+    ApiClient().invalidateTokenCache(); // 로그아웃 — 캐시 토큰 제거
   }
 
   Future<String?> getToken() => _storage.read(key: AppConfig.tokenKey);
@@ -140,9 +144,12 @@ class AuthService {
     await _storage.write(key: 'profileImageUrl', value: data['profileImageUrl']);
     await _storage.write(key: 'userName', value: data['userName']);
     await _storage.write(key: 'userEmail', value: data['userEmail']);
+    ApiClient().invalidateTokenCache(); // 새 토큰 반영
 
     // ── 로그인 직후 FCM 토큰 서버 등록 ──
-    await _registerFcmToken(data['accessToken']);
+    // 백그라운드로 분리 — FCM 등록 HTTP 가 느려도 로그인 완료/홈 진입을 막지 않는다.
+    // 실패해도 서버가 푸시를 못 보낼 뿐 분석 기능은 정상. (_registerFcmToken 내부 try-catch 보유)
+    unawaited(_registerFcmToken(data['accessToken']));
 
     return {
       'accessToken': data['accessToken'],

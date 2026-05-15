@@ -19,8 +19,27 @@ class ApiClient {
   // 첫 reissue 의 결과를 모든 호출자가 공유하게 만든다. 완료 후 null 로 되돌려놓음.
   Future<bool>? _reissueInFlight;
 
+  // access token 메모리 캐시 — 매 요청마다 secure_storage I/O 를 타지 않도록.
+  // 토큰이 바뀌는 모든 지점(로그인/재발급/로그아웃)에서 invalidateTokenCache() 를 호출해
+  // stale 토큰이 남지 않게 한다. (AuthService 가 write/delete 직후 호출)
+  String? _tokenCache;
+  bool _tokenCacheLoaded = false;
+
+  Future<String?> _readToken() async {
+    if (_tokenCacheLoaded) return _tokenCache;
+    _tokenCache = await _storage.read(key: AppConfig.tokenKey);
+    _tokenCacheLoaded = true;
+    return _tokenCache;
+  }
+
+  /// 토큰이 외부(AuthService)에서 변경된 직후 호출 — 다음 요청이 fresh read 하도록.
+  void invalidateTokenCache() {
+    _tokenCacheLoaded = false;
+    _tokenCache = null;
+  }
+
   Future<Map<String, String>> _headers({bool includeDeviceId = false}) async {
-    final token = await _storage.read(key: AppConfig.tokenKey);
+    final token = await _readToken();
     final headers = <String, String>{
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -65,7 +84,7 @@ class ApiClient {
   ///
   /// 401 외의 네트워크 오류는 던지지 않는다 — 실제 액션 단계에서 자연스럽게 실패하도록 둔다.
   Future<void> ensureSession() async {
-    final token = await _storage.read(key: AppConfig.tokenKey);
+    final token = await _readToken();
     if (token == null) return; // 게스트
     try {
       await get('/api/me/session');
@@ -142,7 +161,7 @@ class ApiClient {
         Map<String, String>? fields,
         bool includeDeviceId = false,
       }) async {
-    final token = await _storage.read(key: AppConfig.tokenKey);
+    final token = await _readToken();
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('${AppConfig.baseUrl}$path'),
@@ -171,7 +190,7 @@ class ApiClient {
         bool includeDeviceId = false,
         String? fcmToken,
       }) async {
-    final token = await _storage.read(key: AppConfig.tokenKey);
+    final token = await _readToken();
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('${AppConfig.baseUrl}$path'),
